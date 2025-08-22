@@ -1,0 +1,328 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// Existing Survey model
+model Survey {
+  id        String   @id @default(cuid())
+  rating    Int      // 1-5 stars
+  feedback  String?  // optional text feedback
+  createdAt DateTime @default(now())
+  
+  @@map("surveys")
+}
+
+// AI Pathways Models
+
+// User profiling data
+model UserProfile {
+  id              String   @id @default(cuid())
+  sessionId       String   @unique @map("session_id")
+  educationLevel  String   @map("education_level")
+  gradeLevel      Int?     @map("grade_level")
+  interests       String[] 
+  careerGoals     String?  @map("career_goals")
+  timeline        String
+  collegePlans    String   @map("college_plans")
+  location        String   @default("Hawaii")
+  createdAt       DateTime @default(now()) @map("created_at")
+  updatedAt       DateTime @updatedAt @map("updated_at")
+
+  // Relations
+  conversations   Conversation[]
+  interactions    UserInteraction[]
+
+  @@map("user_profiles")
+}
+
+// Career information
+model Career {
+  id                   String   @id @default(cuid())
+  careerCode           String   @unique @map("career_code")
+  title                String
+  description          String
+  salaryMin            Int?     @map("salary_min")
+  salaryMax            Int?     @map("salary_max")
+  salaryMedian         Int?     @map("salary_median")
+  jobOutlook           String?  @map("job_outlook")
+  growthRate           Float?   @map("growth_rate")
+  requiredEducation    String   @map("required_education")
+  experienceLevel      String?  @map("experience_level")
+  skills               String[]
+  industries           String[]
+  workEnvironment      String?  @map("work_environment")
+  typicalTasks         String[] @map("typical_tasks")
+  hawaiiSpecificNotes  String?  @map("hawaii_specific_notes")
+  dataSource           String   @default("hawaii_career_explorer") @map("data_source")
+  createdAt            DateTime @default(now()) @map("created_at")
+  updatedAt            DateTime @updatedAt @map("updated_at")
+
+  // Relations
+  educationPathways    CareerEducationPathway[]
+  careerSkills         CareerSkill[]
+  jobMarket            JobMarket[]
+  companyCareers       CompanyCareer[]
+
+  @@map("careers")
+}
+
+// Education pathways
+model EducationProgram {
+  id                    String   @id @default(cuid())
+  institution           String
+  campus                String?
+  programName           String   @map("program_name")
+  degreeType            String   @map("degree_type")
+  durationYears         Int?     @map("duration_years")
+  durationMonths        Int?     @map("duration_months")
+  cipCode               String?  @map("cip_code")
+  admissionRequirements String[] @map("admission_requirements")
+  prerequisiteCourses   String[] @map("prerequisite_courses")
+  coreCourses           String[] @map("core_courses")
+  tuitionResident       Int?     @map("tuition_resident")
+  tuitionNonresident    Int?     @map("tuition_nonresident")
+  financialAidAvailable Boolean  @default(true) @map("financial_aid_available")
+  accreditation         String[]
+  graduationRate        Float?   @map("graduation_rate")
+  employmentRate        Float?   @map("employment_rate")
+  medianStartingSalary  Int?     @map("median_starting_salary")
+  programWebsite        String?  @map("program_website")
+  contactEmail          String?  @map("contact_email")
+  contactPhone          String?  @map("contact_phone")
+  applicationDeadline   DateTime? @map("application_deadline")
+  programStatus         String   @default("active") @map("program_status")
+  dataSource            String   @default("uh_system") @map("data_source")
+  createdAt             DateTime @default(now()) @map("created_at")
+  updatedAt             DateTime @updatedAt @map("updated_at")
+
+  // Relations
+  careerPathways        CareerEducationPathway[]
+
+  @@map("education_programs")
+}
+
+// Bridge table for careers to education programs
+model CareerEducationPathway {
+  id               String           @id @default(cuid())
+  careerId         String           @map("career_id")
+  programId        String           @map("program_id")
+  pathwayType      String?          @map("pathway_type") // 'required', 'recommended', 'alternative'
+  preparationLevel String?          @map("preparation_level") // 'entry', 'advanced', 'specialist'
+  notes            String?
+  createdAt        DateTime         @default(now()) @map("created_at")
+
+  // Relations
+  career           Career           @relation(fields: [careerId], references: [id], onDelete: Cascade)
+  program          EducationProgram @relation(fields: [programId], references: [id], onDelete: Cascade)
+
+  @@map("career_education_pathways")
+}
+
+// Skills and certifications
+model SkillCertification {
+  id                     String   @id @default(cuid())
+  name                   String
+  type                   String   // 'skill', 'certification', 'license'
+  category               String?  // 'technical', 'soft_skill', 'industry_specific'
+  demandLevel            String?  @map("demand_level") // 'high', 'medium', 'low'
+  growthTrend            String?  @map("growth_trend") // 'increasing', 'stable', 'decreasing'
+  avgSalaryBoost         Int?     @map("avg_salary_boost")
+  timeToAcquireMonths    Int?     @map("time_to_acquire_months")
+  costEstimate           Int?     @map("cost_estimate")
+  issuingOrganization    String?  @map("issuing_organization")
+  renewalRequired        Boolean  @default(false) @map("renewal_required")
+  renewalPeriodYears     Int?     @map("renewal_period_years")
+  hawaiiSpecific         Boolean  @default(false) @map("hawaii_specific")
+  onlineAvailable        Boolean  @default(true) @map("online_available")
+  description            String?
+  prerequisites          String[]
+  dataSource             String   @default("lightcast_lmi") @map("data_source")
+  createdAt              DateTime @default(now()) @map("created_at")
+  updatedAt              DateTime @updatedAt @map("updated_at")
+
+  // Relations
+  careerSkills           CareerSkill[]
+
+  @@map("skills_certifications")
+}
+
+// Bridge table for careers to skills
+model CareerSkill {
+  id                String             @id @default(cuid())
+  careerId          String             @map("career_id")
+  skillCertId       String             @map("skill_cert_id")
+  importanceLevel   String?            @map("importance_level") // 'essential', 'important', 'nice_to_have'
+  proficiencyLevel  String?            @map("proficiency_level") // 'beginner', 'intermediate', 'advanced', 'expert'
+  createdAt         DateTime           @default(now()) @map("created_at")
+
+  // Relations
+  career            Career             @relation(fields: [careerId], references: [id], onDelete: Cascade)
+  skillCert         SkillCertification @relation(fields: [skillCertId], references: [id], onDelete: Cascade)
+
+  @@map("career_skills")
+}
+
+// Job market data
+model JobMarket {
+  id                      String   @id @default(cuid())
+  careerId                String   @map("career_id")
+  occupationCode          String?  @map("occupation_code")
+  location                String   @default("Hawaii")
+  region                  String?  // 'Oahu', 'Hawaii Island', 'Maui', etc.
+  jobPostingsCount        Int      @default(0) @map("job_postings_count")
+  jobPostingsGrowth       Float?   @map("job_postings_growth")
+  uniqueCompaniesHiring   Int?     @map("unique_companies_hiring")
+  avgTimeToFillDays       Int?     @map("avg_time_to_fill_days")
+  competitionLevel        String?  @map("competition_level") // 'low', 'medium', 'high'
+  seasonalDemand          Boolean  @default(false) @map("seasonal_demand")
+  peakHiringMonths        String[] @map("peak_hiring_months")
+  remoteWorkPercentage    Float?   @map("remote_work_percentage")
+  hybridWorkPercentage    Float?   @map("hybrid_work_percentage")
+  dataSource              String   @default("ui_data") @map("data_source")
+  dataDate                DateTime @default(now()) @map("data_date")
+  createdAt               DateTime @default(now()) @map("created_at")
+  updatedAt               DateTime @updatedAt @map("updated_at")
+
+  // Relations
+  career                  Career   @relation(fields: [careerId], references: [id], onDelete: Cascade)
+
+  @@map("job_market")
+}
+
+// Companies hiring in Hawaii
+model Company {
+  id                   String   @id @default(cuid())
+  name                 String
+  industry             String?
+  sizeCategory         String?  @map("size_category") // 'startup', 'small', 'medium', 'large', 'enterprise'
+  employeeCountRange   String?  @map("employee_count_range")
+  headquartersLocation String?  @map("headquarters_location")
+  hawaiiLocations      String[] @map("hawaii_locations")
+  companyType          String?  @map("company_type") // 'private', 'public', 'government', 'nonprofit'
+  website              String?
+  description          String?
+  benefits             String[]
+  cultureKeywords      String[] @map("culture_keywords")
+  diversityPrograms    Boolean  @default(false) @map("diversity_programs")
+  internshipPrograms   Boolean  @default(false) @map("internship_programs")
+  entryLevelFriendly   Boolean  @default(false) @map("entry_level_friendly")
+  remoteWorkPolicy     String?  @map("remote_work_policy") // 'no_remote', 'hybrid', 'full_remote', 'flexible'
+  dataSource           String   @default("lightcast_lmi") @map("data_source")
+  createdAt            DateTime @default(now()) @map("created_at")
+  updatedAt            DateTime @updatedAt @map("updated_at")
+
+  // Relations
+  companyCareers       CompanyCareer[]
+
+  @@map("companies")
+}
+
+// Bridge table for companies to careers
+model CompanyCareer {
+  id                    String   @id @default(cuid())
+  companyId             String   @map("company_id")
+  careerId              String   @map("career_id")
+  currentOpenings       Int      @default(0) @map("current_openings")
+  avgSalaryOffered      Int?     @map("avg_salary_offered")
+  hiringFrequency       String?  @map("hiring_frequency") // 'high', 'medium', 'low', 'seasonal'
+  entryLevelAvailable   Boolean  @default(false) @map("entry_level_available")
+  internshipsAvailable  Boolean  @default(false) @map("internships_available")
+  lastUpdated           DateTime @default(now()) @map("last_updated")
+  createdAt             DateTime @default(now()) @map("created_at")
+
+  // Relations
+  company               Company  @relation(fields: [companyId], references: [id], onDelete: Cascade)
+  career                Career   @relation(fields: [careerId], references: [id], onDelete: Cascade)
+
+  @@map("company_careers")
+}
+
+// High school course recommendations
+model DoeCourse {
+  id                String   @id @default(cuid())
+  courseCode        String?  @map("course_code")
+  courseName        String   @map("course_name")
+  subjectArea       String?  @map("subject_area")
+  gradeLevels       Int[]    @map("grade_levels")
+  courseType        String?  @map("course_type") // 'required', 'elective', 'advanced_placement', 'dual_credit'
+  prerequisites     String[]
+  description       String?
+  skillsDeveloped   String[] @map("skills_developed")
+  collegeCreditAvailable Boolean @default(false) @map("college_credit_available")
+  careerRelevance   String[] @map("career_relevance")
+  dataSource        String   @default("doe_data") @map("data_source")
+  createdAt         DateTime @default(now()) @map("created_at")
+  updatedAt         DateTime @updatedAt @map("updated_at")
+
+  @@map("doe_courses")
+}
+
+// Non-credit courses and professional development
+model NonCreditCourse {
+  id                 String    @id @default(cuid())
+  provider           String
+  courseName         String    @map("course_name")
+  courseType         String?   @map("course_type") // 'certificate', 'workshop', 'bootcamp', 'continuing_ed'
+  durationHours      Int?      @map("duration_hours")
+  durationWeeks      Int?      @map("duration_weeks")
+  cost               Int?
+  format             String?   // 'online', 'in_person', 'hybrid'
+  scheduleType       String?   @map("schedule_type") // 'full_time', 'part_time', 'evening', 'weekend'
+  prerequisites      String[]
+  learningOutcomes   String[]  @map("learning_outcomes")
+  industryCertifications String[] @map("industry_certifications")
+  jobPlacementRate   Float?    @map("job_placement_rate")
+  contactInfo        Json?     @map("contact_info")
+  registrationUrl    String?   @map("registration_url")
+  nextStartDate      DateTime? @map("next_start_date")
+  dataSource         String    @default("uhcc_non_credit") @map("data_source")
+  createdAt          DateTime  @default(now()) @map("created_at")
+  updatedAt          DateTime  @updatedAt @map("updated_at")
+
+  @@map("non_credit_courses")
+}
+
+// User interaction tracking
+model UserInteraction {
+  id                 String      @id @default(cuid())
+  userProfileId      String      @map("user_profile_id")
+  sessionId          String?     @map("session_id")
+  interactionType    String      @map("interaction_type") // 'query', 'recommendation_view', 'pathway_explore', 'market_data_view'
+  queryText          String?     @map("query_text")
+  recommendedCareers String[]    @map("recommended_careers")
+  viewedPrograms     String[]    @map("viewed_programs")
+  clickedCompanies   String[]    @map("clicked_companies")
+  userFeedback       Int?        @map("user_feedback") // 1-5 rating
+  feedbackText       String?     @map("feedback_text")
+  responseTimeSeconds Int?       @map("response_time_seconds")
+  createdAt          DateTime    @default(now()) @map("created_at")
+
+  // Relations
+  userProfile        UserProfile @relation(fields: [userProfileId], references: [id], onDelete: Cascade)
+
+  @@map("user_interactions")
+}
+
+// Conversation history
+model Conversation {
+  id                  String      @id @default(cuid())
+  userProfileId       String      @map("user_profile_id")
+  sessionId           String      @map("session_id")
+  messages            Json        // Full conversation history
+  currentContext      Json?       @map("current_context")
+  lastActivity        DateTime    @default(now()) @map("last_activity")
+  conversationStatus  String      @default("active") @map("conversation_status") // 'active', 'completed', 'abandoned'
+  createdAt           DateTime    @default(now()) @map("created_at")
+  updatedAt           DateTime    @updatedAt @map("updated_at")
+
+  // Relations
+  userProfile         UserProfile @relation(fields: [userProfileId], references: [id], onDelete: Cascade)
+
+  @@unique([sessionId])
+  @@map("conversations")
+}
