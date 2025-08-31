@@ -9,7 +9,7 @@ import {
   MCPQueryPlan,
   CurrentData,
   ExtractedProfile,
-} from "../../components/AIPathwaysChat/_components/types";
+} from "../../components/AIPathwaysChat//types";
 
 const groq = new Groq({
   apiKey: process.env.GROQ_API_KEY,

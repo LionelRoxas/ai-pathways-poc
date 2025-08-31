@@ -2,7 +2,7 @@
 
 import React, { useState, useEffect } from "react";
 import { Activity, ArrowRight, Database } from "lucide-react";
-import UnifiedSleekChat from "./components/AIPathwaysChat/_components/UnifiedSleekChat";
+import UnifiedSleekChat from "./components/AIPathwaysChat/UnifiedSleekChat";
 
 export default function MainPage() {
   const [currentView, setCurrentView] = useState<"home" | "chat">("home");
@@ -46,23 +46,6 @@ export default function MainPage() {
           isVisible ? "opacity-100 translate-y-0" : "opacity-0 translate-y-4"
         }`}
       >
-        {/* Animated dots */}
-        <div className="flex justify-center mb-8">
-          <div className="flex gap-2">
-            <div
-              className="w-2 h-2 bg-black rounded-full animate-pulse"
-              style={{ animationDelay: "0ms" }}
-            />
-            <div
-              className="w-2 h-2 bg-black rounded-full animate-pulse"
-              style={{ animationDelay: "150ms" }}
-            />
-            <div
-              className="w-2 h-2 bg-black rounded-full animate-pulse"
-              style={{ animationDelay: "300ms" }}
-            />
-          </div>
-        </div>
 
         {/* Main heading */}
         <h1 className="text-5xl md:text-7xl font-bold text-gray-900 mb-6 leading-tight">

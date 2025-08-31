@@ -14,8 +14,8 @@ const geistMono = localFont({
 });
 
 export const metadata: Metadata = {
-  title: "UHCC Chat Support",
-  description: "Chat support for University of Hawaii Community Colleges",
+  title: "Kamaʻāina Pathways",
+  description: "A platform to explore educational and career pathways in Hawaiʻi.",
   icons: {
     icon: '/images/uhcc-logo-3.png',
     shortcut: '/images/uhcc-logo-3.png',
