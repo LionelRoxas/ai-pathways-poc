@@ -808,7 +808,7 @@ export const mcpTools = {
         }
 
         const uhPrograms = await prisma.uHProgram.findMany({
-          where: { OR: uhOrConditions },
+          where: { OR: uhOrConditions as any }, // Add 'as any' temporarily
           take: limit
             ? Math.min(limit, DEFAULT_LIMITS.ABSOLUTE_MAX)
             : DEFAULT_LIMITS.ABSOLUTE_MAX,
@@ -841,7 +841,7 @@ export const mcpTools = {
         }
 
         const doePrograms = await prisma.dOEProgram.findMany({
-          where: { OR: doeOrConditions },
+          where: { OR: doeOrConditions as any },
           take: limit,
         });
 
