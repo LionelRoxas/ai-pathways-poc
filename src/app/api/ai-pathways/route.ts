@@ -1,416 +1,599 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 // app/api/ai-pathways/route.ts
-import { NextResponse } from "next/server";
-import { handleMCPRequest } from "../../lib/mcp/pathways-server";
+import { NextRequest, NextResponse } from "next/server";
+import { handleMCPRequest } from "../../lib/mcp/pathways-mcp-server";
+import Groq from "groq-sdk";
+import { analyzeAndImproveQuery } from "../../utils/groqClient";
+import {
+  AIPathwaysResponse,
+  MCPQueryPlan,
+  CurrentData,
+  ExtractedProfile,
+} from "../../components/AIPathwaysChat/_components/types";
 
-// Types
-interface UserProfile {
-  education_level: string;
-  grade_level?: number;
-  interests: string[];
-  career_goals?: string;
-  timeline: string;
-  college_plans: string;
-}
+const groq = new Groq({
+  apiKey: process.env.GROQ_API_KEY,
+});
 
-interface QueryContext {
-  intent: "career" | "education" | "market" | "skills" | "sources" | "general";
-  specific: boolean;
-}
+// Plan MCP queries based on analyzed query and profile
+async function planMCPQueries(
+  userProfile: string,
+  message: string,
+  extractedProfile?: ExtractedProfile
+): Promise<MCPQueryPlan> {
+  // Step 1: Analyze and improve the user's query
+  const queryAnalysis = await analyzeAndImproveQuery(
+    message,
+    userProfile,
+    extractedProfile
+  );
 
-// Analyze user's message to understand intent
-function analyzeQuery(message: string): QueryContext {
-  const msg = message.toLowerCase();
+  console.log("Query analysis result:", queryAnalysis);
 
-  let intent: QueryContext["intent"] = "general";
+  const queries: MCPQueryPlan["queries"] = [];
 
-  if (msg.includes("career") || msg.includes("job") || msg.includes("work")) {
-    intent = "career";
-  } else if (
-    msg.includes("education") ||
-    msg.includes("college") ||
-    msg.includes("program") ||
-    msg.includes("degree")
+  // Step 2: Determine if we should use profile or query-based search
+  const useProfile = !queryAnalysis.ignoreProfile;
+
+  // Check if user is asking about high school courses specifically
+  const messageLower = message.toLowerCase();
+  const isAskingAboutHSCourses =
+    messageLower.includes("class") ||
+    messageLower.includes("course") ||
+    messageLower.includes("sophomore") ||
+    messageLower.includes("junior") ||
+    messageLower.includes("senior") ||
+    messageLower.includes("freshman") ||
+    messageLower.includes("high school") ||
+    messageLower.includes("next year") ||
+    messageLower.includes("grade");
+
+  // Context from profile (only used if not ignoring profile)
+  const context = useProfile
+    ? {
+        educationLevel: extractedProfile?.educationLevel || undefined,
+        gradeLevel:
+          extractedProfile?.gradeLevel ||
+          (extractedProfile?.educationLevel === "high_school_student"
+            ? 9
+            : undefined), // Default grade for HS students
+        interests: extractedProfile?.interests || [],
+        careerGoals: extractedProfile?.careerGoals || [],
+        location: extractedProfile?.location || "Hawaii",
+        timeline: extractedProfile?.timeline || undefined,
+      }
+    : {
+        location: extractedProfile?.location || "Hawaii", // Keep location for campus filtering
+      };
+
+  // Step 3: Build queries based on intent and search terms
+  // Special handling for high school students asking about courses
+  if (
+    isAskingAboutHSCourses &&
+    (context.educationLevel === "high_school" ||
+      context.educationLevel === "high_school_student" ||
+      queryAnalysis.intent === "profile_based")
   ) {
-    intent = "education";
-  } else if (
-    msg.includes("market") ||
-    msg.includes("salary") ||
-    msg.includes("hiring") ||
-    msg.includes("demand")
-  ) {
-    intent = "market";
-  } else if (
-    msg.includes("skill") ||
-    msg.includes("certification") ||
-    msg.includes("training") ||
-    msg.includes("learn")
-  ) {
-    intent = "skills";
-  } else if (
-    msg.includes("source") ||
-    msg.includes("data") ||
-    msg.includes("database")
-  ) {
-    intent = "sources";
+    // Prioritize DOE programs for course planning
+    queries.push({
+      tool: "getDOEPrograms",
+      params: {
+        interests: context.interests,
+        gradeLevel: context.gradeLevel || 9,
+        careerGoals: context.careerGoals,
+        limit: 30,
+      },
+      priority: "primary",
+    });
+
+    // Add pathways to show college connections
+    queries.push({
+      tool: "getEducationPathways",
+      params: {
+        interests: context.interests,
+        gradeLevel: context.gradeLevel || 9,
+        location: context.location,
+        limit: 30,
+      },
+      priority: "supporting",
+    });
+
+    // Add some UH programs for future planning
+    queries.push({
+      tool: "getUHPrograms",
+      params: {
+        interests: context.interests,
+        educationLevel: context.educationLevel,
+        location: context.location,
+        careerGoals: context.careerGoals,
+        limit: 20,
+      },
+      priority: "supporting",
+    });
+  } else {
+    // Original switch statement for other cases
+    switch (queryAnalysis.intent) {
+      case "search":
+        // Direct search - use the improved query and expanded terms
+        if (queryAnalysis.searchTerms.length > 0) {
+          // Search for UH programs with expanded terms
+          queries.push({
+            tool: "searchPrograms",
+            params: {
+              query: queryAnalysis.searchTerms[0], // Primary search term
+              expandedTerms: queryAnalysis.searchTerms, // All variations
+              type: "all",
+              limit: 100,
+              getAllMatches: true,
+            },
+            priority: "primary",
+          });
+
+          // Also try getUHPrograms with search terms as interests
+          queries.push({
+            tool: "getUHPrograms",
+            params: {
+              interests: queryAnalysis.searchTerms,
+              location: context.location,
+              limit: 100,
+              getAllMatches: true,
+              ignoreProfile: true, // New flag to ignore profile filtering
+            },
+            priority: "primary",
+          });
+
+          // And DOE programs if relevant
+          queries.push({
+            tool: "getDOEPrograms",
+            params: {
+              interests: queryAnalysis.searchTerms,
+              limit: 50,
+              getAllMatches: true,
+              ignoreProfile: true,
+            },
+            priority: "supporting",
+          });
+        }
+        break;
+
+      case "profile_based":
+        // Check if user is a high school student
+        const isHighSchoolStudent =
+          context.educationLevel === "high_school" ||
+          context.educationLevel === "high_school_student" ||
+          context.gradeLevel !== undefined;
+
+        if (isHighSchoolStudent) {
+          // For high school students, prioritize DOE programs
+          queries.push({
+            tool: "getDOEPrograms",
+            params: {
+              interests: context.interests,
+              gradeLevel: context.gradeLevel || 9, // Default to 9 if not specified
+              careerGoals: context.careerGoals,
+              limit: 30,
+            },
+            priority: "primary",
+          });
+
+          // Also get pathways to show college connections
+          queries.push({
+            tool: "getEducationPathways",
+            params: {
+              interests: context.interests,
+              gradeLevel: context.gradeLevel || 9,
+              location: context.location,
+              limit: 50,
+            },
+            priority: "supporting",
+          });
+
+          // And some UH programs for future planning
+          queries.push({
+            tool: "getUHPrograms",
+            params: {
+              interests: context.interests,
+              educationLevel: context.educationLevel,
+              location: context.location,
+              careerGoals: context.careerGoals,
+              limit: 20,
+            },
+            priority: "supporting",
+          });
+        } else {
+          // For non-high school students, focus on UH programs
+          queries.push({
+            tool: "getUHPrograms",
+            params: {
+              interests: context.interests,
+              educationLevel: context.educationLevel,
+              gradeLevel: context.gradeLevel,
+              location: context.location,
+              careerGoals: context.careerGoals,
+              limit: 50,
+            },
+            priority: "primary",
+          });
+        }
+        break;
+
+      case "mixed":
+        // Combine search terms with profile data
+        const combinedInterests = [
+          ...queryAnalysis.searchTerms,
+          ...(useProfile ? context.interests || [] : []),
+        ];
+
+        queries.push({
+          tool: "getUHPrograms",
+          params: {
+            interests: combinedInterests,
+            educationLevel: useProfile ? context.educationLevel : undefined,
+            location: context.location,
+            careerGoals: useProfile ? context.careerGoals : undefined,
+            limit: 75,
+            getAllMatches: true,
+          },
+          priority: "primary",
+        });
+        break;
+
+      default:
+        // Fallback to search if we have terms
+        if (queryAnalysis.searchTerms.length > 0) {
+          queries.push({
+            tool: "searchPrograms",
+            params: {
+              query: queryAnalysis.searchTerms[0],
+              expandedTerms: queryAnalysis.searchTerms,
+              type: "all",
+              limit: 50,
+            },
+            priority: "primary",
+          });
+        } else {
+          // Fall back to profile-based
+          queries.push({
+            tool: "getUHPrograms",
+            params: {
+              interests: context.interests,
+              educationLevel: context.educationLevel,
+              location: context.location,
+              careerGoals: context.careerGoals,
+              limit: 50,
+            },
+            priority: "primary",
+          });
+        }
+        break;
+    }
   }
 
-  // Check if query is specific (mentions specific careers/fields)
-  const specificTerms = [
-    "software",
-    "nurse",
-    "teacher",
-    "solar",
-    "hotel",
-    "business",
-    "data",
-    "cyber",
-  ];
-  const specific = specificTerms.some(term => msg.includes(term));
+  // Always get stats for context
+  queries.push({
+    tool: "getDatabaseStats",
+    params: {},
+    priority: "supporting",
+  });
 
-  return { intent, specific };
+  return {
+    intent: queryAnalysis.intent as any,
+    queries,
+    extractedContext: {
+      ...context,
+      searchTerms: queryAnalysis.searchTerms,
+      improvedQuery: queryAnalysis.improvedQuery,
+      ignoreProfile: queryAnalysis.ignoreProfile,
+    },
+  };
 }
 
-// Generate follow-up suggestions based on context
-function generateSuggestions(
-  userProfile: UserProfile,
-  responseType: string
+// Generate response based on MCP data
+async function generateDataDrivenResponse(
+  userProfile: string,
+  message: string,
+  mcpData: any,
+  queryPlan: MCPQueryPlan
+): Promise<string> {
+  const systemPrompt = `You are a Hawaii education counselor helping students find educational pathways.
+
+USER PROFILE: ${userProfile}
+USER MESSAGE: ${message}
+QUERY ANALYSIS: User asked for: "${queryPlan.extractedContext?.improvedQuery || message}"
+SEARCH TERMS: ${queryPlan.extractedContext?.searchTerms?.join(", ") || "none"}
+IGNORE PROFILE: ${queryPlan.extractedContext?.ignoreProfile ? "YES - User wants specific programs, not profile-based recommendations" : "NO - Use profile for recommendations"}
+DATABASE RESULTS: ${JSON.stringify(mcpData, null, 2)}
+
+CRITICAL RULES:
+1. If the user asked for SPECIFIC programs (e.g., "computer science", "nursing"), focus ONLY on those programs
+2. Do NOT recommend unrelated programs just because they match the profile
+3. If no results match the specific request, say so clearly and suggest alternatives
+4. Focus on programs with highest relevance scores
+5. Mention specific program names, campuses, and degrees
+6. For DOE programs, explain course sequences if relevant
+7. Keep response concise (1 paragraph max)
+
+Generate a helpful response that directly addresses what the user asked for.`;
+
+  try {
+    const response = await groq.chat.completions.create({
+      model: "llama-3.3-70b-versatile",
+      messages: [
+        { role: "system", content: systemPrompt },
+        {
+          role: "user",
+          content: "Generate response addressing the user's specific request",
+        },
+      ],
+      temperature: 0.3,
+    });
+
+    return (
+      response.choices[0].message.content ||
+      "I found several programs matching your request. Please check the data panel for details."
+    );
+  } catch (error) {
+    console.error("Response generation error:", error);
+    return "I've found programs matching your request. Please review the options in the data panel.";
+  }
+}
+
+// Generate contextual follow-up questions
+function generateSmartQuestions(
+  queryPlan: MCPQueryPlan,
+  mcpData: any,
+  extractedProfile?: any
 ): string[] {
-  const base = [
-    "Show me careers that match my interests",
-    "What education programs should I consider?",
-    "What's the job market like in Hawaii?",
-    "What skills are most in-demand?",
-  ];
+  const questions: string[] = [];
+  const searchTerms = queryPlan.extractedContext?.searchTerms || [];
 
-  const contextual: Record<string, string[]> = {
-    career: [
-      "What education do I need for these careers?",
-      "Which companies are hiring for these roles?",
-      "What skills should I develop?",
-      "Show me the job market data",
-    ],
-    education: [
-      "What careers can these programs lead to?",
-      "How much do these programs cost?",
-      "What are the admission requirements?",
-      "Show me alternative pathways",
-    ],
-    market: [
-      "Which careers have the most openings?",
-      "What companies are actively hiring?",
-      "Show me salary trends",
-      "What skills are in demand?",
-    ],
-    skills: [
-      "How long do these take to learn?",
-      "What certifications are available?",
-      "Show me training programs",
-      "Which careers need these skills?",
-    ],
-  };
+  // If user searched for something specific, give related follow-ups
+  if (searchTerms.length > 0 && queryPlan.extractedContext?.ignoreProfile) {
+    const term = searchTerms[0];
+    questions.push(
+      `What are the admission requirements for ${term} programs?`,
+      `Show me ${term} programs at different UH campuses`,
+      `What careers can I get with a ${term} degree?`,
+      `Are there online ${term} programs available?`
+    );
+  } else {
+    // Context-aware questions based on what we found
+    if (mcpData.uhPrograms?.length > 0) {
+      questions.push(
+        "Tell me more about admission requirements",
+        "Which campus would be most convenient for me?"
+      );
+    }
 
-  return contextual[responseType] || base;
+    if (mcpData.doePrograms?.length > 0) {
+      questions.push(
+        "What courses should I take next year?",
+        "Which program best prepares me for college?"
+      );
+    }
+
+    // Profile-based questions
+    if (!extractedProfile?.location) {
+      questions.push("Which island are you on?");
+    }
+
+    if (!extractedProfile?.interests?.length) {
+      questions.push("What subjects interest you most?");
+    }
+  }
+
+  // Default fallbacks
+  if (questions.length < 4) {
+    questions.push(
+      "Show me computer science programs",
+      "What nursing programs are available?",
+      "Find business programs at UH",
+      "Show me all programs on Oahu"
+    );
+  }
+
+  return questions.slice(0, 4);
 }
 
 // Main route handler
-export async function POST(req: Request) {
+export async function POST(req: NextRequest) {
   try {
-    const { message, userProfile } = await req.json();
+    console.log("AI Pathways POST endpoint hit");
+
+    const body = await req.json();
+    const { message, userProfile, extractedProfile } = body;
+
+    console.log("Request data:", {
+      message: message,
+      hasUserProfile: !!userProfile,
+      hasExtractedProfile: !!extractedProfile,
+      extractedProfile: extractedProfile,
+    });
 
     if (!message?.trim() || !userProfile) {
       return NextResponse.json(
-        { error: "Message and user profile are required" },
+        { error: "Message and userProfile are required" },
         { status: 400 }
       );
     }
 
-    const query = analyzeQuery(message);
+    // Step 1: Plan MCP queries with query analysis
+    console.log("Planning MCP queries with query analysis...");
+    const queryPlan = await planMCPQueries(
+      userProfile,
+      message,
+      extractedProfile
+    );
+    console.log("Query plan with analysis:", queryPlan);
 
-    // Get database statistics for context
-    const statsResponse = await handleMCPRequest({
-      tool: "getDatabaseStats",
-      params: {},
-    });
+    // Step 2: Execute MCP queries
+    const mcpData: CurrentData = {
+      uhPrograms: undefined,
+      doePrograms: undefined,
+      pathways: undefined,
+      searchResults: undefined,
+      stats: undefined,
+    };
+    const queriesExecuted: string[] = [];
+    let totalResults = 0;
 
-    // Handle different query intents using MCP tools
-    switch (query.intent) {
-      case "career": {
-        // Get careers from MCP
-        const careersResponse = await handleMCPRequest({
-          tool: "getCareers",
-          params: {
-            interests: userProfile.interests,
-            educationLevel: userProfile.education_level,
-            limit: 5,
-          },
+    console.log("Executing MCP queries...");
+    for (const query of queryPlan.queries) {
+      try {
+        console.log(`Executing ${query.tool} with params:`, query.params);
+        const result = await handleMCPRequest({
+          tool: query.tool,
+          params: query.params,
         });
 
-        if (!careersResponse.success) {
-          throw new Error(careersResponse.error);
+        console.log(`${query.tool} result:`, {
+          success: result.success,
+          dataLength: Array.isArray(result.data) ? result.data.length : 1,
+          metadata: result.metadata,
+        });
+
+        if (result.success && result.data) {
+          switch (query.tool) {
+            case "getUHPrograms":
+              mcpData.uhPrograms = result.data;
+              totalResults += result.data.length;
+              break;
+            case "getDOEPrograms":
+              mcpData.doePrograms = result.data;
+              totalResults += result.data.length;
+              break;
+            case "getEducationPathways":
+              mcpData.pathways = result.data;
+              totalResults += result.data.length;
+              break;
+            case "searchPrograms":
+              mcpData.searchResults = result.data;
+              totalResults +=
+                (result.data.uhPrograms?.length || 0) +
+                (result.data.doePrograms?.length || 0);
+              break;
+            case "getDatabaseStats":
+              mcpData.stats = result.data;
+              break;
+          }
+          queriesExecuted.push(query.tool);
         }
-
-        // Get related job market data
-        const careerIds = careersResponse.data.map((c: any) => c.id);
-        const marketResponse = await handleMCPRequest({
-          tool: "getJobMarketData",
-          params: { careerIds },
-        });
-
-        return NextResponse.json({
-          message: `Based on your interests in ${userProfile.interests.join(", ")} and current Hawaii job market, here are promising career paths:
-
-Each career shows current openings and hiring companies. These recommendations factor in Hawaii's unique economy and growth sectors.
-
-Would you like to explore education pathways for any of these careers?`,
-          careers: careersResponse.data,
-          marketInsights: marketResponse.success
-            ? marketResponse.data.stats
-            : null,
-          suggestedQuestions: generateSuggestions(userProfile, "career"),
-          responseType: "career",
-        });
-      }
-
-      case "education": {
-        // Get education programs from MCP
-        const programsResponse = await handleMCPRequest({
-          tool: "getEducationPrograms",
-          params: {
-            degreeTypes:
-              userProfile.college_plans === "no_alternatives"
-                ? ["Certificate Program", "Associate of Science"]
-                : ["Bachelor of Science", "Associate of Science"],
-            maxDuration: userProfile.timeline === "immediate" ? 2 : 4,
-            limit: 6,
-          },
-        });
-
-        if (!programsResponse.success) {
-          throw new Error(programsResponse.error);
-        }
-
-        return NextResponse.json({
-          message: `Here are education programs in Hawaii that align with your goals and timeline:
-
-${
-  userProfile.education_level === "high_school"
-    ? "As a high school student, these programs will prepare you for Hawaii's job market."
-    : "These programs offer strong career prospects in Hawaii's growing industries."
-}
-
-Would you like to see specific career outcomes or admission requirements?`,
-          programs: programsResponse.data,
-          suggestedQuestions: generateSuggestions(userProfile, "education"),
-          responseType: "education",
-        });
-      }
-
-      case "market": {
-        // Get job market data from MCP
-        const marketResponse = await handleMCPRequest({
-          tool: "getJobMarketData",
-          params: {
-            region: "Oahu", // Could be dynamic based on user location
-          },
-        });
-
-        if (!marketResponse.success) {
-          throw new Error(marketResponse.error);
-        }
-
-        // Get top hiring companies
-        const companiesResponse = await handleMCPRequest({
-          tool: "getCompanies",
-          params: {
-            entryLevelOnly: userProfile.education_level === "high_school",
-            limit: 5,
-          },
-        });
-
-        return NextResponse.json({
-          message: `Here's the current Hawaii job market overview:
-
-**Key Insights:**
-• ${marketResponse.data.stats.totalOpenings} total job openings tracked
-• ${Math.round(marketResponse.data.stats.avgGrowthRate)}% average growth rate
-• ${Math.round(marketResponse.data.stats.avgRemotePercentage)}% of jobs offer remote work
-
-The market is particularly strong in technology, healthcare, and renewable energy sectors.
-
-Would you like to explore specific careers or see which companies are hiring?`,
-          marketData: marketResponse.data,
-          topCompanies: companiesResponse.success ? companiesResponse.data : [],
-          suggestedQuestions: generateSuggestions(userProfile, "market"),
-          responseType: "market",
-        });
-      }
-
-      case "skills": {
-        // Get skills and certifications from MCP
-        const skillsResponse = await handleMCPRequest({
-          tool: "getSkills",
-          params: {
-            category: "technical", // Could be based on interests
-            onlineOnly: userProfile.timeline === "immediate",
-            limit: 6,
-          },
-        });
-
-        if (!skillsResponse.success) {
-          throw new Error(skillsResponse.error);
-        }
-
-        // Get training programs
-        const trainingResponse = await handleMCPRequest({
-          tool: "getTrainingPrograms",
-          params: {
-            format: userProfile.timeline === "immediate" ? "online" : undefined,
-            limit: 4,
-          },
-        });
-
-        return NextResponse.json({
-          message: `Here are in-demand skills and certifications for Hawaii's job market:
-
-These skills can boost your career prospects and many offer online learning options.
-${
-  trainingResponse.success && trainingResponse.data.length > 0
-    ? "\nI've also found training programs starting soon that you can enroll in."
-    : ""
-}
-
-Would you like to see which careers require these skills?`,
-          skills: skillsResponse.data,
-          trainingPrograms: trainingResponse.success
-            ? trainingResponse.data
-            : [],
-          suggestedQuestions: generateSuggestions(userProfile, "skills"),
-          responseType: "skills",
-        });
-      }
-
-      case "sources": {
-        // Show available data sources with real counts
-        const sources = statsResponse.success
-          ? [
-              {
-                name: "Hawaii Career Database",
-                count: statsResponse.data.careers,
-                description:
-                  "Comprehensive career information for Hawaii's job market",
-              },
-              {
-                name: "UH Education Programs",
-                count: statsResponse.data.educationPrograms,
-                description: "Degree and certificate programs across UH system",
-              },
-              {
-                name: "Job Market Analytics",
-                count: statsResponse.data.jobMarketData,
-                description: "Real-time hiring data and salary trends",
-              },
-              {
-                name: "Skills & Certifications",
-                count: statsResponse.data.skills,
-                description: "In-demand skills and professional certifications",
-              },
-              {
-                name: "Hawaii Companies",
-                count: statsResponse.data.companies,
-                description: "Employers actively hiring in Hawaii",
-              },
-              {
-                name: "DOE Course Catalog",
-                count: statsResponse.data.doeCourses,
-                description: "High school courses for career preparation",
-              },
-              {
-                name: "Training Programs",
-                count: statsResponse.data.trainingPrograms,
-                description: "Bootcamps and workforce development",
-              },
-            ]
-          : [];
-
-        return NextResponse.json({
-          message: `I have access to comprehensive Hawaii career databases with ${statsResponse.success ? statsResponse.data.total : "extensive"} data points:
-
-Each database is regularly updated with Hawaii-specific information. What would you like to explore?`,
-          dataSources: sources,
-          suggestedQuestions: generateSuggestions(userProfile, "sources"),
-          responseType: "sources",
-        });
-      }
-
-      default: {
-        // General welcome/help response
-        const careersResponse = await handleMCPRequest({
-          tool: "getCareers",
-          params: {
-            interests: userProfile.interests,
-            limit: 3,
-          },
-        });
-
-        return NextResponse.json({
-          message: `Aloha! I'm here to help you explore career pathways in Hawaii. Based on your interests in ${userProfile.interests.join(", ")}, I can help you discover:
-
-• **Career opportunities** matched to your interests
-• **Education programs** at UH and community colleges
-• **Job market insights** specific to Hawaii
-• **Skills and certifications** to boost your prospects
-• **Local companies** that are actively hiring
-
-What would you like to explore first?`,
-          quickRecommendations: careersResponse.success
-            ? careersResponse.data
-            : [],
-          suggestedQuestions: generateSuggestions(userProfile, "general"),
-          responseType: "welcome",
-        });
+      } catch (error) {
+        console.error(`MCP query failed for ${query.tool}:`, error);
       }
     }
-  } catch (error) {
-    console.error("Error in AI Pathways API:", error);
 
-    // Graceful error handling
-    return NextResponse.json({
-      message:
-        "I'm having trouble accessing the career database right now. Let me help you with general information instead. What specific career or education questions do you have?",
-      error:
-        error instanceof Error ? error.message : "Database connection issue",
-      suggestedQuestions: [
-        "Tell me about software development careers",
-        "What education do I need to become a nurse?",
-        "What are the growing industries in Hawaii?",
-        "How do I choose between college and workforce training?",
-      ],
-      responseType: "error",
+    console.log("MCP queries completed. Total results:", totalResults);
+
+    // Step 3: Generate response
+    console.log("Generating response...");
+    const responseMessage = await generateDataDrivenResponse(
+      userProfile,
+      message,
+      mcpData,
+      queryPlan
+    );
+
+    // Step 4: Generate follow-up questions
+    const suggestedQuestions = generateSmartQuestions(
+      queryPlan,
+      mcpData,
+      extractedProfile
+    );
+
+    // Step 5: Build structured response
+    const response: AIPathwaysResponse = {
+      message: responseMessage,
+      data: mcpData,
+      metadata: {
+        intent: queryPlan.intent as AIPathwaysResponse["metadata"]["intent"],
+        dataSource: "hawaii_education_db",
+        queriesExecuted,
+        totalResults,
+        relevanceScoring: true,
+        queryAnalysis: {
+          improvedQuery: queryPlan.extractedContext?.improvedQuery,
+          searchTerms: queryPlan.extractedContext?.searchTerms,
+          ignoreProfile: queryPlan.extractedContext?.ignoreProfile,
+        },
+      },
+      suggestedQuestions,
+      userProfile,
+    };
+
+    console.log("Sending response with:", {
+      dataKeys: Object.keys(mcpData),
+      totalResults,
+      intent: queryPlan.intent,
+      ignoreProfile: queryPlan.extractedContext?.ignoreProfile,
     });
+
+    return NextResponse.json(response);
+  } catch (error) {
+    console.error("AI Pathways API error:", error);
+
+    const errorResponse: AIPathwaysResponse = {
+      message:
+        "I'm having trouble accessing the education database. Please try again.",
+      data: {},
+      metadata: {
+        intent: "error",
+        dataSource: "hawaii_education_db",
+        queriesExecuted: [],
+        totalResults: 0,
+        relevanceScoring: false,
+      },
+      suggestedQuestions: [
+        "Show me computer science programs",
+        "Find nursing programs at UH",
+        "What business degrees are available?",
+        "Show me programs on Oahu",
+      ],
+      userProfile: "",
+    };
+
+    return NextResponse.json(errorResponse, { status: 500 });
   }
 }
 
 // Health check endpoint
 export async function GET() {
   try {
+    console.log("AI Pathways GET endpoint hit");
+
     const statsResponse = await handleMCPRequest({
       tool: "getDatabaseStats",
       params: {},
     });
 
+    console.log("Database stats:", statsResponse);
+
     return NextResponse.json({
-      status: statsResponse.success ? "healthy" : "degraded",
-      message: "AI Pathways API with MCP integration",
+      status: "healthy",
+      message:
+        "Hawaii Education Pathways API - Query-aware intelligent matching",
       database: statsResponse.success ? statsResponse.data : null,
+      features: {
+        queryAnalysis: true,
+        intelligentQueries: true,
+        relevanceScoring: true,
+        pathwayMapping: true,
+        multiCampusSupport: true,
+        gradeAlignment: true,
+        searchTermExpansion: true,
+      },
       timestamp: new Date().toISOString(),
     });
   } catch (error) {
-    return NextResponse.json({
-      status: "error",
-      message: "API running but database unavailable",
-      error: error instanceof Error ? error.message : "Unknown error",
-      timestamp: new Date().toISOString(),
-    });
+    console.error("AI Pathways GET error:", error);
+    return NextResponse.json(
+      {
+        status: "error",
+        message: "API running but database unavailable",
+        error: error instanceof Error ? error.message : "Unknown error",
+        timestamp: new Date().toISOString(),
+      },
+      { status: 500 }
+    );
   }
 }
