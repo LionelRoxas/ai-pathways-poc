@@ -1,11 +1,18 @@
+/* eslint-disable @next/next/no-img-element */
 "use client";
 
 import React, { useState, useEffect } from "react";
-import { Activity, ArrowRight, Database } from "lucide-react";
+import { Activity, ArrowRight } from "lucide-react";
 import UnifiedSleekChat from "./components/AIPathwaysChat/UnifiedSleekChat";
+import LanguageSelection, { Language } from "./components/LanguageSelection";
 
 export default function MainPage() {
-  const [currentView, setCurrentView] = useState<"home" | "chat">("home");
+  const [currentView, setCurrentView] = useState<"home" | "language" | "chat">(
+    "home"
+  );
+  const [selectedLanguage, setSelectedLanguage] = useState<Language | null>(
+    null
+  );
   const [isVisible, setIsVisible] = useState(false);
 
   useEffect(() => {
@@ -13,11 +20,29 @@ export default function MainPage() {
   }, []);
 
   const handleStartChat = () => {
+    setCurrentView("language");
+  };
+
+  const handleLanguageSelect = (language: Language) => {
+    setSelectedLanguage(language);
     setCurrentView("chat");
   };
 
+  const handleBackFromLanguage = () => {
+    setCurrentView("home");
+  };
+
+  if (currentView === "language") {
+    return (
+      <LanguageSelection
+        onLanguageSelect={handleLanguageSelect}
+        onBack={handleBackFromLanguage}
+      />
+    );
+  }
+
   if (currentView === "chat") {
-    return <UnifiedSleekChat />;
+    return <UnifiedSleekChat selectedLanguage={selectedLanguage} />;
   }
 
   return (
@@ -46,7 +71,6 @@ export default function MainPage() {
           isVisible ? "opacity-100 translate-y-0" : "opacity-0 translate-y-4"
         }`}
       >
-
         {/* Main heading */}
         <h1 className="text-5xl md:text-7xl font-bold text-gray-900 mb-6 leading-tight">
           Find your path in
@@ -77,7 +101,11 @@ export default function MainPage() {
         {/* Simple footer text */}
         <div className="mt-16 text-sm text-gray-500">
           <div className="flex items-center justify-center gap-2">
-            <Database className="w-4 h-4" />
+            <img
+              src="/images/uhcc-logo-3.png"
+              alt="UHCC Logo"
+              className="w-10 h-10 object-contain"
+            />
             <span>Sponsored by UHCC</span>
           </div>
         </div>

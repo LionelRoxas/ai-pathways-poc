@@ -1,31 +1,64 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
-// app/api/ai-pathways/route.ts
+// app/api/ai-pathways/route.ts (Complete with Language Support)
 import { NextRequest, NextResponse } from "next/server";
 import { handleMCPRequest } from "../../lib/mcp/pathways-mcp-server";
 import Groq from "groq-sdk";
 import { analyzeAndImproveQuery } from "../../utils/groqClient";
+import { CacheService } from "../../lib/cache/cache-service";
 import {
   AIPathwaysResponse,
   MCPQueryPlan,
   CurrentData,
   ExtractedProfile,
-} from "../../components/AIPathwaysChat//types";
+} from "../../components/AIPathwaysChat/types";
 
 const groq = new Groq({
   apiKey: process.env.GROQ_API_KEY,
 });
 
+const cache = CacheService.getInstance();
+
+// Language-specific system prompts
+function getLanguageSystemPrompt(language: string): string {
+  switch (language) {
+    case "haw":
+      return `You are a career counselor who speaks fluent Hawaiian (ʻŌlelo Hawaiʻi). 
+Respond entirely in Hawaiian, maintaining professionalism while being warm and supportive. 
+Use proper Hawaiian grammar and diacritical marks (kahakō and ʻokina).
+When discussing programs, keep the English names but explain them in Hawaiian.`;
+
+    case "hwp":
+      return `You are a local Hawaii career counselor who speaks Hawaiian Pidgin English. 
+Respond in authentic Hawaiian Pidgin, being warm, friendly and professional.
+Use natural Pidgin grammar and vocabulary like: "stay", "get", "da kine", "yeah", "brah", "shoots".
+Keep it respectful and supportive while maintaining local style.`;
+
+    case "tl":
+      return `You are a career counselor who speaks fluent Tagalog. 
+Respond entirely in Tagalog, maintaining professionalism while being warm and supportive.
+Use proper Tagalog grammar and be respectful (use "po" and "opo" appropriately).
+When discussing programs, keep the English names but explain them in Tagalog.`;
+
+    default:
+      return `You are a professional career counselor in Hawaii. 
+Respond in clear, professional English while being warm and supportive.
+Be culturally aware of Hawaii's diverse population.`;
+  }
+}
+
 // Plan MCP queries based on analyzed query and profile
 async function planMCPQueries(
   userProfile: string,
   message: string,
-  extractedProfile?: ExtractedProfile
+  extractedProfile?: ExtractedProfile,
+  language: string = "en"
 ): Promise<MCPQueryPlan> {
-  // Step 1: Analyze and improve the user's query
+  // Step 1: Analyze and improve the user's query (pass language for better understanding)
   const queryAnalysis = await analyzeAndImproveQuery(
     message,
     userProfile,
-    extractedProfile
+    extractedProfile,
+    language
   );
 
   console.log("Query analysis result:", queryAnalysis);
@@ -56,25 +89,23 @@ async function planMCPQueries(
           extractedProfile?.gradeLevel ||
           (extractedProfile?.educationLevel === "high_school_student"
             ? 9
-            : undefined), // Default grade for HS students
+            : undefined),
         interests: extractedProfile?.interests || [],
         careerGoals: extractedProfile?.careerGoals || [],
         location: extractedProfile?.location || "Hawaii",
         timeline: extractedProfile?.timeline || undefined,
       }
     : {
-        location: extractedProfile?.location || "Hawaii", // Keep location for campus filtering
+        location: extractedProfile?.location || "Hawaii",
       };
 
   // Step 3: Build queries based on intent and search terms
-  // Special handling for high school students asking about courses
   if (
     isAskingAboutHSCourses &&
     (context.educationLevel === "high_school" ||
       context.educationLevel === "high_school_student" ||
       queryAnalysis.intent === "profile_based")
   ) {
-    // Prioritize DOE programs for course planning
     queries.push({
       tool: "getDOEPrograms",
       params: {
@@ -86,7 +117,6 @@ async function planMCPQueries(
       priority: "primary",
     });
 
-    // Add pathways to show college connections
     queries.push({
       tool: "getEducationPathways",
       params: {
@@ -98,7 +128,6 @@ async function planMCPQueries(
       priority: "supporting",
     });
 
-    // Add some UH programs for future planning
     queries.push({
       tool: "getUHPrograms",
       params: {
@@ -111,17 +140,14 @@ async function planMCPQueries(
       priority: "supporting",
     });
   } else {
-    // Original switch statement for other cases
     switch (queryAnalysis.intent) {
       case "search":
-        // Direct search - use the improved query and expanded terms
         if (queryAnalysis.searchTerms.length > 0) {
-          // Search for UH programs with expanded terms
           queries.push({
             tool: "searchPrograms",
             params: {
-              query: queryAnalysis.searchTerms[0], // Primary search term
-              expandedTerms: queryAnalysis.searchTerms, // All variations
+              query: queryAnalysis.searchTerms[0],
+              expandedTerms: queryAnalysis.searchTerms,
               type: "all",
               limit: 100,
               getAllMatches: true,
@@ -129,7 +155,6 @@ async function planMCPQueries(
             priority: "primary",
           });
 
-          // Also try getUHPrograms with search terms as interests
           queries.push({
             tool: "getUHPrograms",
             params: {
@@ -137,12 +162,11 @@ async function planMCPQueries(
               location: context.location,
               limit: 100,
               getAllMatches: true,
-              ignoreProfile: true, // New flag to ignore profile filtering
+              ignoreProfile: true,
             },
             priority: "primary",
           });
 
-          // And DOE programs if relevant
           queries.push({
             tool: "getDOEPrograms",
             params: {
@@ -157,26 +181,23 @@ async function planMCPQueries(
         break;
 
       case "profile_based":
-        // Check if user is a high school student
         const isHighSchoolStudent =
           context.educationLevel === "high_school" ||
           context.educationLevel === "high_school_student" ||
           context.gradeLevel !== undefined;
 
         if (isHighSchoolStudent) {
-          // For high school students, prioritize DOE programs
           queries.push({
             tool: "getDOEPrograms",
             params: {
               interests: context.interests,
-              gradeLevel: context.gradeLevel || 9, // Default to 9 if not specified
+              gradeLevel: context.gradeLevel || 9,
               careerGoals: context.careerGoals,
               limit: 30,
             },
             priority: "primary",
           });
 
-          // Also get pathways to show college connections
           queries.push({
             tool: "getEducationPathways",
             params: {
@@ -188,7 +209,6 @@ async function planMCPQueries(
             priority: "supporting",
           });
 
-          // And some UH programs for future planning
           queries.push({
             tool: "getUHPrograms",
             params: {
@@ -201,7 +221,6 @@ async function planMCPQueries(
             priority: "supporting",
           });
         } else {
-          // For non-high school students, focus on UH programs
           queries.push({
             tool: "getUHPrograms",
             params: {
@@ -218,7 +237,6 @@ async function planMCPQueries(
         break;
 
       case "mixed":
-        // Combine search terms with profile data
         const combinedInterests = [
           ...queryAnalysis.searchTerms,
           ...(useProfile ? context.interests || [] : []),
@@ -239,7 +257,6 @@ async function planMCPQueries(
         break;
 
       default:
-        // Fallback to search if we have terms
         if (queryAnalysis.searchTerms.length > 0) {
           queries.push({
             tool: "searchPrograms",
@@ -252,7 +269,6 @@ async function planMCPQueries(
             priority: "primary",
           });
         } else {
-          // Fall back to profile-based
           queries.push({
             tool: "getUHPrograms",
             params: {
@@ -269,7 +285,6 @@ async function planMCPQueries(
     }
   }
 
-  // Always get stats for context
   queries.push({
     tool: "getDatabaseStats",
     params: {},
@@ -288,14 +303,19 @@ async function planMCPQueries(
   };
 }
 
-// Generate response based on MCP data
+// Generate response based on MCP data with language support
 async function generateDataDrivenResponse(
   userProfile: string,
   message: string,
   mcpData: any,
-  queryPlan: MCPQueryPlan
+  queryPlan: MCPQueryPlan,
+  language: string = "en"
 ): Promise<string> {
-  const systemPrompt = `You are a Hawaii education counselor helping students find educational pathways.
+  const languagePrompt = getLanguageSystemPrompt(language);
+
+  const systemPrompt = `${languagePrompt}
+
+You are helping students find educational pathways in Hawaii.
 
 USER PROFILE: ${userProfile}
 USER MESSAGE: ${message}
@@ -305,13 +325,14 @@ IGNORE PROFILE: ${queryPlan.extractedContext?.ignoreProfile ? "YES - User wants 
 DATABASE RESULTS: ${JSON.stringify(mcpData, null, 2)}
 
 CRITICAL RULES:
-1. If the user asked for SPECIFIC programs (e.g., "computer science", "nursing"), focus ONLY on those programs
-2. Do NOT recommend unrelated programs just because they match the profile
-3. If no results match the specific request, say so clearly and suggest alternatives
-4. Focus on programs with highest relevance scores
-5. Mention specific program names, campuses, and degrees
-6. For DOE programs, explain course sequences if relevant
-7. Keep response concise (1 paragraph max)
+1. Respond in ${language === "haw" ? "Hawaiian" : language === "hwp" ? "Pidgin" : language === "tl" ? "Tagalog" : "English"}
+2. If the user asked for SPECIFIC programs, focus ONLY on those programs
+3. Do NOT recommend unrelated programs just because they match the profile
+4. If no results match the specific request, say so clearly and suggest alternatives
+5. Focus on programs with highest relevance scores
+6. Mention specific program names, campuses, and degrees (keep these in English)
+7. For DOE programs, explain course sequences if relevant
+8. Keep response concise (1 paragraph max)
 
 Generate a helpful response that directly addresses what the user asked for.`;
 
@@ -322,92 +343,181 @@ Generate a helpful response that directly addresses what the user asked for.`;
         { role: "system", content: systemPrompt },
         {
           role: "user",
-          content: "Generate response addressing the user's specific request",
+          content:
+            "Generate response addressing the user's specific request in the appropriate language",
         },
       ],
       temperature: 0.3,
     });
 
-    return (
-      response.choices[0].message.content ||
-      "I found several programs matching your request. Please check the data panel for details."
-    );
+    return response.choices[0].message.content || getDefaultResponse(language);
   } catch (error) {
     console.error("Response generation error:", error);
-    return "I've found programs matching your request. Please review the options in the data panel.";
+    return getDefaultResponse(language);
   }
 }
 
-// Generate contextual follow-up questions
+// Default responses in different languages
+function getDefaultResponse(language: string): string {
+  const responses: Record<string, string> = {
+    en: "I found several programs matching your request. Please check the data panel for details.",
+    haw: "Ua loaʻa iaʻu nā papahana e kūlike ana me kāu noi. E ʻoluʻolu e nānā i ka papa ʻikepili no nā kikoʻī.",
+    hwp: "I wen find plenny programs dat match wat you asking for. Check da data panel fo see all da details yeah.",
+    tl: "Nakahanap ako ng ilang programa na tumutugma sa iyong kahilingan. Pakitingnan ang data panel para sa mga detalye.",
+  };
+  return responses[language] || responses.en;
+}
+
+// Generate contextual follow-up questions with language support
 function generateSmartQuestions(
   queryPlan: MCPQueryPlan,
   mcpData: any,
-  extractedProfile?: any
+  extractedProfile: any,
+  language: string = "en"
 ): string[] {
   const questions: string[] = [];
   const searchTerms = queryPlan.extractedContext?.searchTerms || [];
 
-  // If user searched for something specific, give related follow-ups
+  // Language-specific question templates
+  const questionTemplates: Record<string, any> = {
+    en: {
+      admissionReqs: (term: string) =>
+        `What are the admission requirements for ${term} programs?`,
+      campusPrograms: (term: string) =>
+        `Show me ${term} programs at different UH campuses`,
+      careerOptions: (term: string) =>
+        `What careers can I get with a ${term} degree?`,
+      onlinePrograms: (term: string) =>
+        `Are there online ${term} programs available?`,
+      admissionInfo: "Tell me more about admission requirements",
+      convenientCampus: "Which campus would be most convenient for me?",
+      nextYearCourses: "What courses should I take next year?",
+      collegePrep: "Which program best prepares me for college?",
+      whichIsland: "Which island are you on?",
+      interests: "What subjects interest you most?",
+      defaults: [
+        "Show me computer science programs",
+        "What nursing programs are available?",
+        "Find business programs at UH",
+        "Show me all programs on Oahu",
+      ],
+    },
+    haw: {
+      admissionReqs: (term: string) =>
+        `He aha nā koi komo no nā papahana ${term}?`,
+      campusPrograms: (term: string) =>
+        `E hōʻike mai i nā papahana ${term} ma nā kahua UH`,
+      careerOptions: (term: string) =>
+        `He aha nā ʻoihana hiki me ka kēkelē ${term}?`,
+      onlinePrograms: (term: string) =>
+        `Aia nā papahana ${term} ma ka pūnaewele?`,
+      admissionInfo: "E haʻi hou mai e pili ana i nā koi komo",
+      convenientCampus: "ʻO ka hea kahua kūpono iaʻu?",
+      nextYearCourses: "He aha nā papa aʻo e lawe ai i ka makahiki aʻe?",
+      collegePrep: "ʻO ka hea papahana e hoʻomākaukau maikaʻi no ke kulanui?",
+      whichIsland: "Aia ʻoe ma ka hea mokupuni?",
+      interests: "He aha nā kumuhana e hoihoi ana iā ʻoe?",
+      defaults: [
+        "E hōʻike mai i nā papahana kamepiula",
+        "He aha nā papahana kahu maʻi?",
+        "E ʻimi i nā papahana ʻoihana ma UH",
+        "E hōʻike mai i nā papahana ma Oʻahu",
+      ],
+    },
+    hwp: {
+      admissionReqs: (term: string) =>
+        `Wat da requirements fo get inside ${term} programs?`,
+      campusPrograms: (term: string) =>
+        `Show me ${term} programs at different UH campuses`,
+      careerOptions: (term: string) =>
+        `Wat kine jobs I can get wit one ${term} degree?`,
+      onlinePrograms: (term: string) => `Get ${term} programs online o wat?`,
+      admissionInfo: "Tell me more bout how fo get in",
+      convenientCampus: "Which campus stay most convenient fo me?",
+      nextYearCourses: "Wat classes I should take next year?",
+      collegePrep: "Which program going prepare me best fo college?",
+      whichIsland: "Wat island you stay on?",
+      interests: "Wat subjects you stay interested in?",
+      defaults: [
+        "Show me computer science programs",
+        "Wat nursing programs get?",
+        "Find business programs at UH",
+        "Show me all da programs on Oahu",
+      ],
+    },
+    tl: {
+      admissionReqs: (term: string) =>
+        `Ano ang mga requirements para sa ${term} programs?`,
+      campusPrograms: (term: string) =>
+        `Ipakita ang ${term} programs sa iba't ibang UH campus`,
+      careerOptions: (term: string) =>
+        `Anong mga karera ang makukuha ko sa ${term} degree?`,
+      onlinePrograms: (term: string) => `May online na ${term} programs ba?`,
+      admissionInfo: "Sabihin pa tungkol sa admission requirements",
+      convenientCampus: "Aling campus ang pinaka-convenient para sa akin?",
+      nextYearCourses: "Anong mga kurso ang dapat kong kunin next year?",
+      collegePrep: "Aling programa ang maghahanda sa akin para sa kolehiyo?",
+      whichIsland: "Saang isla ka nakatira?",
+      interests: "Anong mga subject ang interesado ka?",
+      defaults: [
+        "Ipakita ang computer science programs",
+        "Anong nursing programs ang available?",
+        "Hanapin ang business programs sa UH",
+        "Ipakita lahat ng programa sa Oahu",
+      ],
+    },
+  };
+
+  const templates = questionTemplates[language] || questionTemplates.en;
+
   if (searchTerms.length > 0 && queryPlan.extractedContext?.ignoreProfile) {
     const term = searchTerms[0];
     questions.push(
-      `What are the admission requirements for ${term} programs?`,
-      `Show me ${term} programs at different UH campuses`,
-      `What careers can I get with a ${term} degree?`,
-      `Are there online ${term} programs available?`
+      templates.admissionReqs(term),
+      templates.campusPrograms(term),
+      templates.careerOptions(term),
+      templates.onlinePrograms(term)
     );
   } else {
-    // Context-aware questions based on what we found
     if (mcpData.uhPrograms?.length > 0) {
-      questions.push(
-        "Tell me more about admission requirements",
-        "Which campus would be most convenient for me?"
-      );
+      questions.push(templates.admissionInfo, templates.convenientCampus);
     }
 
     if (mcpData.doePrograms?.length > 0) {
-      questions.push(
-        "What courses should I take next year?",
-        "Which program best prepares me for college?"
-      );
+      questions.push(templates.nextYearCourses, templates.collegePrep);
     }
 
-    // Profile-based questions
     if (!extractedProfile?.location) {
-      questions.push("Which island are you on?");
+      questions.push(templates.whichIsland);
     }
 
     if (!extractedProfile?.interests?.length) {
-      questions.push("What subjects interest you most?");
+      questions.push(templates.interests);
     }
   }
 
-  // Default fallbacks
   if (questions.length < 4) {
-    questions.push(
-      "Show me computer science programs",
-      "What nursing programs are available?",
-      "Find business programs at UH",
-      "Show me all programs on Oahu"
-    );
+    questions.push(...templates.defaults);
   }
 
   return questions.slice(0, 4);
 }
 
-// Main route handler
+// Main route handler with caching and language support
 export async function POST(req: NextRequest) {
+  let language = "en"; // Default language
   try {
     console.log("AI Pathways POST endpoint hit");
 
     const body = await req.json();
-    const { message, userProfile, extractedProfile } = body;
+    const { message, userProfile, extractedProfile, language: requestLanguage = "en" } = body;
+    language = requestLanguage; // Store language in outer scope
 
     console.log("Request data:", {
       message: message,
       hasUserProfile: !!userProfile,
       hasExtractedProfile: !!extractedProfile,
-      extractedProfile: extractedProfile,
+      language: language,
     });
 
     if (!message?.trim() || !userProfile) {
@@ -417,16 +527,52 @@ export async function POST(req: NextRequest) {
       );
     }
 
+    // Generate cache key for the full response (include language)
+    const responseCacheKey = cache.generateCacheKey(
+      "/api/ai-pathways",
+      {
+        message: message.toLowerCase().trim(),
+        language: language,
+      },
+      userProfile
+    );
+
+    // Check cache first
+    const cachedResponse = await cache.get(responseCacheKey);
+    if (cachedResponse) {
+      console.log("Serving from cache:", responseCacheKey);
+
+      const response = NextResponse.json(cachedResponse);
+      response.headers.set("X-Cache", "HIT");
+      // response.headers.set("X-Cache-Key", responseCacheKey);
+      return response;
+    }
+
+    // Check for similar cached queries (RAG-like functionality)
+    const similarCached = await cache.findSimilar(message, 0.7);
+    if (
+      similarCached &&
+      similarCached.metadata?.userProfile === userProfile &&
+      similarCached.metadata?.language === language
+    ) {
+      console.log("Serving similar cached response");
+
+      const response = NextResponse.json(similarCached);
+      response.headers.set("X-Cache", "SIMILAR");
+      return response;
+    }
+
     // Step 1: Plan MCP queries with query analysis
     console.log("Planning MCP queries with query analysis...");
     const queryPlan = await planMCPQueries(
       userProfile,
       message,
-      extractedProfile
+      extractedProfile,
+      language
     );
     console.log("Query plan with analysis:", queryPlan);
 
-    // Step 2: Execute MCP queries
+    // Step 2: Execute MCP queries with individual query caching
     const mcpData: CurrentData = {
       uhPrograms: undefined,
       doePrograms: undefined,
@@ -440,19 +586,52 @@ export async function POST(req: NextRequest) {
     console.log("Executing MCP queries...");
     for (const query of queryPlan.queries) {
       try {
-        console.log(`Executing ${query.tool} with params:`, query.params);
-        const result = await handleMCPRequest({
-          tool: query.tool,
-          params: query.params,
-        });
+        // Check if this specific MCP query is cached
+        const queryKey = cache.generateCacheKey(
+          `mcp:${query.tool}`,
+          query.params
+        );
 
-        console.log(`${query.tool} result:`, {
-          success: result.success,
-          dataLength: Array.isArray(result.data) ? result.data.length : 1,
-          metadata: result.metadata,
-        });
+        let result = await cache.get(queryKey);
 
-        if (result.success && result.data) {
+        if (!result) {
+          // Not cached, execute query
+          console.log(`Executing ${query.tool} with params:`, query.params);
+          const mcpResult = await handleMCPRequest({
+            tool: query.tool,
+            params: query.params,
+          });
+
+          if (mcpResult.success && mcpResult.data) {
+            result = mcpResult;
+
+            // Cache individual MCP query results
+            const ttl = query.priority === "primary" ? 3600 : 7200; // 1-2 hours
+            await cache.set(
+              queryKey,
+              result,
+              {
+                ttl,
+                tags: [query.tool, "mcp_query"],
+              },
+              {
+                tool: query.tool,
+                params: query.params,
+              }
+            );
+          } else {
+            console.error(
+              `MCP query failed for ${query.tool}:`,
+              mcpResult.error
+            );
+            continue;
+          }
+        } else {
+          console.log(`Using cached result for ${query.tool}`);
+        }
+
+        // Process result data
+        if (result && result.data) {
           switch (query.tool) {
             case "getUHPrograms":
               mcpData.uhPrograms = result.data;
@@ -485,20 +664,22 @@ export async function POST(req: NextRequest) {
 
     console.log("MCP queries completed. Total results:", totalResults);
 
-    // Step 3: Generate response
-    console.log("Generating response...");
+    // Step 3: Generate response with language support
+    console.log("Generating response in language:", language);
     const responseMessage = await generateDataDrivenResponse(
       userProfile,
       message,
       mcpData,
-      queryPlan
+      queryPlan,
+      language
     );
 
-    // Step 4: Generate follow-up questions
+    // Step 4: Generate follow-up questions in appropriate language
     const suggestedQuestions = generateSmartQuestions(
       queryPlan,
       mcpData,
-      extractedProfile
+      extractedProfile,
+      language
     );
 
     // Step 5: Build structured response
@@ -521,20 +702,42 @@ export async function POST(req: NextRequest) {
       userProfile,
     };
 
+    // Cache the complete response with language metadata
+    const cacheTTL = totalResults > 0 ? 3600 : 300; // 1 hour if results, 5 min otherwise
+    await cache.set(
+      responseCacheKey,
+      response,
+      {
+        ttl: cacheTTL,
+        tags: ["ai_pathways", "response", `lang_${language}`],
+      },
+      {
+        userProfile,
+        queryIntent: queryPlan.intent,
+        resultCount: totalResults,
+        language: language,
+      }
+    );
+
     console.log("Sending response with:", {
       dataKeys: Object.keys(mcpData),
       totalResults,
       intent: queryPlan.intent,
       ignoreProfile: queryPlan.extractedContext?.ignoreProfile,
+      language: language,
     });
 
-    return NextResponse.json(response);
-  } catch (error) {
-    console.error("AI Pathways API error:", error);
+    const httpResponse = NextResponse.json(response);
+    httpResponse.headers.set("X-Cache", "MISS");
+    // httpResponse.headers.set("X-Cache-Key", responseCacheKey);
+    httpResponse.headers.set("X-Language", language);
 
+    return httpResponse;
+  } catch (error) {
+    console.error("AI Pathways POST error:", error);
+    
     const errorResponse: AIPathwaysResponse = {
-      message:
-        "I'm having trouble accessing the education database. Please try again.",
+      message: getErrorMessage(language),
       data: {},
       metadata: {
         intent: "error",
@@ -543,12 +746,7 @@ export async function POST(req: NextRequest) {
         totalResults: 0,
         relevanceScoring: false,
       },
-      suggestedQuestions: [
-        "Show me computer science programs",
-        "Find nursing programs at UH",
-        "What business degrees are available?",
-        "Show me programs on Oahu",
-      ],
+      suggestedQuestions: getErrorSuggestions(language),
       userProfile: "",
     };
 
@@ -556,10 +754,55 @@ export async function POST(req: NextRequest) {
   }
 }
 
+// Error messages in different languages
+function getErrorMessage(language: string): string {
+  const messages: Record<string, string> = {
+    en: "I'm having trouble accessing the education database. Please try again.",
+    haw: "E kala mai, ua loaʻa kekahi pilikia i ka hoʻokele ʻana i ka ʻikepili. E ʻoluʻolu e hoʻāʻo hou.",
+    hwp: "Ho brah, get one problem wit da database right now. Try ask again yeah?",
+    tl: "Pasensya na, nagkaproblema sa pag-access ng database. Pakisubukan ulit.",
+  };
+  return messages[language] || messages.en;
+}
+
+// Error recovery suggestions in different languages
+function getErrorSuggestions(language: string): string[] {
+  const suggestions: Record<string, string[]> = {
+    en: [
+      "Show me computer science programs",
+      "Find nursing programs at UH",
+      "What business degrees are available?",
+      "Show me programs on Oahu",
+    ],
+    haw: [
+      "E hōʻike mai i nā papahana kamepiula",
+      "E ʻimi i nā papahana kahu maʻi ma UH",
+      "He aha nā kēkelē ʻoihana?",
+      "E hōʻike mai i nā papahana ma Oʻahu",
+    ],
+    hwp: [
+      "Show me computer science programs",
+      "Find nursing programs at UH",
+      "Wat business degrees get?",
+      "Show me all programs on Oahu",
+    ],
+    tl: [
+      "Ipakita ang computer science programs",
+      "Hanapin ang nursing programs sa UH",
+      "Anong business degrees ang available?",
+      "Ipakita ang mga programa sa Oahu",
+    ],
+  };
+  return suggestions[language] || suggestions.en;
+}
+
 // Health check endpoint
 export async function GET() {
   try {
     console.log("AI Pathways GET endpoint hit");
+
+    // Get cache statistics
+    const cacheStats = await cache.getStats();
 
     const statsResponse = await handleMCPRequest({
       tool: "getDatabaseStats",
@@ -571,8 +814,9 @@ export async function GET() {
     return NextResponse.json({
       status: "healthy",
       message:
-        "Hawaii Education Pathways API - Query-aware intelligent matching",
+        "Hawaii Education Pathways API - Query-aware intelligent matching with multi-language support",
       database: statsResponse.success ? statsResponse.data : null,
+      cache: cacheStats,
       features: {
         queryAnalysis: true,
         intelligentQueries: true,
@@ -581,6 +825,10 @@ export async function GET() {
         multiCampusSupport: true,
         gradeAlignment: true,
         searchTermExpansion: true,
+        responseCache: true,
+        queryCaching: true,
+        semanticCache: true,
+        multiLanguage: ["en", "haw", "hwp", "tl"],
       },
       timestamp: new Date().toISOString(),
     });

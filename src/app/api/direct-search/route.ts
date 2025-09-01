@@ -1,7 +1,10 @@
-// app/api/direct-search/route.ts
+// app/api/direct-search/route.ts (Enhanced with Caching)
 import { NextRequest, NextResponse } from "next/server";
 import { handleMCPRequest } from "../../lib/mcp/pathways-mcp-server";
 import { expandSearchTerms } from "../../utils/groqClient";
+import { CacheService } from "../../lib/cache/cache-service";
+
+const cache = CacheService.getInstance();
 
 export async function POST(req: NextRequest) {
   try {
@@ -16,21 +19,78 @@ export async function POST(req: NextRequest) {
 
     console.log("Direct search for:", query);
 
+    // Generate cache key for this search
+    const cacheKey = cache.generateCacheKey("/api/direct-search", {
+      query: query.toLowerCase().trim(),
+    });
+
+    // Check cache first
+    const cachedResult = await cache.get(cacheKey);
+    if (cachedResult) {
+      console.log("Serving search from cache:", cacheKey);
+
+      const response = NextResponse.json(cachedResult);
+      response.headers.set("X-Cache", "HIT");
+      response.headers.set("X-Cache-Key", cacheKey);
+      return response;
+    }
+
+    // Check for similar searches (semantic cache)
+    const similarSearch = await cache.findSimilar(query, 0.8);
+    if (similarSearch) {
+      console.log("Serving similar search from cache");
+
+      const response = NextResponse.json(similarSearch);
+      response.headers.set("X-Cache", "SIMILAR");
+      return response;
+    }
+
     // Expand search terms for better matching
     const expandedTerms = expandSearchTerms(query);
     console.log("Expanded terms:", expandedTerms);
 
-    // Search all programs using MCP
-    const searchResult = await handleMCPRequest({
-      tool: "searchPrograms",
-      params: {
-        query: query,
-        expandedTerms: expandedTerms,
-        type: "all",
-        limit: 100,
-        getAllMatches: true,
-      },
+    // Check if the MCP search itself is cached
+    const mcpCacheKey = cache.generateCacheKey("mcp:searchPrograms", {
+      query: query,
+      expandedTerms: expandedTerms,
+      type: "all",
+      limit: 100,
+      getAllMatches: true,
     });
+
+    let searchResult = await cache.get(mcpCacheKey);
+
+    if (!searchResult) {
+      // Search all programs using MCP
+      searchResult = await handleMCPRequest({
+        tool: "searchPrograms",
+        params: {
+          query: query,
+          expandedTerms: expandedTerms,
+          type: "all",
+          limit: 100,
+          getAllMatches: true,
+        },
+      });
+
+      if (searchResult.success) {
+        // Cache the MCP result
+        await cache.set(
+          mcpCacheKey,
+          searchResult,
+          {
+            ttl: 3600, // 1 hour
+            tags: ["mcp_search", "searchPrograms"],
+          },
+          {
+            query,
+            expandedTerms,
+          }
+        );
+      }
+    } else {
+      console.log("Using cached MCP search result");
+    }
 
     if (!searchResult.success) {
       console.error("Search failed:", searchResult.error);
@@ -63,14 +123,33 @@ export async function POST(req: NextRequest) {
       // Try searching with just the first word
       const firstWord = query.split(" ")[0];
       if (firstWord !== query) {
-        const broaderResult = await handleMCPRequest({
-          tool: "searchPrograms",
-          params: {
-            query: firstWord,
-            type: "all",
-            limit: 50,
-          },
+        // Check cache for broader search
+        const broaderCacheKey = cache.generateCacheKey("mcp:searchPrograms", {
+          query: firstWord,
+          type: "all",
+          limit: 50,
         });
+
+        let broaderResult = await cache.get(broaderCacheKey);
+
+        if (!broaderResult) {
+          broaderResult = await handleMCPRequest({
+            tool: "searchPrograms",
+            params: {
+              query: firstWord,
+              type: "all",
+              limit: 50,
+            },
+          });
+
+          if (broaderResult.success) {
+            // Cache the broader result
+            await cache.set(broaderCacheKey, broaderResult, {
+              ttl: 3600,
+              tags: ["mcp_search", "searchPrograms", "broader"],
+            });
+          }
+        }
 
         if (broaderResult.success && broaderResult.data) {
           results.uhPrograms = broaderResult.data.uhPrograms || [];
@@ -79,7 +158,7 @@ export async function POST(req: NextRequest) {
       }
     }
 
-    return NextResponse.json({
+    const responseData = {
       success: true,
       results,
       metadata: {
@@ -88,7 +167,31 @@ export async function POST(req: NextRequest) {
         totalResults: results.uhPrograms.length + results.doePrograms.length,
         timestamp: new Date().toISOString(),
       },
-    });
+    };
+
+    // Cache the final response
+    const cacheTTL = responseData.metadata.totalResults > 0 ? 3600 : 300; // 1 hour if results, 5 min otherwise
+    await cache.set(
+      cacheKey,
+      responseData,
+      {
+        ttl: cacheTTL,
+        tags: ["direct_search", "search_response"],
+      },
+      {
+        query,
+        resultCount: responseData.metadata.totalResults,
+      }
+    );
+
+    // Track popular searches
+    await cache.findSimilar(query, 0); // This also tracks the query
+
+    const response = NextResponse.json(responseData);
+    response.headers.set("X-Cache", "MISS");
+    response.headers.set("X-Cache-Key", cacheKey);
+
+    return response;
   } catch (error) {
     console.error("Direct search API error:", error);
     return NextResponse.json(
@@ -103,13 +206,18 @@ export async function POST(req: NextRequest) {
 
 // Health check
 export async function GET() {
+  const cacheStats = await cache.getStats();
+
   return NextResponse.json({
     status: "healthy",
     service: "direct-search",
+    cache: cacheStats,
     features: {
       expandedSearch: true,
       fallbackSearch: true,
       allProgramTypes: true,
+      caching: true,
+      semanticCache: true,
     },
     timestamp: new Date().toISOString(),
   });

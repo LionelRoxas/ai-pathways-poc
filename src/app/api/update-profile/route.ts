@@ -1,5 +1,5 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
-// app/api/update-profile/route.ts
+// app/api/update-profile/route.ts (Updated with Language Support)
 import { NextRequest, NextResponse } from "next/server";
 import Groq from "groq-sdk";
 
@@ -30,14 +30,21 @@ function cleanJsonResponse(response: string): string {
   return cleaned;
 }
 
-// Update existing profile with new conversation data
+// Update existing profile with new conversation data (with language awareness)
 async function updateComprehensiveProfile(
   transcript: string,
   existingProfile: string,
   existingExtracted: any,
-  conversationMetrics: any
+  conversationMetrics: any,
+  language: string = "en"
 ): Promise<any | null> {
+  const languageContext =
+    language !== "en"
+      ? `Note: The conversation may contain ${language === "haw" ? "Hawaiian (ʻŌlelo Hawaiʻi)" : language === "hwp" ? "Hawaiian Pidgin" : language === "tl" ? "Tagalog" : "English"} language. Understand it in context but write the updated profile summary in ENGLISH for system use.`
+      : "";
+
   const systemPrompt = `You are an expert career counseling analyst. You are UPDATING an existing user profile with new conversation data. The user has continued talking beyond the initial profile creation, revealing new information.
+${languageContext}
 
 EXISTING PROFILE SUMMARY:
 ${existingProfile}
@@ -49,6 +56,7 @@ CONVERSATION METRICS:
 - Total messages: ${conversationMetrics.totalMessages}
 - User messages: ${conversationMetrics.userMessages}
 - Average message length: ${Math.round(conversationMetrics.averageLength)} characters
+- Language used: ${language}
 
 UPDATE INSTRUCTIONS:
 1. PRESERVE all valid information from the existing profile
@@ -58,10 +66,11 @@ UPDATE INSTRUCTIONS:
 5. Note any SHIFTS in thinking or priorities
 6. Maintain Hawaii-specific context and factors
 7. Keep the same comprehensive format as the original profile
+8. IMPORTANT: Write the summary in ENGLISH regardless of conversation language
 
 Return ONLY valid JSON in this exact format:
 {
-  "summary": "An UPDATED comprehensive 5-6 sentence narrative in third person that incorporates BOTH existing profile information AND new revelations. Include their evolving situation, refined interests, clarified goals, and any new context discovered.",
+  "summary": "An UPDATED comprehensive 5-6 sentence narrative IN ENGLISH in third person that incorporates BOTH existing profile information AND new revelations. Include their evolving situation, refined interests, clarified goals, and any new context discovered.",
   "extracted": {
     "educationLevel": "elementary|middle_school|high_school_freshman|high_school_sophomore|high_school_junior|high_school_senior|college_freshman|college_sophomore|college_junior|college_senior|associate_degree|bachelor_degree|master_degree|doctoral_degree|trade_certification|working_professional|null",
     "currentGrade": null or grade number if applicable,
@@ -108,7 +117,8 @@ IMPORTANT:
 - Arrays should COMBINE old and new data (deduplicated)
 - Single values should UPDATE to the most recent/accurate information
 - If something hasn't changed, keep the existing value
-- Confidence scores should generally increase with more conversation data`;
+- Confidence scores should generally increase with more conversation data
+- The summary MUST be in English for system compatibility`;
 
   try {
     // Get recent conversation (last ~3000 chars to stay within token limits)
@@ -120,7 +130,7 @@ IMPORTANT:
         { role: "system", content: systemPrompt },
         {
           role: "user",
-          content: `RECENT CONVERSATION TO ANALYZE:\n\n${recentTranscript}`,
+          content: `RECENT CONVERSATION TO ANALYZE (Language: ${language}):\n\n${recentTranscript}`,
         },
       ],
       temperature: 0.2,
@@ -202,7 +212,10 @@ export async function POST(request: NextRequest) {
       existingExtracted,
       userMessageCount,
       conversationMetrics,
+      language = "en",
     } = body;
+
+    console.log("Updating profile for language:", language);
 
     if (!transcript || typeof transcript !== "string") {
       return NextResponse.json(
@@ -235,7 +248,8 @@ export async function POST(request: NextRequest) {
       transcript,
       existingProfile,
       existingExtracted,
-      conversationMetrics
+      conversationMetrics,
+      language
     );
 
     if (!updatedProfile) {
@@ -254,6 +268,7 @@ export async function POST(request: NextRequest) {
           userMessageCount,
           updatedAt: new Date().toISOString(),
           conversationMetrics,
+          language,
         },
       });
     }
@@ -283,6 +298,7 @@ export async function POST(request: NextRequest) {
         updatedAt: new Date().toISOString(),
         conversationMetrics,
         updateNumber: Math.floor((userMessageCount - 7) / 8) + 1, // Track which update this is
+        language,
       },
     });
   } catch (error) {
@@ -290,7 +306,11 @@ export async function POST(request: NextRequest) {
 
     // Try to return existing profile on error
     try {
-      const { existingProfile, existingExtracted } = await request.json();
+      const {
+        existingProfile,
+        existingExtracted,
+        language = "en",
+      } = await request.json();
       return NextResponse.json({
         profile: existingProfile,
         extracted: existingExtracted,
@@ -301,6 +321,7 @@ export async function POST(request: NextRequest) {
         },
         isComplete: true,
         error: "Update failed, using existing profile",
+        language,
       });
     } catch {
       return NextResponse.json(
@@ -316,7 +337,7 @@ export async function GET() {
   return NextResponse.json({
     status: "healthy",
     service: "profile-update-generation",
-    version: "2.0",
+    version: "3.0",
     features: {
       comprehensiveUpdate: true,
       profileMerging: true,
@@ -324,6 +345,8 @@ export async function GET() {
       hawaiiContextAware: true,
       fallbackProcessing: true,
       incrementalImprovement: true,
+      multiLanguageSupport: true,
+      supportedLanguages: ["en", "haw", "hwp", "tl"],
     },
     updateIntervals: [15, 25, 35, 50],
     timestamp: new Date().toISOString(),

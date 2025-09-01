@@ -1,5 +1,5 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
-// app/api/generate-profile/route.ts
+// app/api/generate-profile/route.ts (Updated with Language Support)
 import { NextRequest, NextResponse } from "next/server";
 import Groq from "groq-sdk";
 
@@ -80,17 +80,25 @@ function cleanJsonResponse(response: string): string {
   return cleaned;
 }
 
-// Generate comprehensive profile from conversation
+// Generate comprehensive profile from conversation (with language awareness)
 async function generateComprehensiveProfile(
   transcript: string,
-  conversationMetrics: any
+  conversationMetrics: any,
+  language: string = "en"
 ): Promise<EnhancedProfile | null> {
+  const languageContext =
+    language !== "en"
+      ? `Note: The conversation may contain ${language === "haw" ? "Hawaiian (ʻŌlelo Hawaiʻi)" : language === "hwp" ? "Hawaiian Pidgin" : language === "tl" ? "Tagalog" : "English"} language. Understand it in context but write the profile summary in ENGLISH for system use.`
+      : "";
+
   const systemPrompt = `You are an expert career counseling analyst. Analyze this detailed conversation between a career counselor and a student/job seeker in Hawaii. Extract comprehensive information to build a rich user profile for personalized career guidance.
+${languageContext}
 
 CONVERSATION METRICS:
 - Total messages: ${conversationMetrics.totalMessages}
 - User messages: ${conversationMetrics.userMessages}
 - Average message length: ${Math.round(conversationMetrics.averageLength)} characters
+- Language used: ${language}
 
 ANALYSIS INSTRUCTIONS:
 1. Extract EXPLICIT information mentioned in the conversation
@@ -98,10 +106,11 @@ ANALYSIS INSTRUCTIONS:
 3. Use null/empty arrays for truly unknown information
 4. Be specific and detailed - capture nuances and context
 5. Consider Hawaii-specific factors (island location, local culture, etc.)
+6. IMPORTANT: Write the summary in ENGLISH regardless of conversation language
 
 Return ONLY valid JSON in this exact format:
 {
-  "summary": "A comprehensive 5-6 sentence narrative in third person that captures their full story, including current situation, interests, goals, challenges, timeline, and context. Make it personal and specific.",
+  "summary": "A comprehensive 5-6 sentence narrative IN ENGLISH in third person that captures their full story, including current situation, interests, goals, challenges, timeline, and context. Make it personal and specific.",
   "extracted": {
     "educationLevel": "elementary|middle_school|high_school_freshman|high_school_sophomore|high_school_junior|high_school_senior|college_freshman|college_sophomore|college_junior|college_senior|associate_degree|bachelor_degree|master_degree|doctoral_degree|trade_certification|working_professional|null",
     "currentGrade": null or grade number if applicable,
@@ -151,14 +160,18 @@ IMPORTANT GUIDELINES:
 - Note any concerns, fears, or excitement expressed
 - Consider their communication style and engagement level
 - Be honest about confidence levels - don't inflate scores
-- If exploring careers, that IS a valid career goal - capture it as such`;
+- If exploring careers, that IS a valid career goal - capture it as such
+- The summary MUST be in English for system compatibility`;
 
   try {
     const response = await groq.chat.completions.create({
       model: "llama-3.3-70b-versatile",
       messages: [
         { role: "system", content: systemPrompt },
-        { role: "user", content: `CONVERSATION TO ANALYZE:\n\n${transcript}` },
+        {
+          role: "user",
+          content: `CONVERSATION TO ANALYZE (Language: ${language}):\n\n${transcript}`,
+        },
       ],
       temperature: 0.2,
     });
@@ -194,11 +207,11 @@ IMPORTANT GUIDELINES:
 
     // Fallback: Try simpler extraction
     try {
-      const fallbackPrompt = `Extract basic information from this career counseling conversation. Focus on clear, explicit information only.
+      const fallbackPrompt = `Extract basic information from this career counseling conversation (may be in ${language === "haw" ? "Hawaiian" : language === "hwp" ? "Pidgin" : language === "tl" ? "Tagalog" : "English"}). Focus on clear, explicit information only.
 
-Return JSON with:
+Return JSON with summary in ENGLISH:
 {
-  "summary": "Brief summary of the person and their situation",
+  "summary": "Brief summary IN ENGLISH of the person and their situation",
   "extracted": {
     "educationLevel": "their education level or null",
     "currentStatus": "what they're doing now or null",
@@ -248,8 +261,14 @@ Return JSON with:
 // Main API handler
 export async function POST(request: NextRequest) {
   try {
-    const { transcript, userMessageCount, conversationMetrics } =
-      await request.json();
+    const {
+      transcript,
+      userMessageCount,
+      conversationMetrics,
+      language = "en",
+    } = await request.json();
+
+    console.log("Generating profile for language:", language);
 
     if (!transcript || typeof transcript !== "string") {
       return NextResponse.json(
@@ -268,7 +287,8 @@ export async function POST(request: NextRequest) {
 
     const enhancedProfile = await generateComprehensiveProfile(
       transcript,
-      conversationMetrics
+      conversationMetrics,
+      language
     );
 
     if (!enhancedProfile) {
@@ -300,6 +320,7 @@ export async function POST(request: NextRequest) {
         userMessageCount,
         generatedAt: new Date().toISOString(),
         conversationMetrics,
+        language,
       },
     });
   } catch (error) {
@@ -316,13 +337,15 @@ export async function GET() {
   return NextResponse.json({
     status: "healthy",
     service: "enhanced-profile-generation",
-    version: "2.0",
+    version: "3.0",
     features: {
       comprehensiveExtraction: true,
       confidenceScoring: true,
       hawaiiContextAware: true,
       fallbackProcessing: true,
       detailedAnalysis: true,
+      multiLanguageSupport: true,
+      supportedLanguages: ["en", "haw", "hwp", "tl"],
     },
     timestamp: new Date().toISOString(),
   });

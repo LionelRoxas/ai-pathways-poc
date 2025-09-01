@@ -1,4 +1,4 @@
-// app/api/profiling-chat/route.ts
+// app/api/profiling-chat/route.ts (Updated to handle language parameter)
 import { NextRequest, NextResponse } from "next/server";
 import { getEnhancedProfilingResponse } from "../../utils/groqClient";
 
@@ -232,7 +232,10 @@ function analyzeProfilingState(messages: ChatMessage[]): ProfilingState {
 export async function POST(request: NextRequest) {
   try {
     console.log("=== PROFILING CHAT API CALLED ===");
-    const { messages } = await request.json();
+    const body = await request.json();
+    const { messages, language = "en" } = body; // Accept language parameter, default to English
+
+    console.log("Language requested:", language);
 
     if (!messages || !Array.isArray(messages)) {
       return NextResponse.json(
@@ -247,7 +250,7 @@ export async function POST(request: NextRequest) {
     // Check if profile is ready (7 messages with reasonable readiness score)
     const isProfileReady =
       profilingState.userMessageCount >= 7 &&
-      profilingState.readinessScore >= 60;
+      profilingState.readinessScore >= 40;
 
     console.log("=== PROFILE READINESS CHECK ===");
     console.log(
@@ -259,23 +262,55 @@ export async function POST(request: NextRequest) {
     console.log(
       "Readiness score:",
       profilingState.readinessScore,
-      ">=60?",
-      profilingState.readinessScore >= 60
+      ">=40?",
+      profilingState.readinessScore >= 40
     );
     console.log("Is profile ready?", isProfileReady);
 
     if (isProfileReady) {
       console.log("=== PROFILE READY - RETURNING TRANSITION MESSAGE ===");
 
-      return NextResponse.json({
-        message:
-          "Perfect! I have enough information about your background and interests. Let me analyze your profile and show you personalized career opportunities from Hawaii's job market with real salary data and current openings.",
-        suggestedQuestions: [
+      // Language-specific transition messages
+      const transitionMessages: Record<string, string> = {
+        en: "Perfect! I have enough information about your background and interests. Let me analyze your profile and show you personalized career opportunities from Hawaii's job market with real salary data and current openings.",
+        haw: "Maikaʻi loa! Ua loaʻa iaʻu ka ʻike kūpono e pili ana i kou ʻano a me kou mau hoihoi. E nānā au i kou moʻolelo a e hōʻike aku i nā ʻoihana kūpono mai ka mākeke hana o Hawaiʻi.",
+        hwp: "Shoots! I get nuff info about you and wat you like do. Lemme check your profile and show you da kine personalized career opportunities from Hawaii job market yeah.",
+        tl: "Perpekto! May sapat na akong impormasyon tungkol sa iyong background at mga interes. Susuriin ko ang iyong profile at ipapakita ang mga personalized na oportunidad sa karera mula sa Hawaii.",
+      };
+
+      // Language-specific suggested questions
+      const suggestedQuestionsByLanguage: Record<string, string[]> = {
+        en: [
           "Show me career matches",
           "What are the highest paying options?",
           "What education programs are available?",
           "Tell me about job openings",
         ],
+        haw: [
+          "E hōʻike mai i nā ʻoihana kūpono",
+          "He aha nā koho uku kiʻekiʻe?",
+          "He aha nā papahana hoʻonaʻauao?",
+          "E haʻi mai e pili ana i nā wahi hana",
+        ],
+        hwp: [
+          "Show me da career matches",
+          "Wat stay da highest paying kine?",
+          "Wat education programs get?",
+          "Tell me bout da job openings",
+        ],
+        tl: [
+          "Ipakita ang mga tugmang karera",
+          "Ano ang pinakamataas na sahod?",
+          "Anong mga programa ng edukasyon?",
+          "Sabihin tungkol sa mga job opening",
+        ],
+      };
+
+      return NextResponse.json({
+        message: transitionMessages[language] || transitionMessages.en,
+        suggestedQuestions:
+          suggestedQuestionsByLanguage[language] ||
+          suggestedQuestionsByLanguage.en,
         readyForProfile: true,
         profilingComplete: true,
         confidenceLevel: profilingState.readinessScore,
@@ -296,13 +331,13 @@ export async function POST(request: NextRequest) {
     console.log("=== CONTINUING PROFILING ===");
     console.log("Using getEnhancedProfilingResponse from groqClient");
 
-    // Use the enhanced profiling response from groqClient
-    // This function internally calls generateSmartPrompts with the counselor's message
+    // Pass language to the profiling response generator - THIS IS THE FIX
     const { message, prompts } = await getEnhancedProfilingResponse(
       messages,
       profilingState.userMessageCount,
       profilingState.missingInfo,
-      profilingState.readinessScore
+      profilingState.readinessScore,
+      language // ADDED LANGUAGE PARAMETER HERE
     );
 
     console.log("Generated message:", message.slice(0, 100) + "...");

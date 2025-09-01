@@ -1,6 +1,7 @@
+/* eslint-disable @next/next/no-img-element */
 // components/ChatInput.tsx
 import React, { useRef, useEffect, useState } from "react";
-import { Send, Database, Sparkles, Command } from "lucide-react";
+import { Send, Sparkles, Command } from "lucide-react";
 import { UserProfile } from "./types";
 
 interface ChatInputProps {
@@ -52,9 +53,7 @@ export default function ChatInput({
     >
       <div className="relative">
         {/* Loading indicator bar */}
-        {isLoading && (
-          <div className="absolute top-0 left-0 right-0 h-0.5" />
-        )}
+        {isLoading && <div className="absolute top-0 left-0 right-0 h-0.5" />}
 
         <div className="p-4">
           <div className="max-w-4xl mx-auto">
@@ -128,7 +127,11 @@ export default function ChatInput({
             <div className="mt-3 flex items-center justify-between text-xs">
               <div className="flex items-center gap-3 text-gray-600">
                 <div className="flex items-center gap-1.5">
-                  <Database className="w-3 h-3" />
+                  <img
+                    src="/images/uhcc-logo-3.png"
+                    alt="UHCC Logo"
+                    className="w-6 h-6 object-contain"
+                  />
                   <span>Sponsored by UHCC</span>
                 </div>
               </div>

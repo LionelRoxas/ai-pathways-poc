@@ -1,14 +1,14 @@
-// app/api/personalized-suggestions/route.ts
+// app/api/personalized-suggestions/route.ts (Updated with Language Support)
 import { NextRequest, NextResponse } from "next/server";
-import Groq from "groq-sdk";
-
-const groq = new Groq({
-  apiKey: process.env.GROQ_API_KEY,
-});
+import { generatePersonalizedSuggestions } from "../../utils/groqClient";
 
 export async function POST(request: NextRequest) {
   try {
-    const { profileSummary, extractedProfile } = await request.json();
+    const {
+      profileSummary,
+      extractedProfile,
+      language = "en",
+    } = await request.json();
 
     if (!profileSummary || !extractedProfile) {
       return NextResponse.json(
@@ -17,132 +17,173 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    const systemPrompt = `You are a career counselor assistant. Based on a student's profile, generate 4 highly relevant, personalized questions they might want to ask about careers in Hawaii.
+    console.log("Generating personalized suggestions in language:", language);
 
-The questions should:
-1. Be specific to their interests, education level, and goals
-2. Reference actual details from their profile
-3. Sound natural and conversational
-4. Cover different aspects (careers, education, salaries, opportunities)
-5. Be actionable and lead to helpful database queries
+    // Use the enhanced groqClient function that supports language
+    const suggestions = await generatePersonalizedSuggestions(
+      profileSummary,
+      extractedProfile,
+      language
+    );
 
-Return ONLY a JSON array of 4 question strings, nothing else.`;
+    console.log("Generated suggestions:", suggestions);
 
-    const userPrompt = `Generate 4 personalized career exploration questions for this student:
-
-PROFILE SUMMARY:
-${profileSummary}
-
-EXTRACTED DETAILS:
-- Education Level: ${extractedProfile.educationLevel || "Not specified"}
-- Interests: ${extractedProfile.interests?.join(", ") || "Various"}
-- Career Goals: ${extractedProfile.careerGoals?.join(", ") || "Exploring"}
-- Location Preference: ${extractedProfile.location || "Flexible"}
-- Timeline: ${extractedProfile.timeline || "Flexible"}
-- Strengths: ${extractedProfile.strengths?.join(", ") || "Multiple"}
-- Challenges: ${extractedProfile.challenges?.join(", ") || "None mentioned"}
-
-Examples of good personalized questions:
-- "What tech careers in Honolulu match my interest in AI?"
-- "Show me healthcare programs at UH for someone with my background"
-- "What entry-level developer jobs are available on Oahu?"
-- "How much do marine biologists make in Hawaii?"
-
-Generate 4 questions that are specific to THIS student's profile.`;
-
-    const response = await groq.chat.completions.create({
-      model: "llama-3.3-70b-versatile",
-      messages: [
-        { role: "system", content: systemPrompt },
-        { role: "user", content: userPrompt },
-      ],
-      temperature: 0.7,
+    return NextResponse.json({
+      suggestions,
+      language,
+      metadata: {
+        generatedAt: new Date().toISOString(),
+        profileBased: true,
+      },
     });
-
-    const content = response.choices[0].message.content;
-    if (!content) {
-      throw new Error("Empty response from Groq");
-    }
-
-    console.log("Raw personalized suggestions response:", content);
-
-    // Clean and parse the response
-    let cleaned = content.trim();
-    cleaned = cleaned.replace(/```json\s*/gi, "");
-    cleaned = cleaned.replace(/```\s*/gi, "");
-
-    const firstBracket = cleaned.indexOf("[");
-    const lastBracket = cleaned.lastIndexOf("]");
-
-    if (
-      firstBracket !== -1 &&
-      lastBracket !== -1 &&
-      lastBracket > firstBracket
-    ) {
-      cleaned = cleaned.substring(firstBracket, lastBracket + 1);
-      cleaned = cleaned.replace(/,\s*]/g, "]");
-      cleaned = cleaned.replace(/\\"/g, '"');
-      cleaned = cleaned.replace(/\n/g, " ");
-
-      const suggestions = JSON.parse(cleaned);
-
-      if (Array.isArray(suggestions) && suggestions.length > 0) {
-        const validSuggestions = suggestions
-          .filter(s => typeof s === "string" && s.trim().length > 0)
-          .map(s => s.trim())
-          .slice(0, 4);
-
-        if (validSuggestions.length > 0) {
-          console.log("Generated personalized suggestions:", validSuggestions);
-          return NextResponse.json({ suggestions: validSuggestions });
-        }
-      }
-    }
-
-    // If parsing fails, return intelligent fallbacks
-    throw new Error("Failed to parse suggestions");
   } catch (error) {
     console.error("Error generating personalized suggestions:", error);
 
-    // Return intelligent fallbacks based on profile
-    const { extractedProfile } = await request.json();
-    const fallbacks = [];
+    // Language-specific fallbacks
+    const fallbacksByLanguage: Record<string, string[]> = {
+      en: [
+        "What careers match my profile?",
+        "What education programs are available?",
+        "Show me entry-level opportunities",
+        "What are the highest paying careers?",
+      ],
+      haw: [
+        "He aha nā ʻoihana kūpono iaʻu?",
+        "He aha nā papahana hoʻonaʻauao?",
+        "E hōʻike mai i nā ʻoihana hoʻomaka",
+        "He aha nā ʻoihana uku kiʻekiʻe?",
+      ],
+      hwp: [
+        "Wat careers match my profile?",
+        "Wat education programs get?",
+        "Show me entry-level kine",
+        "Wat stay da highest paying jobs?",
+      ],
+      tl: [
+        "Anong careers ang tugma sa akin?",
+        "Anong mga programa ng edukasyon?",
+        "Ipakita ang entry-level opportunities",
+        "Ano ang pinakamataas na sahod?",
+      ],
+    };
 
-    // Based on interests
-    if (extractedProfile?.interests && extractedProfile.interests.length > 0) {
-      const interest = extractedProfile.interests[0];
-      fallbacks.push(`Show me ${interest} careers in Hawaii`);
-    } else {
-      fallbacks.push("What careers match my profile?");
+    // Try to extract language from request even if main processing failed
+    try {
+      const body = await request.json();
+      const lang = body.language || "en";
+      const profile = body.extractedProfile;
+
+      // Generate intelligent fallbacks based on profile
+      const intelligentFallbacks = [];
+
+      // Based on interests
+      if (profile?.interests && profile.interests.length > 0) {
+        const interest = profile.interests[0];
+        switch (lang) {
+          case "haw":
+            intelligentFallbacks.push(
+              `E hōʻike mai i nā ʻoihana ${interest} ma Hawaiʻi`
+            );
+            break;
+          case "hwp":
+            intelligentFallbacks.push(`Show me ${interest} careers in Hawaii`);
+            break;
+          case "tl":
+            intelligentFallbacks.push(
+              `Ipakita ang ${interest} careers sa Hawaii`
+            );
+            break;
+          default:
+            intelligentFallbacks.push(`Show me ${interest} careers in Hawaii`);
+        }
+      }
+
+      // Based on education level
+      if (profile?.educationLevel?.includes("high_school")) {
+        switch (lang) {
+          case "haw":
+            intelligentFallbacks.push(
+              "He aha nā papahana kulanui e noʻonoʻo ai?"
+            );
+            break;
+          case "hwp":
+            intelligentFallbacks.push(
+              "Wat college programs I should check out?"
+            );
+            break;
+          case "tl":
+            intelligentFallbacks.push(
+              "Anong college programs dapat kong tingnan?"
+            );
+            break;
+          default:
+            intelligentFallbacks.push(
+              "What college programs should I consider?"
+            );
+        }
+      } else if (profile?.educationLevel?.includes("college")) {
+        switch (lang) {
+          case "haw":
+            intelligentFallbacks.push("E hōʻike mai i nā ʻoihana hoʻomaka");
+            break;
+          case "hwp":
+            intelligentFallbacks.push("Show me entry-level kine");
+            break;
+          case "tl":
+            intelligentFallbacks.push("Ipakita ang entry-level opportunities");
+            break;
+          default:
+            intelligentFallbacks.push("Show me entry-level opportunities");
+        }
+      }
+
+      // Based on location
+      if (profile?.location && profile.location !== "null") {
+        switch (lang) {
+          case "haw":
+            intelligentFallbacks.push(`He aha ka mea ma ${profile.location}?`);
+            break;
+          case "hwp":
+            intelligentFallbacks.push(`Wat get on ${profile.location}?`);
+            break;
+          case "tl":
+            intelligentFallbacks.push(
+              `Ano ang available sa ${profile.location}?`
+            );
+            break;
+          default:
+            intelligentFallbacks.push(
+              `What's available on ${profile.location}?`
+            );
+        }
+      }
+
+      // If we have intelligent fallbacks, use them; otherwise use generic ones
+      const finalSuggestions =
+        intelligentFallbacks.length > 0
+          ? [...intelligentFallbacks, ...fallbacksByLanguage[lang]].slice(0, 4)
+          : fallbacksByLanguage[lang] || fallbacksByLanguage.en;
+
+      return NextResponse.json({
+        suggestions: finalSuggestions,
+        language: lang,
+        metadata: {
+          generatedAt: new Date().toISOString(),
+          profileBased: intelligentFallbacks.length > 0,
+          fallback: true,
+        },
+      });
+    } catch {
+      return NextResponse.json({
+        suggestions: fallbacksByLanguage.en,
+        language: "en",
+        metadata: {
+          generatedAt: new Date().toISOString(),
+          profileBased: false,
+          fallback: true,
+        },
+      });
     }
-
-    // Based on education level
-    if (extractedProfile?.educationLevel?.includes("high_school")) {
-      fallbacks.push("What college programs should I consider?");
-    } else if (extractedProfile?.educationLevel?.includes("college")) {
-      fallbacks.push("Show me entry-level opportunities");
-    } else {
-      fallbacks.push("What training programs are available?");
-    }
-
-    // Based on goals
-    if (
-      extractedProfile?.careerGoals &&
-      extractedProfile.careerGoals.length > 0
-    ) {
-      fallbacks.push(`How do I become a ${extractedProfile.careerGoals[0]}?`);
-    } else {
-      fallbacks.push("What are the highest paying careers?");
-    }
-
-    // Based on location
-    if (extractedProfile?.location && extractedProfile.location !== "null") {
-      fallbacks.push(`What's available on ${extractedProfile.location}?`);
-    } else {
-      fallbacks.push("Show me all opportunities in Hawaii");
-    }
-
-    return NextResponse.json({ suggestions: fallbacks.slice(0, 4) });
   }
 }
 
@@ -150,6 +191,14 @@ export async function GET() {
   return NextResponse.json({
     status: "healthy",
     service: "personalized-suggestions",
+    version: "3.0",
+    features: {
+      multiLanguage: true,
+      supportedLanguages: ["en", "haw", "hwp", "tl"],
+      profileBased: true,
+      contextAware: true,
+      intelligentFallbacks: true,
+    },
     timestamp: new Date().toISOString(),
   });
 }

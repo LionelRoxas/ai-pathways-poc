@@ -1,20 +1,92 @@
+/* eslint-disable react-hooks/exhaustive-deps */
+// components/AIPathwaysChat/UnifiedSleekChat.tsx (Updated with auto data panel)
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import React, { useState, useEffect, useRef } from "react";
-import { Menu, PanelRight, Activity } from "lucide-react";
+import { Menu, PanelRight, Activity, Globe } from "lucide-react";
+import { Language } from "../LanguageSelection";
 
-// Import components
+// Import other components (same as before)
 import ChatMessages from "./ChatMessages";
 import ChatInput from "./ChatInput";
 import LeftSidebar from "./LeftSidebar";
 import DataPanel from "./DataPanel";
-
-// Import types
 import { Message, UserProfile, CurrentData } from "./types";
 
-// Profile update intervals
-const PROFILE_UPDATE_INTERVALS = [15, 25, 35, 50]; // Update at these message counts
+const PROFILE_UPDATE_INTERVALS = [15, 25, 35, 50];
 
-export default function UnifiedSleekChat() {
+interface UnifiedSleekChatProps {
+  selectedLanguage: Language | null;
+}
+
+// Language-specific greetings
+const getInitialGreeting = (language: Language | null): string => {
+  if (!language)
+    return "Aloha! I'm your Hawaii Education & Career Advisor. I'll help you explore educational pathways from high school to college, using real data from Hawaii's schools and universities. What's your current situation - are you in high school, college, working, or exploring your options?";
+
+  switch (language.code) {
+    case "haw":
+      return "Aloha! ʻO wau kou kōkua no nā ala hoʻonaʻauao a me nā ʻoihana ma Hawaiʻi. E kōkua ana au iā ʻoe e ʻimi i nā ala hoʻonaʻauao mai ke kula kiʻekiʻe a hiki i ke kulanui. He aha kou kūlana i kēia manawa?";
+
+    case "hwp":
+      return "Eh howzit! I stay your Hawaii Education & Career Advisor. I going help you check out all da educational pathways from high school to college, using real data from Hawaii schools and universities yeah. So wat, you stay in high school, college, working, or jus checking out your options?";
+
+    case "tl":
+      return "Kumusta! Ako ang iyong tagapayo para sa Edukasyon at Karera sa Hawaii. Tutulungan kitang tuklasin ang mga landas ng edukasyon mula high school hanggang kolehiyo, gamit ang tunay na datos mula sa mga paaralan at unibersidad ng Hawaii. Ano ang iyong kasalukuyang sitwasyon - nasa high school ka ba, kolehiyo, nagtatrabaho, o nag-eeksplora ng mga pagpipilian?";
+
+    default:
+      return "Aloha! I'm your Hawaii Education & Career Advisor. I'll help you explore educational pathways from high school to college, using real data from Hawaii's schools and universities. What's your current situation - are you in high school, college, working, or exploring your options?";
+  }
+};
+
+// Language-specific suggested questions
+const getInitialSuggestions = (language: Language | null): string[] => {
+  if (!language || language.code === "en") {
+    return [
+      "I'm a high school student",
+      "I'm looking at UH programs",
+      "I want to explore career pathways",
+      "Show me programs on my island",
+    ];
+  }
+
+  switch (language.code) {
+    case "haw":
+      return [
+        "He haumāna kula kiʻekiʻe au",
+        "Ke nānā nei au i nā papahana UH",
+        "Makemake au e ʻimi i nā ala ʻoihana",
+        "E hōʻike mai i nā papahana ma koʻu mokupuni",
+      ];
+
+    case "hwp":
+      return [
+        "I stay one high school student",
+        "I stay looking at UH programs",
+        "I like explore career pathways",
+        "Show me programs on my island",
+      ];
+
+    case "tl":
+      return [
+        "Ako ay estudyante ng high school",
+        "Tumitingin ako sa mga programa ng UH",
+        "Gusto kong tuklasin ang mga landas ng karera",
+        "Ipakita ang mga programa sa aking isla",
+      ];
+
+    default:
+      return [
+        "I'm a high school student",
+        "I'm looking at UH programs",
+        "I want to explore career pathways",
+        "Show me programs on my island",
+      ];
+  }
+};
+
+export default function UnifiedSleekChat({
+  selectedLanguage,
+}: UnifiedSleekChatProps) {
   const [messages, setMessages] = useState<Message[]>([]);
   const [message, setMessage] = useState("");
   const [isLoading, setIsLoading] = useState(false);
@@ -28,49 +100,40 @@ export default function UnifiedSleekChat() {
   const [isUpdatingProfile, setIsUpdatingProfile] = useState(false);
   const lastUpdateRef = useRef<number>(0);
 
-  useEffect(() => {
-    const greeting =
-      "Aloha! I'm your Hawaii Education & Career Advisor. I'll help you explore educational pathways from high school to college, using real data from Hawaii's schools and universities. What's your current situation - are you in high school, college, working, or exploring your options?";
-    setMessages([{ role: "assistant", content: greeting }]);
+  // Use the selected language, default to English if not provided
+  const currentLanguage = selectedLanguage || {
+    code: "en",
+    name: "English",
+    nativeName: "English",
+    greeting: "",
+    description: "",
+  };
 
-    // Set initial suggested questions for Hawaii education context
-    setSuggestedQuestions([
-      "I'm a high school student",
-      "I'm looking at UH programs",
-      "I want to explore career pathways",
-      "Show me programs on my island",
-    ]);
+  useEffect(() => {
+    const greeting = getInitialGreeting(currentLanguage);
+    setMessages([{ role: "assistant", content: greeting }]);
+    setSuggestedQuestions(getInitialSuggestions(currentLanguage));
   }, []);
 
-  // Get user message count (excluding AI responses)
   const getUserMessageCount = () => {
     return messages.filter(msg => msg.role === "user").length;
   };
 
-  // Check if profile should be updated
   const shouldUpdateProfile = (userMessageCount: number): boolean => {
-    // Only update if we have a complete profile
     if (!userProfile?.isComplete) return false;
-
-    // Check if we've hit an update interval
     const shouldUpdate = PROFILE_UPDATE_INTERVALS.some(
       interval =>
         userMessageCount === interval && lastUpdateRef.current < interval
     );
-
     if (shouldUpdate) {
       lastUpdateRef.current = userMessageCount;
     }
-
     return shouldUpdate;
   };
 
-  // Update existing profile with new conversation data
   const updateProfile = async (allMessages: Message[]) => {
     setIsUpdatingProfile(true);
-
     try {
-      // Build updated transcript
       const transcript = allMessages
         .map(
           msg =>
@@ -98,13 +161,13 @@ export default function UnifiedSleekChat() {
             userMessages: userMessages.length,
             averageLength: avgLength,
           },
+          language: currentLanguage.code,
         }),
       });
 
       if (response.ok) {
         const data = await response.json();
         if (data.profile && data.extracted) {
-          // Update the profile with new data
           setUserProfile({
             profileSummary: data.profile,
             extracted: data.extracted,
@@ -112,7 +175,6 @@ export default function UnifiedSleekChat() {
             confidence: data.confidence,
           });
 
-          // Generate new personalized suggestions
           try {
             const suggestionsResponse = await fetch(
               "/api/personalized-suggestions",
@@ -122,6 +184,7 @@ export default function UnifiedSleekChat() {
                 body: JSON.stringify({
                   profileSummary: data.profile,
                   extractedProfile: data.extracted,
+                  language: currentLanguage.code,
                 }),
               }
             );
@@ -139,7 +202,6 @@ export default function UnifiedSleekChat() {
             console.error("Error updating suggestions:", error);
           }
 
-          // Add a subtle notification that profile was updated
           console.log("Profile updated with new conversation data");
         }
       }
@@ -150,43 +212,6 @@ export default function UnifiedSleekChat() {
     }
   };
 
-  // Auto-open data panel when data is received
-  useEffect(() => {
-    if (currentData && Object.keys(currentData).length > 0) {
-      // Check if there's any actual data
-      const hasData =
-        (currentData.uhPrograms && currentData.uhPrograms.length > 0) ||
-        (currentData.doePrograms && currentData.doePrograms.length > 0) ||
-        (currentData.pathways && currentData.pathways.length > 0) ||
-        (currentData.searchResults &&
-          ((currentData.searchResults.uhPrograms &&
-            currentData.searchResults.uhPrograms.length > 0) ||
-            (currentData.searchResults.doePrograms &&
-              currentData.searchResults.doePrograms.length > 0)));
-
-      if (hasData) {
-        setDataPanelOpen(true);
-
-        // Set appropriate tab based on what data we have
-        if (currentData.doePrograms && currentData.doePrograms.length > 0) {
-          setActiveDataTab("doe");
-        } else if (
-          currentData.uhPrograms &&
-          currentData.uhPrograms.length > 0
-        ) {
-          setActiveDataTab("uh");
-        } else if (currentData.pathways && currentData.pathways.length > 0) {
-          setActiveDataTab("pathways");
-        } else if (currentData.searchResults) {
-          setActiveDataTab("search");
-        } else if (currentData.stats) {
-          setActiveDataTab("overview");
-        }
-      }
-    }
-  }, [currentData]);
-
-  // Handle profile building when profiling-chat says it's ready
   const buildProfile = async (
     transcript: string,
     currentUserMessageCount: number,
@@ -199,7 +224,6 @@ export default function UnifiedSleekChat() {
         currentUserMessageCount
       );
 
-      // Calculate metrics from the provided messages array
       const userMessages = allMessages.filter(msg => msg.role === "user");
       const avgLength =
         userMessages.length > 0
@@ -218,6 +242,7 @@ export default function UnifiedSleekChat() {
             userMessages: currentUserMessageCount,
             averageLength: avgLength,
           },
+          language: currentLanguage.code,
         }),
       });
 
@@ -231,10 +256,8 @@ export default function UnifiedSleekChat() {
             confidence: data.confidence,
           });
 
-          // Set the last update reference
           lastUpdateRef.current = currentUserMessageCount;
 
-          // Generate personalized suggested questions using API endpoint
           try {
             const suggestionsResponse = await fetch(
               "/api/personalized-suggestions",
@@ -244,16 +267,13 @@ export default function UnifiedSleekChat() {
                 body: JSON.stringify({
                   profileSummary: data.profile,
                   extractedProfile: data.extracted,
+                  language: currentLanguage.code,
                 }),
               }
             );
 
-            let personalizedSuggestions = [
-              "Show me UH programs that match my interests",
-              "What high school courses should I take?",
-              "Find programs on my island",
-              "Show me pathways to college",
-            ];
+            let personalizedSuggestions =
+              getInitialSuggestions(currentLanguage);
 
             if (suggestionsResponse.ok) {
               const suggestionsData = await suggestionsResponse.json();
@@ -265,26 +285,18 @@ export default function UnifiedSleekChat() {
               }
             }
 
-            // Set personalized suggested questions
             setSuggestedQuestions(personalizedSuggestions);
           } catch (error) {
             console.error("Error generating personalized suggestions:", error);
-            // Use fallback suggestions for Hawaii education
-            setSuggestedQuestions([
-              "Show me UH programs that match my interests",
-              "What high school courses should I take?",
-              "Find programs on my island",
-              "Show me pathways to college",
-            ]);
+            setSuggestedQuestions(getInitialSuggestions(currentLanguage));
           }
 
-          // Add a system message to let user know profile is ready
+          const profileReadyMessage = getProfileReadyMessage(currentLanguage);
           setMessages(prev => [
             ...prev,
             {
               role: "assistant",
-              content:
-                "Excellent! I've built a comprehensive profile based on our conversation. You can see it in the sidebar. I'm now ready to provide personalized recommendations for Hawaii's educational programs and pathways. What would you like to explore?",
+              content: profileReadyMessage,
             },
           ]);
         }
@@ -303,6 +315,22 @@ export default function UnifiedSleekChat() {
     }
   };
 
+  const getProfileReadyMessage = (language: Language): string => {
+    switch (language.code) {
+      case "haw":
+        return "Maikaʻi! Ua loaʻa iaʻu ka ʻike e pili ana iā ʻoe. ʻIke ʻoe i ka papa ma ka ʻaoʻao hema. Hiki iaʻu ke hāʻawi i nā manaʻo kūpono no nā papahana hoʻonaʻauao a me nā ala ʻoihana ma Hawaiʻi. He aha kāu makemake e ʻike?";
+
+      case "hwp":
+        return "Shoots! I get plenny info about you now. You can check your profile on da left side yeah. Now I can give you da kine personalized recommendations for Hawaii education programs and career pathways. Wat you like know about?";
+
+      case "tl":
+        return "Mahusay! Nakuha ko na ang iyong profile batay sa ating pag-uusap. Makikita mo ito sa kaliwang bahagi. Handa na akong magbigay ng personalized na rekomendasyon para sa mga programang pang-edukasyon at career pathways sa Hawaii. Ano ang gusto mong malaman?";
+
+      default:
+        return "Excellent! I've built a comprehensive profile based on our conversation. You can see it in the sidebar. I'm now ready to provide personalized recommendations for Hawaii's educational programs and pathways. What would you like to explore?";
+    }
+  };
+
   const handleSend = async () => {
     if (!message.trim() || isLoading) return;
 
@@ -312,12 +340,10 @@ export default function UnifiedSleekChat() {
     setMessage("");
     setIsLoading(true);
 
-    // Check if profile should be updated
     const currentUserCount = newMessages.filter(
       msg => msg.role === "user"
     ).length;
     if (shouldUpdateProfile(currentUserCount)) {
-      // Update profile in background (non-blocking)
       updateProfile(newMessages);
     }
 
@@ -335,6 +361,7 @@ export default function UnifiedSleekChat() {
           })),
           userProfile: userProfile.profileSummary,
           extractedProfile: userProfile.extracted,
+          language: currentLanguage.code,
         };
       } else {
         requestBody = {
@@ -342,6 +369,7 @@ export default function UnifiedSleekChat() {
             role: msg.role,
             content: msg.content,
           })),
+          language: currentLanguage.code,
         };
       }
 
@@ -359,11 +387,8 @@ export default function UnifiedSleekChat() {
 
       const data = await response.json();
 
-      // Check if profiling-chat says it's ready to build profile
       if (data.readyForProfile && !userProfile?.isComplete) {
         console.log("Profile building triggered by profiling-chat API");
-
-        // Build the profile immediately
         const transcript = newMessages
           .map(
             msg =>
@@ -371,23 +396,47 @@ export default function UnifiedSleekChat() {
           )
           .join("\n\n");
 
-        // Calculate the correct user message count from newMessages
         const currentUserCount = newMessages.filter(
           msg => msg.role === "user"
         ).length;
-        console.log(
-          "Calculated user count from newMessages:",
-          currentUserCount
-        );
 
         await buildProfile(transcript, currentUserCount, newMessages);
-
-        // Don't add the "ready for profile" message since we're building it now
         return;
       }
 
+      // AUTO DATA PANEL OPENING - THIS IS THE NEW ADDITION
       if (data.data && Object.keys(data.data).length > 0) {
         setCurrentData(data.data);
+
+        // Check if there's actual data to display
+        const hasActualData =
+          (data.data.uhPrograms && data.data.uhPrograms.length > 0) ||
+          (data.data.doePrograms && data.data.doePrograms.length > 0) ||
+          (data.data.pathways && data.data.pathways.length > 0) ||
+          (data.data.searchResults &&
+            ((data.data.searchResults.uhPrograms &&
+              data.data.searchResults.uhPrograms.length > 0) ||
+              (data.data.searchResults.doePrograms &&
+                data.data.searchResults.doePrograms.length > 0)));
+
+        // Auto-open data panel if there's data and it's not already open
+        if (hasActualData && !dataPanelOpen) {
+          setDataPanelOpen(true);
+
+          // Set the appropriate tab based on data type
+          if (data.data.uhPrograms && data.data.uhPrograms.length > 0) {
+            setActiveDataTab("uh");
+          } else if (
+            data.data.doePrograms &&
+            data.data.doePrograms.length > 0
+          ) {
+            setActiveDataTab("doe");
+          } else if (data.data.searchResults) {
+            setActiveDataTab("search");
+          } else if (data.data.pathways && data.data.pathways.length > 0) {
+            setActiveDataTab("pathways");
+          }
+        }
       }
 
       if (data.suggestedQuestions) {
@@ -404,12 +453,12 @@ export default function UnifiedSleekChat() {
       setMessages(prev => [...prev, assistantMessage]);
     } catch (error) {
       console.error("Error:", error);
+      const errorMessage = getErrorMessage(currentLanguage);
       setMessages(prev => [
         ...prev,
         {
           role: "assistant",
-          content:
-            "I'm having trouble accessing the education database right now. Could you try your question again?",
+          content: errorMessage,
         },
       ]);
     } finally {
@@ -417,10 +466,24 @@ export default function UnifiedSleekChat() {
     }
   };
 
-  // Check if we have meaningful data to show
+  const getErrorMessage = (language: Language): string => {
+    switch (language.code) {
+      case "haw":
+        return "E kala mai, ua loaʻa kekahi pilikia i ka hoʻokele ʻana i ka ʻikepili. E ʻoluʻolu e hoʻāʻo hou.";
+
+      case "hwp":
+        return "Ho brah, get one problem wit da database right now. Try ask again yeah?";
+
+      case "tl":
+        return "Pasensya na, nagkaproblema sa pag-access ng database. Pakisubukan ulit ang iyong tanong.";
+
+      default:
+        return "I'm having trouble accessing the education database right now. Could you try your question again?";
+    }
+  };
+
   const hasDataToShow = () => {
     if (!currentData) return false;
-
     return (
       (currentData.uhPrograms && currentData.uhPrograms.length > 0) ||
       (currentData.doePrograms && currentData.doePrograms.length > 0) ||
@@ -442,7 +505,6 @@ export default function UnifiedSleekChat() {
           '"Inter", "Segoe UI", "Roboto", "Helvetica Neue", sans-serif',
       }}
     >
-      {/* Left Sidebar */}
       <LeftSidebar
         sidebarOpen={sidebarOpen}
         userProfile={userProfile}
@@ -450,9 +512,8 @@ export default function UnifiedSleekChat() {
         userMessageCount={getUserMessageCount()}
       />
 
-      {/* Main Application Area */}
       <div className="flex-1 flex flex-col">
-        {/* Minimal Header */}
+        {/* Header with language indicator */}
         <div className="border-b border-slate-200 p-3 flex items-center justify-between bg-white">
           <div className="flex items-center gap-3">
             <button
@@ -472,20 +533,12 @@ export default function UnifiedSleekChat() {
           </div>
 
           <div className="flex items-center gap-2">
-            <div
-              className={`px-2 py-1 rounded-md text-xs font-semibold ${
-                isUpdatingProfile
-                  ? "bg-amber-50 text-amber-700 border border-amber-200 animate-pulse"
-                  : userProfile?.isComplete
-                    ? ""
-                    : "bg-slate-100 text-slate-700 border border-slate-200"
-              }`}
-            >
-              {isUpdatingProfile
-                ? "UPDATING..."
-                : userProfile?.isComplete
-                  ? ""
-                  : `DISCOVERY ${getUserMessageCount()}/7`}
+            {/* Language indicator */}
+            <div className="flex items-center gap-1.5 px-3 py-1.5 bg-slate-100 rounded-lg">
+              <Globe className="w-3.5 h-3.5 text-slate-600" />
+              <span className="text-xs font-medium text-slate-700">
+                {currentLanguage.name}
+              </span>
             </div>
 
             <button
@@ -506,7 +559,6 @@ export default function UnifiedSleekChat() {
           </div>
         </div>
 
-        {/* Chat Area */}
         <div className="flex-1 flex">
           <div className="flex-1 flex flex-col">
             <ChatMessages
@@ -524,7 +576,6 @@ export default function UnifiedSleekChat() {
           </div>
         </div>
 
-        {/* Data Panel */}
         <DataPanel
           dataPanelOpen={dataPanelOpen}
           setDataPanelOpen={setDataPanelOpen}
@@ -533,7 +584,6 @@ export default function UnifiedSleekChat() {
           setActiveDataTab={setActiveDataTab}
         />
 
-        {/* Input */}
         <ChatInput
           message={message}
           setMessage={setMessage}
