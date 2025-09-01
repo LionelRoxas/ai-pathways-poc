@@ -1,62 +1,157 @@
 # Kamaʻāina Pathways - AI Education & Career Advisor
 
-An intelligent conversational AI platform that helps Hawaii students discover personalized education and career pathways through natural conversation, connecting high school programs to University of Hawaii opportunities.
+An intelligent multilingual conversational AI platform that helps Hawaii students discover personalized education and career pathways through natural conversation in their preferred language, connecting high school programs to University of Hawaii opportunities.
 
 ## 🏗️ Architecture Overview
 
 ```
 ├── Frontend (Next.js + React)
 │   ├── Landing Page
-│   ├── Chat Interface
+│   ├── Language Selection
+│   ├── Chat Interface (Multilingual)
 │   ├── Profile Sidebar
 │   └── Data Panel
 │
+├── Middleware Layer
+│   ├── Rate Limiting (Upstash)
+│   ├── Request Tracking
+│   └── Cache Management
+│
 ├── Backend (API Routes)
 │   ├── Conversation Agents
-│   │   ├── Profiling Chat Agent
-│   │   └── AI Pathways Agent
+│   │   ├── Profiling Chat Agent (Multilingual)
+│   │   └── AI Pathways Agent (Multilingual)
 │   │
 │   ├── Analysis Agents
-│   │   ├── Profile Generator
-│   │   ├── Profile Updater
-│   │   └── Suggestion Generator
+│   │   ├── Profile Generator (Multilingual)
+│   │   ├── Profile Updater (Multilingual)
+│   │   └── Suggestion Generator (Multilingual)
+│   │
+│   ├── Cache Services
+│   │   ├── Response Cache
+│   │   ├── Query Cache
+│   │   └── Semantic Cache (RAG)
 │   │
 │   └── Data Services
 │       ├── MCP Server (Database queries)
 │       └── Direct Search
 │
-└── Database (Prisma + PostgreSQL)
-    ├── UH Programs
-    ├── DOE Programs
-    └── Pathways
+└── Database & Cache
+    ├── PostgreSQL (Programs & Pathways)
+    └── Redis (Cache & Rate Limiting)
 ```
+
+## 🌏 Multi-Language Support
+
+### Supported Languages:
+
+- **English** - Standard professional communication
+- **ʻŌlelo Hawaiʻi (Hawaiian)** - With proper diacritical marks
+- **Hawaiian Pidgin** - Authentic local style
+- **Tagalog** - With respectful honorifics
+
+### Language Implementation:
+
+```typescript
+// Language flows through the entire system
+User → Language Selection → Chat Interface → API Routes → AI Responses
+
+// Profile Storage Strategy
+Input: Any supported language
+Storage: English (for system compatibility)
+Output: User's chosen language
+```
+
+## 🚀 Caching Architecture
+
+### Multi-Level Caching Strategy:
+
+```
+Request → Middleware (Rate Check) → Cache Check → API/Database
+           ↓                         ↓
+      Track Pattern            HIT: Return Cached
+                              MISS: Execute & Cache
+```
+
+### Cache Layers:
+
+1. **Response Cache**: Complete API responses
+
+   - TTL: 1 hour for data, 5 min for empty
+   - Key: `response:${endpoint}:${queryHash}:${language}`
+
+2. **Query Cache**: Individual MCP queries
+
+   - TTL: 1 hour
+   - Key: `query:${tool}:${paramHash}`
+
+3. **Semantic Cache**: Similar query matching
+
+   - Uses embeddings for similarity
+   - Reduces redundant processing
+
+4. **Request Tracking**: Pattern analysis
+   - Popular queries tracked
+   - User patterns monitored
+   - Traffic analysis for optimization
+
+## ⚡ Rate Limiting & Middleware
+
+### Rate Limit Configuration:
+
+- **General**: 50 requests per 60-second window
+- **API Routes**: 50 API calls per 60-second window
+- **Implementation**: Upstash Redis with fixed window
+
+### Middleware Features:
+
+```typescript
+// Request flow through middleware
+Request → IP Extraction → Rate Check → Request Tracking → Route Handler
+                              ↓
+                         429 if exceeded
+```
+
+### Cache Management Endpoints:
+
+- `/api/cache-stats` - Monitor cache performance
+- `/api/cache-warmup` - Preload popular queries
+- `/api/cache-invalidate` - Clear cache by tags
 
 ## 📁 Project Structure
 
 ```
 src/
 ├── app/
+│   ├── middleware.ts               # Rate limiting & request tracking
 │   ├── api/
-│   │   ├── profiling-chat/        # Initial conversation handler
-│   │   ├── ai-pathways/           # Post-profile conversation handler
-│   │   ├── generate-profile/      # Profile creation from conversation
-│   │   ├── update-profile/        # Profile enhancement over time
-│   │   ├── personalized-suggestions/ # Dynamic question generation
-│   │   └── direct-search/         # Database search endpoint
+│   │   ├── profiling-chat/        # Initial conversation (multilingual)
+│   │   ├── ai-pathways/           # Post-profile chat (multilingual + cache)
+│   │   ├── generate-profile/      # Profile creation (multilingual)
+│   │   ├── update-profile/        # Profile enhancement (multilingual)
+│   │   ├── personalized-suggestions/ # Dynamic questions (multilingual)
+│   │   ├── direct-search/         # Database search (cached)
+│   │   ├── cache-stats/           # Cache monitoring
+│   │   ├── cache-warmup/          # Cache preloading
+│   │   └── cache-invalidate/      # Cache clearing
 │   │
 │   ├── lib/
 │   │   ├── mcp/
 │   │   │   └── pathways-mcp-server.ts  # Database query orchestrator
-│   │   ├── analyzer/
-│   │   │   ├── profile-analyzer.ts     # Conversation analysis
-│   │   │   └── query-translator.ts     # Intent to query mapping
+│   │   ├── cache/
+│   │   │   ├── cache-service.ts        # Cache management
+│   │   │   └── semantic-cache.ts       # RAG-like caching
 │   │   └── ai/
-│   │       └── prompts.ts              # System prompts
+│   │       └── prompts.ts              # Multilingual prompts
+│   │
+│   ├── utils/
+│   │   └── groqClient.ts          # AI client with language support
 │   │
 │   ├── components/
+│   │   ├── LanguageSelector.tsx   # Language selection interface
 │   │   └── AIPathwaysChat/
 │   │       └── _components/
-│   │           ├── UnifiedSleekChat.tsx    # Main chat controller
+│   │           ├── UnifiedSleekChat.tsx    # Main chat (multilingual)
 │   │           ├── ChatMessages.tsx        # Message display
 │   │           ├── ChatInput.tsx           # Input handling
 │   │           ├── LeftSidebar.tsx         # Profile display
@@ -68,85 +163,49 @@ src/
 ├── prisma/
 │   └── schema.prisma               # Database schema
 │
-└── public/                         # Static assets
+└── public/
+    └── images/
+        └── uhcc-logo-3.png         # UHCC branding
 ```
 
-## 🤖 Agent Architecture
+## 🤖 Enhanced Agent Architecture
 
-### 1. **Profiling Chat Agent** (`/api/profiling-chat`)
+### Language-Aware Agents:
 
-- **Purpose**: Conducts initial discovery conversation
-- **Behavior**: Asks open-ended questions to understand the student
-- **Triggers Profile Build**: After 7 user messages
-- **Response Format**:
-  ```typescript
-  {
-    message: string,
-    readyForProfile?: boolean,
-    suggestedQuestions?: string[]
-  }
-  ```
+All agents now support multilingual conversations while maintaining English profiles for system compatibility:
 
-### 2. **AI Pathways Agent** (`/api/ai-pathways`)
+1. **Profiling Chat Agent** (`/api/profiling-chat`)
 
-- **Purpose**: Provides personalized recommendations post-profile
-- **Features**:
-  - Searches programs based on profile
-  - Executes MCP database queries
-  - Returns structured data with results
-- **Response Format**:
-  ```typescript
-  {
-    message: string,
-    data?: {
-      uhPrograms?: UHProgram[],
-      doePrograms?: DOEProgram[],
-      pathways?: Pathway[],
-      stats?: DatabaseStats
-    },
-    metadata?: QueryMetadata
-  }
-  ```
+   - Conducts discovery in user's language
+   - Language-specific suggested questions
+   - Culturally appropriate responses
 
-### 3. **Profile Generator** (`/api/generate-profile`)
+2. **AI Pathways Agent** (`/api/ai-pathways`)
 
-- **Purpose**: Creates comprehensive profile from conversation
-- **Input**: Conversation transcript + metrics
-- **Output**:
-  - Profile summary (narrative)
-  - Extracted structured data
-  - Confidence scores
-- **Profile Structure**:
-  ```typescript
-  {
-    educationLevel: string,
-    interests: string[],
-    careerGoals: string[],
-    location: string,
-    timeline: string,
-    strengths: string[],
-    challenges: string[],
-    workPreferences: object
-  }
-  ```
+   - Cached responses for performance
+   - Language-aware recommendations
+   - Semantic query understanding
 
-### 4. **Profile Updater** (`/api/update-profile`)
+3. **Profile Generator** (`/api/generate-profile`)
 
-- **Purpose**: Enhances profile as conversation continues
-- **Triggers**: At message counts [15, 25, 35, 50]
-- **Behavior**: Non-blocking background update
-- **Features**: Preserves existing data while adding new insights
+   - Understands input in any language
+   - Generates English profiles for compatibility
+   - Tracks source language in metadata
 
-### 5. **Suggestion Generator** (`/api/personalized-suggestions`)
+4. **Profile Updater** (`/api/update-profile`)
 
-- **Purpose**: Creates contextual follow-up questions
-- **Input**: Current profile + extracted data
-- **Output**: 4 personalized question suggestions
-- **Updates**: After profile creation/updates
+   - Processes updates in user's language
+   - Maintains English profile consistency
+   - Preserves cultural context
+
+5. **Suggestion Generator** (`/api/personalized-suggestions`)
+   - Creates questions in user's language
+   - Profile-aware fallbacks
+   - Culturally relevant prompts
 
 ## 💾 Database Schema
 
-### Core Tables
+### Core Tables (Unchanged)
 
 ```prisma
 model UHProgram {
@@ -186,55 +245,71 @@ model DOEProgramPathway {
 }
 ```
 
-## 🔍 MCP Server Functions
+## 🔍 Enhanced MCP Server Functions
 
-The Model Context Protocol (MCP) server provides intelligent database queries:
+### Caching Integration:
 
-### Available Tools:
+- Query results cached for 1 hour
+- Popular queries preloaded
+- Semantic matching for similar queries
 
-1. **getUHPrograms** - Fetch and rank UH programs
-2. **getDOEPrograms** - Fetch and rank high school pathways
-3. **getEducationPathways** - Get complete HS→College paths
-4. **searchPrograms** - Text search across all programs
-5. **getDatabaseStats** - Get system statistics
+### Available Tools (with caching):
 
-### Relevance Scoring Algorithm:
-
-- **Keyword matching**: 40 points max
-- **Career goal alignment**: 30 points max
-- **Degree appropriateness**: 20 points max
-- **Location proximity**: 15 points max
-- **Pathway availability**: 30 points max
+1. **getUHPrograms** - Cached UH program fetching
+2. **getDOEPrograms** - Cached HS pathway fetching
+3. **getEducationPathways** - Cached complete paths
+4. **searchPrograms** - Cached text search
+5. **getDatabaseStats** - Real-time statistics
 
 ## 🎨 UI Components
 
-### 1. **Main Chat Interface**
+### New Components:
 
-- Hide-on-scroll navbar
-- Real-time loading states
-- Progress indicators for profile building
-- Suggested question buttons
+1. **Language Selector**
+   - Clean selection interface
+   - Native language names
+   - Sample greetings
+   - Cultural descriptions
 
-### 2. **Left Sidebar (Profile)**
+### Enhanced Components:
 
-- Profile completeness tracker
-- Category breakdowns (Basics, Goals, Preferences)
-- Highlights and next steps
-- Visual progress indicators
+2. **Main Chat Interface**
 
-### 3. **Right Data Panel**
+   - Language indicator in header
+   - Multilingual UI text
+   - Language-aware placeholders
+   - Cultural appropriate messaging
 
-- Tabbed interface (Overview, HS, UH, Pathways, Search)
-- Collapsible course sequences
-- Relevance score badges
-- Direct search functionality
+3. **Left Sidebar (Profile)**
 
-### 4. **Input Component**
+   - Language-aware progress text
+   - Culturally relevant categories
+   - Localized highlights
 
-- Auto-expanding textarea
-- Character counter
-- Context-aware placeholders
-- Loading state indicators
+4. **Right Data Panel**
+   - Results in English (technical data)
+   - Explanations in user's language
+   - Language-aware search
+
+## 📊 Performance Optimizations
+
+### Cache Performance:
+
+- **Response Time**: ~50ms for cached vs ~2-3s for fresh
+- **Hit Rate Target**: >60% after warmup
+- **Storage**: Redis with automatic expiration
+
+### Rate Limiting:
+
+- **Protection**: Prevents API abuse
+- **User Experience**: Clear retry messaging
+- **Headers**: Standard rate limit headers
+
+### Request Tracking:
+
+- **Pattern Analysis**: Identifies popular queries
+- **User Behavior**: Tracks interaction patterns
+- **Optimization**: Informs cache warmup
 
 ## 🚀 Deployment Configuration
 
@@ -250,8 +325,19 @@ Output Directory: .next
 ### Environment Variables:
 
 ```env
+# Database
 DATABASE_URL=postgresql://...
-OPENAI_API_KEY=sk-...
+
+# AI Services
+GROQ_API_KEY=gsk_...
+
+# Caching & Rate Limiting
+UPSTASH_REDIS_REST_URL=https://...
+UPSTASH_REDIS_REST_TOKEN=...
+
+# Optional
+ENABLE_CACHE=true
+CACHE_TTL=3600
 ```
 
 ### Required Dependencies:
@@ -260,52 +346,74 @@ OPENAI_API_KEY=sk-...
 {
   "dependencies": {
     "@prisma/client": "^5.x",
+    "@upstash/redis": "^1.x",
+    "@upstash/ratelimit": "^1.x",
     "next": "^14.x",
     "react": "^18.x",
     "lucide-react": "^0.x",
-    "openai": "^4.x"
+    "groq-sdk": "^0.x"
   }
 }
 ```
 
-## 🔄 User Journey Flow
+## 🔄 Enhanced User Journey Flow
 
-1. **Landing Page** → Simple, Google-inspired design
-2. **Initial Chat** → 7-message discovery phase
-3. **Profile Building** → Automatic after 7 messages
-4. **Personalized Mode** → Intelligent recommendations
-5. **Data Exploration** → Interactive results panel
-6. **Profile Updates** → Continuous enhancement
-
-## 📊 Profile Building Phases
-
-### Discovery Phase (Messages 1-7):
-
-- Open-ended questions
-- Natural conversation flow
-- Progress indicator showing X/7
-
-### Profile Generation (After Message 7):
-
-- Automatic profile creation
-- Confidence scoring
-- Personalized suggestions
-
-### Enhancement Phase (Messages 8+):
-
-- Profile updates at intervals [15, 25, 35, 50]
-- Non-blocking background processing
-- Continuous refinement
+1. **Landing Page** → Clean, minimalist design with UHCC branding
+2. **Language Selection** → Choose preferred language
+3. **Initial Chat** → 7-message discovery in chosen language
+4. **Profile Building** → Automatic, language-aware
+5. **Personalized Mode** → Cached, multilingual recommendations
+6. **Data Exploration** → Interactive, performant results
+7. **Continuous Enhancement** → Profile updates with caching
 
 ## 🛠️ Key Features
 
-- **Conversational AI**: Natural language understanding
-- **Smart Profiling**: Builds understanding through conversation
-- **Hawaii-Focused**: All data specific to Hawaii education system
-- **Real-time Search**: Direct database queries during chat
-- **Progressive Enhancement**: Profile improves over time
-- **Responsive Design**: Works on all devices
-- **No Authentication**: Immediate access, no signup
+### Core Features:
+
+- **Multilingual Support**: 4 languages for Hawaii's diversity
+- **Intelligent Caching**: Sub-second responses for common queries
+- **Rate Protection**: Fair usage with clear limits
+- **Conversational AI**: Natural language in any supported language
+- **Smart Profiling**: Language-aware profile building
+- **Hawaii-Focused**: Complete Hawaii education ecosystem
+- **Progressive Enhancement**: Continuous improvement
+- **No Authentication**: Immediate access
+
+### Technical Features:
+
+- **Semantic Cache**: RAG-like query matching
+- **Request Tracking**: Usage pattern analysis
+- **Cache Warmup**: Preload popular content
+- **Language Routing**: Consistent language experience
+- **Profile Consistency**: English storage, any language input
+- **Performance Monitoring**: Real-time cache stats
+
+## 📈 System Metrics
+
+### Cache Metrics:
+
+- Hit rate, miss rate, total requests
+- Popular queries and patterns
+- Storage usage and TTL distribution
+
+### Rate Limit Metrics:
+
+- Request distribution by IP
+- Peak usage times
+- Rate limit violations
+
+### Language Usage:
+
+- Distribution of language selections
+- Conversation length by language
+- Profile completion by language
+
+## 🔐 Security & Privacy
+
+- **No PII Storage**: Conversations not permanently stored
+- **Rate Limiting**: Prevents abuse
+- **Cache Isolation**: User-specific cache keys
+- **Language Privacy**: Language choice not tracked long-term
 
 ## 📝 License
 
@@ -313,4 +421,4 @@ Built for Hawaii's students by the University of Hawaii Community Colleges syste
 
 ---
 
-_Kamaʻāina Pathways - Empowering Hawaii's future through intelligent career guidance_
+_Kamaʻāina Pathways - Empowering Hawaii's future through intelligent career guidance in any language_
