@@ -1,10 +1,12 @@
 // components/ChatMessages.tsx
-import React, { useRef, useEffect } from "react";
+import React, { useRef, useEffect, useState } from "react";
 import {
   Activity,
   Database,
   ArrowRight,
   Zap,
+  ChevronDown,
+  ChevronUp,
 } from "lucide-react";
 import { Message, UserProfile } from "./types";
 
@@ -21,6 +23,114 @@ interface ChatMessagesProps {
   setSidebarOpen: (open: boolean) => void;
 }
 
+// Simple Markdown renderer component - ONLY bold and bullets
+const MarkdownRenderer: React.FC<{ content: string; className?: string }> = ({ 
+  content, 
+  className = "" 
+}) => {
+  // Basic markdown parsing for bold and bullet points only
+  const parseMarkdown = (text: string): React.ReactNode => {
+    const lines = text.split('\n');
+    const elements: React.ReactNode[] = [];
+    let currentList: string[] = [];
+    let inList = false;
+
+    const processInlineMarkdown = (text: string): React.ReactNode => {
+      // Process only bold markdown
+      const parts: React.ReactNode[] = [];
+      let key = 0;
+
+      // Pattern to match only bold markdown elements
+      const pattern = /(\*\*[^*]+\*\*)/g;
+      let lastIndex = 0;
+      let match;
+
+      while ((match = pattern.exec(text)) !== null) {
+        // Add text before the match
+        if (match.index > lastIndex) {
+          parts.push(text.substring(lastIndex, match.index));
+        }
+
+        const matchedText = match[0];
+        if (matchedText.startsWith('**') && matchedText.endsWith('**')) {
+          // Bold
+          parts.push(
+            <strong key={`bold-${key++}`} className="font-bold">
+              {matchedText.slice(2, -2)}
+            </strong>
+          );
+        }
+
+        lastIndex = match.index + matchedText.length;
+      }
+
+      // Add remaining text
+      if (lastIndex < text.length) {
+        parts.push(text.substring(lastIndex));
+      }
+
+      return parts.length > 0 ? parts : text;
+    };
+
+    lines.forEach((line, index) => {
+      // Check for bullet points
+      if (line.trim().startsWith('- ')) {
+        inList = true;
+        currentList.push(line.trim().substring(2));
+      }
+      // Check for numbered lists (1. 2. etc)
+      else if (/^\d+\.\s/.test(line.trim())) {
+        inList = true;
+        currentList.push(line.trim().replace(/^\d+\.\s/, ''));
+      }
+      // Regular paragraph
+      else if (line.trim() !== '') {
+        if (inList && currentList.length > 0) {
+          elements.push(
+            <ul key={`list-${elements.length}`} className="ml-4 mt-2 mb-2 space-y-1">
+              {currentList.map((item, i) => (
+                <li key={i} className="flex items-start">
+                  <span className="mr-2 mt-1 text-xs">•</span>
+                  <span className="flex-1">{processInlineMarkdown(item)}</span>
+                </li>
+              ))}
+            </ul>
+          );
+          currentList = [];
+          inList = false;
+        }
+        elements.push(
+          <p key={`p-${index}`} className="mb-2 last:mb-0">
+            {processInlineMarkdown(line)}
+          </p>
+        );
+      }
+    });
+
+    // Handle any remaining list items
+    if (currentList.length > 0) {
+      elements.push(
+        <ul key={`list-${elements.length}`} className="ml-4 mt-2 mb-2 space-y-1">
+          {currentList.map((item, i) => (
+            <li key={i} className="flex items-start">
+              <span className="mr-2 mt-1 text-xs">•</span>
+              <span className="flex-1">{processInlineMarkdown(item)}</span>
+            </li>
+          ))}
+        </ul>
+      );
+    }
+
+    return elements;
+  };
+
+  return (
+    <div className={`markdown-content ${className}`}>
+      {parseMarkdown(content)}
+    </div>
+  );
+};
+
 export default function ChatMessages({
   messages,
   isLoading,
@@ -34,6 +144,7 @@ export default function ChatMessages({
 }: ChatMessagesProps) {
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const userMessageCount = messages.filter(msg => msg.role === "user").length;
+  const [showSuggestions, setShowSuggestions] = useState(false);
 
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
@@ -85,11 +196,15 @@ export default function ChatMessages({
                       : "bg-white border-2 text-black px-5 py-3.5 rounded-2xl rounded-tl-md"
                   } text-sm leading-relaxed`}
                 >
-                  <div
-                    className="whitespace-pre-wrap"
-                    style={{ lineHeight: "1.6" }}
-                  >
-                    {msg.content}
+                  <div style={{ lineHeight: "1.6" }}>
+                    {msg.role === "assistant" ? (
+                      <MarkdownRenderer 
+                        content={msg.content} 
+                        className="text-black"
+                      />
+                    ) : (
+                      <div className="whitespace-pre-wrap">{msg.content}</div>
+                    )}
                   </div>
 
                   {/* Data indicator for assistant messages */}
@@ -179,30 +294,41 @@ export default function ChatMessages({
         {suggestedQuestions.length > 0 && !isLoading && (
           <div className="flex justify-center py-6">
             <div className="max-w-2xl w-full">
-              <div className="flex items-center justify-center gap-2 mb-3">
+              <button
+                onClick={() => setShowSuggestions(!showSuggestions)}
+                className="flex items-center justify-center gap-2 mb-3 mx-auto hover:opacity-70 transition-opacity cursor-pointer group"
+              >
                 <Zap className="w-4 h-4 text-black" />
                 <span className="text-xs font-bold text-black uppercase tracking-wider">
                   {userProfile?.isComplete
                     ? "Explore Options"
                     : "Quick Actions"}
                 </span>
-              </div>
-              <div className="grid grid-cols-2 gap-2">
-                {suggestedQuestions.map((question, idx) => (
-                  <button
-                    key={idx}
-                    onClick={() => handleSuggestedQuestionClick(question)}
-                    className="group relative bg-white border-2 border-black hover:bg-black hover:text-white text-black px-4 py-3 rounded-xl transition-all duration-200 text-left"
-                  >
-                    <div className="flex items-center justify-between gap-2">
-                      <span className="text-sm font-medium line-clamp-2">
-                        {question}
-                      </span>
-                      <ArrowRight className="w-4 h-4 opacity-50 group-hover:opacity-100 transition-opacity flex-shrink-0" />
-                    </div>
-                  </button>
-                ))}
-              </div>
+                {showSuggestions ? (
+                  <ChevronUp className="w-4 h-4 text-black" />
+                ) : (
+                  <ChevronDown className="w-4 h-4 text-black" />
+                )}
+              </button>
+              
+              {showSuggestions && (
+                <div className="grid grid-cols-2 gap-2 animate-in slide-in-from-top-2 duration-200">
+                  {suggestedQuestions.map((question, idx) => (
+                    <button
+                      key={idx}
+                      onClick={() => handleSuggestedQuestionClick(question)}
+                      className="group relative bg-white border-2 border-black hover:bg-black hover:text-white text-black px-4 py-3 rounded-xl transition-all duration-200 text-left"
+                    >
+                      <div className="flex items-center justify-between gap-2">
+                        <span className="text-sm font-medium line-clamp-2">
+                          {question}
+                        </span>
+                        <ArrowRight className="w-4 h-4 opacity-50 group-hover:opacity-100 transition-opacity flex-shrink-0" />
+                      </div>
+                    </button>
+                  ))}
+                </div>
+              )}
             </div>
           </div>
         )}

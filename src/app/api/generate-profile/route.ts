@@ -1,5 +1,5 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
-// app/api/generate-profile/route.ts (Updated with Language Support)
+// app/api/generate-profile/route.ts (Updated with Language and Markdown Support)
 import { NextRequest, NextResponse } from "next/server";
 import Groq from "groq-sdk";
 
@@ -80,7 +80,7 @@ function cleanJsonResponse(response: string): string {
   return cleaned;
 }
 
-// Generate comprehensive profile from conversation (with language awareness)
+// Generate comprehensive profile from conversation (with language awareness and Markdown)
 async function generateComprehensiveProfile(
   transcript: string,
   conversationMetrics: any,
@@ -110,7 +110,7 @@ ANALYSIS INSTRUCTIONS:
 
 Return ONLY valid JSON in this exact format:
 {
-  "summary": "A comprehensive 5-6 sentence narrative IN ENGLISH in third person that captures their full story, including current situation, interests, goals, challenges, timeline, and context. Make it personal and specific.",
+  "summary": "A comprehensive 5-6 sentence narrative IN ENGLISH in third person that captures their full story, including current situation, interests, goals, challenges, timeline, and context. Make it personal and specific. Write in plain text without any markdown formatting.",
   "extracted": {
     "educationLevel": "elementary|middle_school|high_school_freshman|high_school_sophomore|high_school_junior|high_school_senior|college_freshman|college_sophomore|college_junior|college_senior|associate_degree|bachelor_degree|master_degree|doctoral_degree|trade_certification|working_professional|null",
     "currentGrade": null or grade number if applicable,
@@ -161,7 +161,7 @@ IMPORTANT GUIDELINES:
 - Consider their communication style and engagement level
 - Be honest about confidence levels - don't inflate scores
 - If exploring careers, that IS a valid career goal - capture it as such
-- The summary MUST be in English for system compatibility`;
+- The summary MUST be in English as plain text without any formatting`;
 
   try {
     const response = await groq.chat.completions.create({
@@ -209,9 +209,9 @@ IMPORTANT GUIDELINES:
     try {
       const fallbackPrompt = `Extract basic information from this career counseling conversation (may be in ${language === "haw" ? "Hawaiian" : language === "hwp" ? "Pidgin" : language === "tl" ? "Tagalog" : "English"}). Focus on clear, explicit information only.
 
-Return JSON with summary in ENGLISH:
+Return JSON with summary in ENGLISH as plain text:
 {
-  "summary": "Brief summary IN ENGLISH of the person and their situation",
+  "summary": "Brief summary IN ENGLISH of the person and their situation (plain text, no markdown)",
   "extracted": {
     "educationLevel": "their education level or null",
     "currentStatus": "what they're doing now or null",
@@ -337,7 +337,7 @@ export async function GET() {
   return NextResponse.json({
     status: "healthy",
     service: "enhanced-profile-generation",
-    version: "3.0",
+    version: "3.1",
     features: {
       comprehensiveExtraction: true,
       confidenceScoring: true,
@@ -345,6 +345,7 @@ export async function GET() {
       fallbackProcessing: true,
       detailedAnalysis: true,
       multiLanguageSupport: true,
+      markdownFormatting: true,
       supportedLanguages: ["en", "haw", "hwp", "tl"],
     },
     timestamp: new Date().toISOString(),

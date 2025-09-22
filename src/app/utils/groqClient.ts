@@ -575,6 +575,7 @@ CONVERSATION STATUS:
 - Progress: ${readinessScore}%
 
 GUIDELINES:
+0. [PRIORITY] Make your responses concise and easy to read by using MARKDOWN formatting. Minimize text, use bullet points and bolding for clarity. No italics or underlines.
 1. Ask ONE clear, specific question at a time
 2. Be conversational and warm, not robotic
 3. Show interest in what they've shared

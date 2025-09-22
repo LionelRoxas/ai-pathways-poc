@@ -1,5 +1,5 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
-// app/api/ai-pathways/route.ts (Complete with Language Support)
+// app/api/ai-pathways/route.ts (Complete with Language and Markdown Support)
 import { NextRequest, NextResponse } from "next/server";
 import { handleMCPRequest } from "../../lib/mcp/pathways-mcp-server";
 import Groq from "groq-sdk";
@@ -303,7 +303,7 @@ async function planMCPQueries(
   };
 }
 
-// Generate response based on MCP data with language support
+// Generate response based on MCP data with language and Markdown support
 async function generateDataDrivenResponse(
   userProfile: string,
   message: string,
@@ -326,15 +326,26 @@ DATABASE RESULTS: ${JSON.stringify(mcpData, null, 2)}
 
 CRITICAL RULES:
 1. Respond in ${language === "haw" ? "Hawaiian" : language === "hwp" ? "Pidgin" : language === "tl" ? "Tagalog" : "English"}
-2. If the user asked for SPECIFIC programs, focus ONLY on those programs
-3. Do NOT recommend unrelated programs just because they match the profile
-4. If no results match the specific request, say so clearly and suggest alternatives
-5. Focus on programs with highest relevance scores
-6. Mention specific program names, campuses, and degrees (keep these in English)
-7. For DOE programs, explain course sequences if relevant
-8. Keep response concise (1 paragraph max)
+2. **FORMAT YOUR RESPONSE IN MARKDOWN** with ONLY these two formatting options:
+   - Use **bold** for important program names, campuses, and key terms
+   - Use bullet points (- ) for listing multiple programs or features
+   - DO NOT use italics, underlines, headers, or any other markdown formatting
+3. If the user asked for SPECIFIC programs, focus ONLY on those programs
+4. Do NOT recommend unrelated programs just because they match the profile
+5. If no results match the specific request, say so clearly and suggest alternatives
+6. Focus on programs with highest relevance scores
+7. Mention specific program names, campuses, and degrees (keep these in English)
+8. For DOE programs, explain course sequences if relevant
+9. Keep response concise (1-2 paragraphs max, or structured lists)
 
-Generate a helpful response that directly addresses what the user asked for.`;
+MARKDOWN FORMATTING EXAMPLES:
+- For program names: **Bachelor of Science in Computer Science** at UH Mānoa
+- For multiple programs: 
+  - **Program 1**: Description
+  - **Program 2**: Description
+- For emphasis: This program offers **hands-on experience** and **industry connections**
+
+Generate a helpful, well-formatted Markdown response that directly addresses what the user asked for.`;
 
   try {
     const response = await groq.chat.completions.create({
@@ -344,7 +355,7 @@ Generate a helpful response that directly addresses what the user asked for.`;
         {
           role: "user",
           content:
-            "Generate response addressing the user's specific request in the appropriate language",
+            "Generate a Markdown-formatted response addressing the user's specific request in the appropriate language. Use ONLY bold text and bullet points for formatting.",
         },
       ],
       temperature: 0.3,
@@ -357,13 +368,13 @@ Generate a helpful response that directly addresses what the user asked for.`;
   }
 }
 
-// Default responses in different languages
+// Default responses with Markdown in different languages
 function getDefaultResponse(language: string): string {
   const responses: Record<string, string> = {
-    en: "I found several programs matching your request. Please check the data panel for details.",
-    haw: "Ua loaʻa iaʻu nā papahana e kūlike ana me kāu noi. E ʻoluʻolu e nānā i ka papa ʻikepili no nā kikoʻī.",
-    hwp: "I wen find plenny programs dat match wat you asking for. Check da data panel fo see all da details yeah.",
-    tl: "Nakahanap ako ng ilang programa na tumutugma sa iyong kahilingan. Pakitingnan ang data panel para sa mga detalye.",
+    en: "I found **several programs** matching your request. Please check the **data panel** for details.",
+    haw: "Ua loaʻa iaʻu **nā papahana** e kūlike ana me kāu noi. E ʻoluʻolu e nānā i ka **papa ʻikepili** no nā kikoʻī.",
+    hwp: "I wen find **plenny programs** dat match wat you asking for. Check da **data panel** fo see all da details yeah.",
+    tl: "Nakahanap ako ng **ilang programa** na tumutugma sa iyong kahilingan. Pakitingnan ang **data panel** para sa mga detalye.",
   };
   return responses[language] || responses.en;
 }
@@ -510,7 +521,12 @@ export async function POST(req: NextRequest) {
     console.log("AI Pathways POST endpoint hit");
 
     const body = await req.json();
-    const { message, userProfile, extractedProfile, language: requestLanguage = "en" } = body;
+    const {
+      message,
+      userProfile,
+      extractedProfile,
+      language: requestLanguage = "en",
+    } = body;
     language = requestLanguage; // Store language in outer scope
 
     console.log("Request data:", {
@@ -664,7 +680,7 @@ export async function POST(req: NextRequest) {
 
     console.log("MCP queries completed. Total results:", totalResults);
 
-    // Step 3: Generate response with language support
+    // Step 3: Generate response with language and Markdown support
     console.log("Generating response in language:", language);
     const responseMessage = await generateDataDrivenResponse(
       userProfile,
@@ -735,7 +751,7 @@ export async function POST(req: NextRequest) {
     return httpResponse;
   } catch (error) {
     console.error("AI Pathways POST error:", error);
-    
+
     const errorResponse: AIPathwaysResponse = {
       message: getErrorMessage(language),
       data: {},
@@ -790,7 +806,7 @@ function getErrorSuggestions(language: string): string[] {
       "Ipakita ang computer science programs",
       "Hanapin ang nursing programs sa UH",
       "Anong business degrees ang available?",
-      "Ipakita ang mga programa sa Oahu",
+      "Ipakita lahat ng programa sa Oahu",
     ],
   };
   return suggestions[language] || suggestions.en;
@@ -814,7 +830,7 @@ export async function GET() {
     return NextResponse.json({
       status: "healthy",
       message:
-        "Hawaii Education Pathways API - Query-aware intelligent matching with multi-language support",
+        "Hawaii Education Pathways API - Query-aware intelligent matching with multi-language and Markdown support",
       database: statsResponse.success ? statsResponse.data : null,
       cache: cacheStats,
       features: {
@@ -829,6 +845,7 @@ export async function GET() {
         queryCaching: true,
         semanticCache: true,
         multiLanguage: ["en", "haw", "hwp", "tl"],
+        markdownFormatting: true,
       },
       timestamp: new Date().toISOString(),
     });

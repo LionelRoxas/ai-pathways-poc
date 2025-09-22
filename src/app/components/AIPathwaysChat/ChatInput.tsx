@@ -34,11 +34,28 @@ export default function ChatInput({
     }
   }, [message]);
 
+  // Auto-focus the textarea after sending a message
+  useEffect(() => {
+    if (!isLoading && textareaRef.current && message === "") {
+      textareaRef.current.focus();
+    }
+  }, [isLoading, message]);
+
   const handleKeyDown = (e: React.KeyboardEvent) => {
     if (e.key === "Enter" && !e.shiftKey) {
       e.preventDefault();
-      handleSend();
+      handleSendWithFocus();
     }
+  };
+
+  const handleSendWithFocus = () => {
+    handleSend();
+    // Keep focus on the textarea after sending
+    setTimeout(() => {
+      if (textareaRef.current) {
+        textareaRef.current.focus();
+      }
+    }, 0);
   };
 
   return (
@@ -105,7 +122,7 @@ export default function ChatInput({
 
                 {/* Send Button */}
                 <button
-                  onClick={handleSend}
+                  onClick={handleSendWithFocus}
                   disabled={isLoading || !message.trim()}
                   className={`
                     absolute right-2 bottom-2 p-2 rounded-lg transition-all duration-200
