@@ -2,7 +2,7 @@
 // components/DataPanel.tsx
 import React, { useState } from "react";
 import {
-  X,
+  // X,
   // Database,
   // BarChart3,
   GraduationCap,
@@ -13,6 +13,7 @@ import {
   Search,
   Loader2,
   Briefcase,
+  PanelRight,
 } from "lucide-react";
 import {
   CurrentData,
@@ -156,7 +157,7 @@ export default function DataPanel({
     <div className="fixed top-0 right-0 bottom-0 w-96 bg-white border-l border-gray-200 z-40">
       <div className="h-full flex flex-col">
         {/* Header */}
-        <div className="p-4 border-b border-gray-200">
+        <div className="p-3 border-b border-gray-200">
           <div className="flex items-center justify-between mb-4">
             <div className="flex items-center gap-2">
               {" "}
@@ -171,9 +172,18 @@ export default function DataPanel({
             </div>
             <button
               onClick={() => setDataPanelOpen(false)}
-              className="p-1 hover:bg-gray-100 rounded-lg transition-colors"
+              className={`p-2 rounded-lg transition-colors flex items-center gap-1.5 ${
+                dataPanelOpen
+                  ? "bg-gray-200 text-black hover:bg-gray-400"
+                  : "bg-slate-100 text-slate-700 hover:bg-slate-200"
+              }`}
             >
-              <X className="w-4 h-4 text-gray-600" />
+              <PanelRight
+                className={`w-4 h-4 transition-transform ${dataPanelOpen ? "rotate-180" : ""}`}
+              />
+              {currentData && (
+                <span className="w-2 h-2 bg-green-500 rounded-full animate-pulse"></span>
+              )}
             </button>
           </div>
 

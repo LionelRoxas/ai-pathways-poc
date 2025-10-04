@@ -541,21 +541,24 @@ export default function UnifiedSleekChat({
               </span>
             </div>
 
-            <button
-              onClick={() => setDataPanelOpen(!dataPanelOpen)}
-              className={`p-2 rounded-lg transition-colors flex items-center gap-1.5 ${
-                dataPanelOpen
-                  ? "bg-black text-white"
-                  : "bg-slate-100 text-slate-700 hover:bg-slate-200"
-              }`}
-            >
-              <PanelRight
-                className={`w-4 h-4 transition-transform ${dataPanelOpen ? "rotate-180" : ""}`}
-              />
-              {hasDataToShow() && (
-                <span className="w-2 h-2 bg-white rounded-full animate-pulse"></span>
-              )}
-            </button>
+            {/* Show button once profile is complete or there's data */}
+            {(userProfile?.isComplete || hasDataToShow()) && (
+              <button
+                onClick={() => setDataPanelOpen(!dataPanelOpen)}
+                className={`p-2 rounded-lg transition-colors flex items-center gap-1.5 ${
+                  dataPanelOpen
+                    ? "bg-black text-white"
+                    : "bg-slate-100 text-slate-700 hover:bg-slate-200"
+                }`}
+              >
+                <PanelRight
+                  className={`w-4 h-4 transition-transform ${dataPanelOpen ? "rotate-180" : ""}`}
+                />
+                {hasDataToShow() && (
+                  <span className="w-2 h-2 bg-green-500 rounded-full animate-pulse"></span>
+                )}
+              </button>
+            )}
           </div>
         </div>
 
