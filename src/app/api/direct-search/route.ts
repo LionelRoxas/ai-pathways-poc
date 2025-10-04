@@ -1,4 +1,4 @@
-// app/api/direct-search/route.ts (Enhanced with Caching)
+// app/api/direct-search/route.ts (Enhanced with Caching + Lightcast)
 import { NextRequest, NextResponse } from "next/server";
 import { handleMCPRequest } from "../../lib/mcp/pathways-mcp-server";
 import { expandSearchTerms } from "../../utils/groqClient";
@@ -97,7 +97,7 @@ export async function POST(req: NextRequest) {
       return NextResponse.json(
         {
           error: "Search failed",
-          results: { uhPrograms: [], doePrograms: [] },
+          results: { uhPrograms: [], doePrograms: [], careerData: [] },
         },
         { status: 500 }
       );
@@ -107,14 +107,8 @@ export async function POST(req: NextRequest) {
     const results = {
       uhPrograms: searchResult.data?.uhPrograms || [],
       doePrograms: searchResult.data?.doePrograms || [],
+      careerData: [], // Initialize career data
     };
-
-    // Log result counts
-    console.log("Search results:", {
-      uhPrograms: results.uhPrograms.length,
-      doePrograms: results.doePrograms.length,
-      totalResults: results.uhPrograms.length + results.doePrograms.length,
-    });
 
     // If no results, try a more general search
     if (results.uhPrograms.length === 0 && results.doePrograms.length === 0) {
@@ -158,6 +152,52 @@ export async function POST(req: NextRequest) {
       }
     }
 
+    // Fetch Lightcast career data
+    console.log("Fetching career data for search:", query);
+    const careerCacheKey = cache.generateCacheKey(
+      "mcp:getLightcastCareerData",
+      {
+        interests: expandedTerms,
+        limit: 20,
+      }
+    );
+
+    let careerResult = await cache.get(careerCacheKey);
+
+    if (!careerResult) {
+      careerResult = await handleMCPRequest({
+        tool: "getLightcastCareerData",
+        params: {
+          programName: query,
+          interests: expandedTerms,
+          limit: 20,
+        },
+      });
+
+      if (careerResult.success && careerResult.data) {
+        // Cache career data
+        await cache.set(
+          careerCacheKey,
+          careerResult,
+          {
+            ttl: 7200, // 2 hours
+            tags: ["mcp_career", "getLightcastCareerData"],
+          },
+          {
+            query,
+            expandedTerms,
+          }
+        );
+      }
+    } else {
+      console.log("Using cached career data");
+    }
+
+    // Add career data to results
+    if (careerResult?.success && careerResult.data) {
+      results.careerData = careerResult.data;
+    }
+
     const responseData = {
       success: true,
       results,
@@ -165,6 +205,7 @@ export async function POST(req: NextRequest) {
         query,
         expandedTerms,
         totalResults: results.uhPrograms.length + results.doePrograms.length,
+        careerResults: results.careerData.length,
         timestamp: new Date().toISOString(),
       },
     };
@@ -181,6 +222,7 @@ export async function POST(req: NextRequest) {
       {
         query,
         resultCount: responseData.metadata.totalResults,
+        careerResultCount: responseData.metadata.careerResults,
       }
     );
 
@@ -197,7 +239,7 @@ export async function POST(req: NextRequest) {
     return NextResponse.json(
       {
         error: "Internal server error",
-        results: { uhPrograms: [], doePrograms: [] },
+        results: { uhPrograms: [], doePrograms: [], careerData: [] },
       },
       { status: 500 }
     );
@@ -216,6 +258,7 @@ export async function GET() {
       expandedSearch: true,
       fallbackSearch: true,
       allProgramTypes: true,
+      careerData: true, // NEW
       caching: true,
       semanticCache: true,
     },

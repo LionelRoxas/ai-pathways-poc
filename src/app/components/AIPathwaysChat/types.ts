@@ -143,6 +143,47 @@ export interface PathwayData {
   }>;
 }
 
+export interface LightcastCareerData {
+  cipCode: string;
+  subjectArea: string; // Changed from generic name
+  medianSalary: number; // Individual salary for this subject
+  uniqueCompanies: number;
+  uniquePostings: number;
+  relevanceScore?: number;
+}
+export interface LightcastApiResponse {
+  data: {
+    ranking: {
+      buckets: Array<{
+        median_salary: number;
+        name: string; // CIP code
+        ranking: {
+          buckets: Array<{
+            median_salary: number;
+            name: string; // Skill name
+            unique_companies: number;
+            unique_postings: number;
+          }>;
+          facet: string;
+          limit: number;
+          rank_by: string;
+        };
+        significance: number;
+        unique_companies: number;
+        unique_postings: number;
+      }>;
+      facet: string;
+      limit: number;
+      rank_by: string;
+    };
+    totals: {
+      median_salary: number;
+      unique_companies: number;
+      unique_postings: number;
+    };
+  };
+}
+
 // Current data structure for data panel
 export interface CurrentData {
   uhPrograms?: UHProgramData[];
@@ -160,6 +201,7 @@ export interface CurrentData {
     availableDegrees: string[];
     careerClusters: string[];
   };
+  careerData?: LightcastCareerData[]; // ADD THIS LINE
 }
 
 // UI Tab configuration

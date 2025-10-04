@@ -285,11 +285,28 @@ async function planMCPQueries(
     }
   }
 
+  // Always add database stats
   queries.push({
     tool: "getDatabaseStats",
     params: {},
     priority: "supporting",
   });
+
+  // Add career data lookup if we have search terms or interests
+  if (
+    queryAnalysis.searchTerms.length > 0 ||
+    (context.interests?.length ?? 0) > 0
+  ) {
+    queries.push({
+      tool: "getLightcastCareerData",
+      params: {
+        programName: queryAnalysis.searchTerms[0],
+        interests: context.interests || queryAnalysis.searchTerms,
+        limit: 100,
+      },
+      priority: "supporting",
+    });
+  }
 
   return {
     intent: queryAnalysis.intent as any,
@@ -304,6 +321,7 @@ async function planMCPQueries(
 }
 
 // Generate response based on MCP data with language and Markdown support
+// Generate response based on MCP data with language and Markdown support
 async function generateDataDrivenResponse(
   userProfile: string,
   message: string,
@@ -312,6 +330,39 @@ async function generateDataDrivenResponse(
   language: string = "en"
 ): Promise<string> {
   const languagePrompt = getLanguageSystemPrompt(language);
+
+  // Prepare career data summary for the prompt
+  let careerDataSummary = "";
+  if (mcpData.careerData && mcpData.careerData.length > 0) {
+    const topCareers = mcpData.careerData
+      .filter(
+        (career: any) =>
+          career.subjectArea &&
+          career.medianSalary !== undefined &&
+          career.uniquePostings !== undefined &&
+          career.uniqueCompanies !== undefined
+      )
+      .slice(0, 10);
+
+    if (topCareers.length > 0) {
+      const careerList = topCareers
+        .map(
+          (career: any) =>
+            `- ${career.subjectArea}: $${career.medianSalary.toLocaleString()} median salary, ${career.uniquePostings} job postings, ${career.uniqueCompanies} companies`
+        )
+        .join("\n");
+
+      careerDataSummary = `\n\nAVAILABLE CAREER MARKET DATA:
+${careerList}
+
+CRITICAL: You may ONLY mention salary figures and job numbers that are EXPLICITLY listed above. Do NOT:
+- Calculate averages or ranges
+- Estimate or approximate salaries
+- Combine or aggregate numbers
+- Mention career data if none exists for the program being discussed
+If a program has no matching career data above, simply discuss the program WITHOUT mentioning salaries or job markets.`;
+    }
+  }
 
   const systemPrompt = `${languagePrompt}
 
@@ -322,7 +373,7 @@ USER MESSAGE: ${message}
 QUERY ANALYSIS: User asked for: "${queryPlan.extractedContext?.improvedQuery || message}"
 SEARCH TERMS: ${queryPlan.extractedContext?.searchTerms?.join(", ") || "none"}
 IGNORE PROFILE: ${queryPlan.extractedContext?.ignoreProfile ? "YES - User wants specific programs, not profile-based recommendations" : "NO - Use profile for recommendations"}
-DATABASE RESULTS: ${JSON.stringify(mcpData, null, 2)}
+DATABASE RESULTS: ${JSON.stringify(mcpData, null, 2)}${careerDataSummary}
 
 CRITICAL RULES:
 1. Respond in ${language === "haw" ? "Hawaiian" : language === "hwp" ? "Pidgin" : language === "tl" ? "Tagalog" : "English"}
@@ -336,29 +387,39 @@ CRITICAL RULES:
 6. Focus on programs with highest relevance scores
 7. Mention specific program names, campuses, and degrees (keep these in English)
 8. For DOE programs, explain course sequences if relevant
-9. Keep response concise (1-2 paragraphs max, or structured lists)
+9. Keep response concise (2-3 paragraphs max, or structured lists)
 
-MARKDOWN FORMATTING EXAMPLES:
-- For program names: **Bachelor of Science in Computer Science** at UH Mānoa
-- For multiple programs: 
-  - **Program 1**: Description
-  - **Program 2**: Description
-- For emphasis: This program offers **hands-on experience** and **industry connections**
+CAREER DATA RULES (MOST IMPORTANT):
+- ONLY mention salary/job numbers that are EXPLICITLY listed in "AVAILABLE CAREER MARKET DATA" above
+- Use EXACT figures - never calculate, average, estimate, or approximate
+- If discussing a program with no matching career data, DO NOT mention salaries or job markets at all
+- Never say things like "typically earn" or "average salary" unless you're quoting an exact figure from the data
+- When in doubt, omit career data rather than risk inaccuracy
 
-Generate a helpful, well-formatted Markdown response that directly addresses what the user asked for.`;
+CORRECT EXAMPLES:
+✓ "For example, careers in Plant Science show a median salary of $67,328 with 39 job postings"
+✓ "Biology-related positions have a median salary of $67,072 and 20 current job openings"
+
+INCORRECT EXAMPLES (NEVER DO THIS):
+✗ "Graduates typically earn between $65,000-$91,000" (combining/ranging)
+✗ "The average salary is around $67,000" (approximating)
+✗ "Most positions pay well" (vague, no data)
+✗ Mentioning any salary for a program with no matching career data
+
+Generate a helpful, well-formatted Markdown response. Only include career insights if exact matching data exists.`;
 
   try {
     const response = await groq.chat.completions.create({
-      model: "llama-3.3-70b-versatile",
+      model: "groq/compound",
       messages: [
         { role: "system", content: systemPrompt },
         {
           role: "user",
           content:
-            "Generate a Markdown-formatted response addressing the user's specific request in the appropriate language. Use ONLY bold text and bullet points for formatting.",
+            "Generate a Markdown-formatted response addressing the user's specific request in the appropriate language. Use ONLY bold text and bullet points for formatting. Include career data ONLY if exact matching figures exist - never estimate or approximate.",
         },
       ],
-      temperature: 0.3,
+      temperature: 0.2,
     });
 
     return response.choices[0].message.content || getDefaultResponse(language);
@@ -669,6 +730,10 @@ export async function POST(req: NextRequest) {
               break;
             case "getDatabaseStats":
               mcpData.stats = result.data;
+              break;
+            case "getLightcastCareerData":
+              mcpData.careerData = result.data;
+              totalResults += result.data.length;
               break;
           }
           queriesExecuted.push(query.tool);

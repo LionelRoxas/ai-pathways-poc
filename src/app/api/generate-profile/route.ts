@@ -91,7 +91,7 @@ async function generateComprehensiveProfile(
       ? `Note: The conversation may contain ${language === "haw" ? "Hawaiian (ʻŌlelo Hawaiʻi)" : language === "hwp" ? "Hawaiian Pidgin" : language === "tl" ? "Tagalog" : "English"} language. Understand it in context but write the profile summary in ENGLISH for system use.`
       : "";
 
-  const systemPrompt = `You are an expert career counseling analyst. Analyze this detailed conversation between a career counselor and a student/job seeker in Hawaii. Extract comprehensive information to build a rich user profile for personalized career guidance.
+  const systemPrompt = `You are an expert career counseling analyst. Analyze this detailed conversation between a career counselor and a person seeking career guidance in Hawaii. Extract comprehensive information to build a rich user profile for personalized career guidance.
 ${languageContext}
 
 CONVERSATION METRICS:
@@ -107,10 +107,21 @@ ANALYSIS INSTRUCTIONS:
 4. Be specific and detailed - capture nuances and context
 5. Consider Hawaii-specific factors (island location, local culture, etc.)
 6. IMPORTANT: Write the summary in ENGLISH regardless of conversation language
+7. CRITICAL: Use appropriate terminology based on the person's actual status - NOT everyone is a student
+
+HOW TO REFER TO THE PERSON IN THE SUMMARY:
+- If currently in school (K-12 or college): "the student"
+- If working professional exploring options: "the professional" or "the individual"
+- If career changer: "the career changer" or "the individual"
+- If unemployed/job seeking: "the job seeker" or "the individual"
+- If recent graduate: "the recent graduate"
+- If returning to workforce: "the individual returning to the workforce"
+- If status unclear: "the individual" (safe default)
+- NEVER assume "student" unless they are actually currently enrolled in school
 
 Return ONLY valid JSON in this exact format:
 {
-  "summary": "A comprehensive 5-6 sentence narrative IN ENGLISH in third person that captures their full story, including current situation, interests, goals, challenges, timeline, and context. Make it personal and specific. Write in plain text without any markdown formatting.",
+  "summary": "A comprehensive 5-6 sentence narrative IN ENGLISH in third person using APPROPRIATE terminology (not always 'student'!) that captures their full story, including current situation, interests, goals, challenges, timeline, and context. Make it personal and specific. Write in plain text without any markdown formatting.",
   "extracted": {
     "educationLevel": "elementary|middle_school|high_school_freshman|high_school_sophomore|high_school_junior|high_school_senior|college_freshman|college_sophomore|college_junior|college_senior|associate_degree|bachelor_degree|master_degree|doctoral_degree|trade_certification|working_professional|null",
     "currentGrade": null or grade number if applicable,
@@ -152,6 +163,13 @@ Return ONLY valid JSON in this exact format:
   }
 }
 
+SUMMARY WRITING EXAMPLES:
+✓ CORRECT: "The individual is a working professional in healthcare looking to transition into nursing..."
+✓ CORRECT: "The high school junior is interested in marine biology and wants to attend UH Mānoa..."
+✓ CORRECT: "The career changer has 10 years in retail and is exploring opportunities in IT..."
+✗ INCORRECT: "The student is a working professional..." (contradictory - choose one)
+✗ INCORRECT: "The student has been unemployed for 6 months..." (they're not a student)
+
 IMPORTANT GUIDELINES:
 - Extract specific details, not just generic categories
 - If someone mentions "helping people" also note the specific context (healthcare, teaching, social work, etc.)
@@ -161,7 +179,8 @@ IMPORTANT GUIDELINES:
 - Consider their communication style and engagement level
 - Be honest about confidence levels - don't inflate scores
 - If exploring careers, that IS a valid career goal - capture it as such
-- The summary MUST be in English as plain text without any formatting`;
+- The summary MUST be in English as plain text without any formatting
+- USE THE RIGHT TERMINOLOGY - respect who the person actually is`;
 
   try {
     const response = await groq.chat.completions.create({

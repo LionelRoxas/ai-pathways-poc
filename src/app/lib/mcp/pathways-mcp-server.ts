@@ -1,6 +1,10 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 // lib/mcp/pathways-mcp-server.ts
 import { PrismaClient } from "@prisma/client";
+import {
+  LightcastApiResponse,
+  LightcastCareerData,
+} from "@/app/components/AIPathwaysChat/types";
 
 const prisma = new PrismaClient();
 
@@ -347,6 +351,44 @@ function calculateDOESearchRelevance(
     if (program.careerCluster?.toLowerCase().includes(termLower)) {
       score += 25;
     }
+  }
+
+  return score;
+}
+
+function calculateCareerRelevance(
+  career: LightcastCareerData,
+  searchTerms: string[]
+): number {
+  let score = 0;
+  const subjectAreaLower = career.subjectArea.toLowerCase();
+
+  for (const term of searchTerms) {
+    const termLower = term.toLowerCase();
+
+    // Exact match = 100 points
+    if (subjectAreaLower === termLower) {
+      score += 100;
+    }
+    // Contains match = 50 points
+    else if (subjectAreaLower.includes(termLower)) {
+      score += 50;
+    }
+    // Partial word match = 25 points
+    else if (
+      termLower.includes(subjectAreaLower) ||
+      subjectAreaLower.includes(termLower)
+    ) {
+      score += 25;
+    }
+  }
+
+  // Boost score based on job market demand
+  if (score > 0 && career.uniquePostings > 20) {
+    score += 15; // High demand bonus
+  }
+  if (score > 0 && career.uniquePostings > 30) {
+    score += 10; // Very high demand bonus
   }
 
   return score;
@@ -922,6 +964,84 @@ export const mcpTools = {
       return {
         success: false,
         error: `Failed to get database stats: ${error}`,
+      };
+    }
+  },
+
+  // Add to mcpTools object
+  async getLightcastCareerData(params: {
+    programName?: string;
+    interests?: string[];
+    limit?: number;
+  }): Promise<MCPResponse> {
+    try {
+      const response = await fetch(
+        "https://careerexplorer.hawaii.edu/api_lightcast/majors_to_skills.php"
+      );
+
+      if (!response.ok) {
+        return {
+          success: false,
+          error: `Lightcast API returned ${response.status}`,
+        };
+      }
+
+      const apiData: LightcastApiResponse = await response.json();
+
+      // Transform - extract each subject area as individual career entry
+      const transformedData: LightcastCareerData[] = [];
+
+      if (apiData.data?.ranking?.buckets) {
+        for (const cipBucket of apiData.data.ranking.buckets) {
+          const cipCode = cipBucket.name;
+
+          // Extract each specialized skill/subject as its own entry
+          if (cipBucket.ranking?.buckets) {
+            for (const subjectBucket of cipBucket.ranking.buckets) {
+              transformedData.push({
+                cipCode: cipCode,
+                subjectArea: subjectBucket.name,
+                medianSalary: subjectBucket.median_salary,
+                uniqueCompanies: subjectBucket.unique_companies,
+                uniquePostings: subjectBucket.unique_postings,
+              });
+            }
+          }
+        }
+      }
+
+      // Filter/score based on interests if provided
+      let filteredData = transformedData;
+      if (params.interests?.length || params.programName) {
+        const searchTerms = [
+          ...(params.interests || []),
+          ...(params.programName ? [params.programName] : []),
+        ].map(t => t.toLowerCase());
+
+        filteredData = transformedData
+          .map(career => ({
+            ...career,
+            relevanceScore: calculateCareerRelevance(career, searchTerms),
+          }))
+          .filter(c => c.relevanceScore && c.relevanceScore > 0)
+          .sort((a, b) => (b.relevanceScore || 0) - (a.relevanceScore || 0));
+      }
+
+      const limit = params.limit || 20;
+
+      return {
+        success: true,
+        data: filteredData.slice(0, limit),
+        metadata: {
+          totalAvailable: transformedData.length,
+          returned: Math.min(filteredData.length, limit),
+          filtered: filteredData.length > limit,
+        },
+      };
+    } catch (error) {
+      return {
+        success: false,
+        error: `Failed to fetch Lightcast data: ${error}`,
       };
     }
   },

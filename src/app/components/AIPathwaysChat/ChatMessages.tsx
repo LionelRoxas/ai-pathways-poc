@@ -24,13 +24,13 @@ interface ChatMessagesProps {
 }
 
 // Simple Markdown renderer component - ONLY bold and bullets
-const MarkdownRenderer: React.FC<{ content: string; className?: string }> = ({ 
-  content, 
-  className = "" 
+const MarkdownRenderer: React.FC<{ content: string; className?: string }> = ({
+  content,
+  className = "",
 }) => {
   // Basic markdown parsing for bold and bullet points only
   const parseMarkdown = (text: string): React.ReactNode => {
-    const lines = text.split('\n');
+    const lines = text.split("\n");
     const elements: React.ReactNode[] = [];
     let currentList: string[] = [];
     let inList = false;
@@ -52,7 +52,7 @@ const MarkdownRenderer: React.FC<{ content: string; className?: string }> = ({
         }
 
         const matchedText = match[0];
-        if (matchedText.startsWith('**') && matchedText.endsWith('**')) {
+        if (matchedText.startsWith("**") && matchedText.endsWith("**")) {
           // Bold
           parts.push(
             <strong key={`bold-${key++}`} className="font-bold">
@@ -74,20 +74,23 @@ const MarkdownRenderer: React.FC<{ content: string; className?: string }> = ({
 
     lines.forEach((line, index) => {
       // Check for bullet points
-      if (line.trim().startsWith('- ')) {
+      if (line.trim().startsWith("- ")) {
         inList = true;
         currentList.push(line.trim().substring(2));
       }
       // Check for numbered lists (1. 2. etc)
       else if (/^\d+\.\s/.test(line.trim())) {
         inList = true;
-        currentList.push(line.trim().replace(/^\d+\.\s/, ''));
+        currentList.push(line.trim().replace(/^\d+\.\s/, ""));
       }
       // Regular paragraph
-      else if (line.trim() !== '') {
+      else if (line.trim() !== "") {
         if (inList && currentList.length > 0) {
           elements.push(
-            <ul key={`list-${elements.length}`} className="ml-4 mt-2 mb-2 space-y-1">
+            <ul
+              key={`list-${elements.length}`}
+              className="ml-4 mt-2 mb-2 space-y-1"
+            >
               {currentList.map((item, i) => (
                 <li key={i} className="flex items-start">
                   <span className="mr-2 mt-1 text-xs">•</span>
@@ -110,7 +113,10 @@ const MarkdownRenderer: React.FC<{ content: string; className?: string }> = ({
     // Handle any remaining list items
     if (currentList.length > 0) {
       elements.push(
-        <ul key={`list-${elements.length}`} className="ml-4 mt-2 mb-2 space-y-1">
+        <ul
+          key={`list-${elements.length}`}
+          className="ml-4 mt-2 mb-2 space-y-1"
+        >
           {currentList.map((item, i) => (
             <li key={i} className="flex items-start">
               <span className="mr-2 mt-1 text-xs">•</span>
@@ -134,7 +140,7 @@ const MarkdownRenderer: React.FC<{ content: string; className?: string }> = ({
 export default function ChatMessages({
   messages,
   isLoading,
-  isAnalyzing,
+  // isAnalyzing,
   suggestedQuestions,
   setSuggestedQuestions,
   setMessage,
@@ -143,7 +149,7 @@ export default function ChatMessages({
   dataPanelOpen,
 }: ChatMessagesProps) {
   const messagesEndRef = useRef<HTMLDivElement>(null);
-  const userMessageCount = messages.filter(msg => msg.role === "user").length;
+  // const userMessageCount = messages.filter(msg => msg.role === "user").length;
   const [showSuggestions, setShowSuggestions] = useState(false);
 
   useEffect(() => {
@@ -198,8 +204,8 @@ export default function ChatMessages({
                 >
                   <div style={{ lineHeight: "1.6" }}>
                     {msg.role === "assistant" ? (
-                      <MarkdownRenderer 
-                        content={msg.content} 
+                      <MarkdownRenderer
+                        content={msg.content}
                         className="text-black"
                       />
                     ) : (
@@ -274,7 +280,7 @@ export default function ChatMessages({
         )}
 
         {/* Profile Analysis State */}
-        {isAnalyzing && (
+        {/* {isAnalyzing && (
           <div className="flex justify-center py-6">
             <div className="bg-white border-2 border-black rounded-2xl px-6 py-4 flex items-center gap-3 max-w-md">
               <div className="w-5 h-5 border-2 border-black border-t-transparent rounded-full animate-spin"></div>
@@ -288,7 +294,7 @@ export default function ChatMessages({
               </div>
             </div>
           </div>
-        )}
+        )} */}
 
         {/* Suggested Questions */}
         {suggestedQuestions.length > 0 && !isLoading && (
@@ -310,7 +316,7 @@ export default function ChatMessages({
                   <ChevronDown className="w-4 h-4 text-black" />
                 )}
               </button>
-              
+
               {showSuggestions && (
                 <div className="grid grid-cols-2 gap-2 animate-in slide-in-from-top-2 duration-200">
                   {suggestedQuestions.map((question, idx) => (
@@ -334,7 +340,7 @@ export default function ChatMessages({
         )}
 
         {/* Progress Indicator - Discovery Phase */}
-        {!userProfile?.isComplete && userMessageCount > 0 && (
+        {/* {!userProfile?.isComplete && userMessageCount > 0 && (
           <div className="flex justify-center py-6">
             <div className="bg-white border-2 border-black rounded-2xl px-6 py-4 max-w-md w-full">
               <div className="flex items-center justify-between mb-3">
@@ -349,7 +355,6 @@ export default function ChatMessages({
                 </span>
               </div>
 
-              {/* Progress Bar */}
               <div className="relative w-full bg-white border-2 border-black rounded-full h-2 overflow-hidden">
                 <div
                   className="absolute top-0 left-0 h-full bg-black transition-all duration-700 ease-out"
@@ -359,7 +364,6 @@ export default function ChatMessages({
                 />
               </div>
 
-              {/* Encouragement */}
               {userMessageCount >= 4 && userMessageCount < 7 && (
                 <p className="text-xs text-gray-600 mt-3 text-center font-medium">
                   {7 - userMessageCount} more response
@@ -369,7 +373,7 @@ export default function ChatMessages({
               )}
             </div>
           </div>
-        )}
+        )} */}
 
         <div ref={messagesEndRef} />
       </div>

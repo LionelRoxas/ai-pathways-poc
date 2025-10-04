@@ -3,8 +3,8 @@
 import React, { useState } from "react";
 import {
   X,
-  Database,
-  BarChart3,
+  // Database,
+  // BarChart3,
   GraduationCap,
   School,
   MapPin,
@@ -12,6 +12,7 @@ import {
   ChevronRight,
   Search,
   Loader2,
+  Briefcase,
 } from "lucide-react";
 import {
   CurrentData,
@@ -19,6 +20,7 @@ import {
   UHProgramData,
   DOEProgramData,
   PathwayData,
+  LightcastCareerData,
 } from "./types";
 
 interface DataPanelProps {
@@ -54,6 +56,7 @@ export default function DataPanel({
   const [searchResults, setSearchResults] = useState<{
     uhPrograms: UHProgramData[];
     doePrograms: DOEProgramData[];
+    careerData: LightcastCareerData[];
   } | null>(null);
 
   const toggleGrade = (programId: string, grade: string) => {
@@ -78,11 +81,11 @@ export default function DataPanel({
         setSearchResults(data.results);
       } else {
         console.error("Search failed");
-        setSearchResults({ uhPrograms: [], doePrograms: [] });
+        setSearchResults({ uhPrograms: [], doePrograms: [], careerData: [] });
       }
     } catch (error) {
       console.error("Search error:", error);
-      setSearchResults({ uhPrograms: [], doePrograms: [] });
+      setSearchResults({ uhPrograms: [], doePrograms: [], careerData: [] });
     } finally {
       setIsSearching(false);
     }
@@ -100,12 +103,12 @@ export default function DataPanel({
 
   // Determine available tabs based on data
   const tabs: Tab[] = [
-    {
-      id: "overview",
-      label: "Overview",
-      icon: BarChart3,
-      show: !!currentData.stats,
-    },
+    // {
+    //   id: "overview",
+    //   label: "Overview",
+    //   icon: BarChart3,
+    //   show: !!currentData.stats,
+    // },
     {
       id: "doe",
       label: "HS",
@@ -121,8 +124,14 @@ export default function DataPanel({
     {
       id: "pathways",
       label: "Paths",
-      icon: ChevronRight,
+      icon: null,
       show: (currentData.pathways?.length ?? 0) > 0,
+    },
+    {
+      id: "careers",
+      label: "Careers",
+      icon: Briefcase, // Import from lucide-react
+      show: (currentData.careerData?.length ?? 0) > 0,
     },
     {
       id: "search",
@@ -139,6 +148,10 @@ export default function DataPanel({
     (displaySearchResults.uhPrograms?.length > 0 ||
       displaySearchResults.doePrograms?.length > 0);
 
+  // Also check if we have career data from search
+  const hasCareerData =
+    searchResults?.careerData && searchResults.careerData.length > 0;
+
   return (
     <div className="fixed top-0 right-0 bottom-0 w-96 bg-white border-l border-gray-200 z-40">
       <div className="h-full flex flex-col">
@@ -146,8 +159,15 @@ export default function DataPanel({
         <div className="p-4 border-b border-gray-200">
           <div className="flex items-center justify-between mb-4">
             <div className="flex items-center gap-2">
-              <Database className="w-4 h-4 text-black" />
-              <h3 className="font-semibold text-black text-sm">Data Panel</h3>
+              {" "}
+              <div className="flex items-center gap-2">
+                <h3 className="font-semibold text-gray-900 text-sm tracking-tight">
+                  Hawaii Data Intelligence
+                </h3>
+                <span className="px-2 py-0.5 bg-gray-100 text-gray-600 text-xs font-medium rounded">
+                  2025
+                </span>
+              </div>
             </div>
             <button
               onClick={() => setDataPanelOpen(false)}
@@ -158,12 +178,12 @@ export default function DataPanel({
           </div>
 
           {/* Navigation Tabs */}
-          <div className="flex gap-1">
+          <div className="flex gap-1 overflow-x-auto pb-1 scrollbar-thin scrollbar-thumb-gray-300 scrollbar-track-transparent">
             {tabs.map(tab => (
               <button
                 key={tab.id}
                 onClick={() => setActiveDataTab(tab.id)}
-                className={`flex items-center gap-1.5 px-3 py-1.5 text-xs rounded-lg transition-all font-medium flex-1 justify-center ${
+                className={`flex items-center gap-1.5 px-3 py-1.5 text-xs rounded-lg transition-all font-medium whitespace-nowrap ${
                   activeDataTab === tab.id
                     ? "bg-black text-white"
                     : "hover:bg-gray-100 text-gray-600"
@@ -428,6 +448,63 @@ export default function DataPanel({
             </div>
           )}
 
+          {activeDataTab === "careers" && currentData.careerData && (
+            <div className="space-y-3">
+              <div className="mb-3 text-xs text-gray-600">
+                Showing {currentData.careerData.length} career pathway
+                {currentData.careerData.length !== 1 ? "s" : ""}
+              </div>
+              {currentData.careerData.map(
+                (career: LightcastCareerData, idx) => (
+                  <div
+                    key={idx}
+                    className="bg-white rounded-lg p-3 hover:bg-gray-50 transition-colors"
+                  >
+                    <div className="flex items-start justify-between mb-2">
+                      <div className="flex-1">
+                        <h5 className="font-semibold text-black text-sm">
+                          {career.subjectArea}
+                        </h5>
+                        <p className="text-xs text-gray-500 mt-0.5">
+                          CIP Code: {career.cipCode}
+                        </p>
+                      </div>
+                      {career.relevanceScore && (
+                        <span
+                          className={`px-2 py-0.5 rounded text-xs font-medium ${getRelevanceColor(career.relevanceScore)}`}
+                        >
+                          {career.relevanceScore}
+                        </span>
+                      )}
+                    </div>
+
+                    <div className="bg-green-50 rounded-lg p-2 mb-2">
+                      <p className="text-xs text-gray-600">Median Salary</p>
+                      <p className="text-lg font-bold text-green-700">
+                        ${career.medianSalary.toLocaleString()}
+                      </p>
+                    </div>
+
+                    <div className="grid grid-cols-2 gap-2 text-xs">
+                      <div className="bg-gray-50 rounded p-2">
+                        <p className="text-gray-600">Companies</p>
+                        <p className="font-semibold text-black">
+                          {career.uniqueCompanies}
+                        </p>
+                      </div>
+                      <div className="bg-gray-50 rounded p-2">
+                        <p className="text-gray-600">Job Postings</p>
+                        <p className="font-semibold text-black">
+                          {career.uniquePostings}
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+                )
+              )}
+            </div>
+          )}
+
           {/* Search Tab */}
           {activeDataTab === "search" && (
             <div className="space-y-4">
@@ -460,9 +537,9 @@ export default function DataPanel({
               </div>
 
               {/* Search Results */}
-              {hasSearchResults ? (
+              {hasSearchResults || hasCareerData ? (
                 <div className="space-y-4">
-                  {displaySearchResults.uhPrograms &&
+                  {displaySearchResults?.uhPrograms &&
                     displaySearchResults.uhPrograms.length > 0 && (
                       <div>
                         <h4 className="text-xs font-semibold text-gray-700 mb-2">
@@ -488,7 +565,7 @@ export default function DataPanel({
                       </div>
                     )}
 
-                  {displaySearchResults.doePrograms &&
+                  {displaySearchResults?.doePrograms &&
                     displaySearchResults.doePrograms.length > 0 && (
                       <div>
                         <h4 className="text-xs font-semibold text-gray-700 mb-2">
@@ -516,6 +593,37 @@ export default function DataPanel({
                         </div>
                       </div>
                     )}
+
+                  {hasCareerData && (
+                    <div>
+                      <h4 className="text-xs font-semibold text-gray-700 mb-2">
+                        Career Pathways ({searchResults.careerData.length})
+                      </h4>
+                      <div className="space-y-2">
+                        {searchResults.careerData
+                          .slice(0, 10)
+                          .map((career, idx) => (
+                            <div
+                              key={idx}
+                              className="bg-gray-50 rounded-lg p-2 hover:bg-gray-100 transition-colors"
+                            >
+                              <p className="text-xs font-semibold text-black">
+                                {career.subjectArea}
+                              </p>
+                              <p className="text-xs text-gray-600">
+                                ${career.medianSalary.toLocaleString()} •{" "}
+                                {career.uniquePostings} jobs
+                              </p>
+                              {career.relevanceScore && (
+                                <span className="text-xs text-gray-500">
+                                  Match: {career.relevanceScore}%
+                                </span>
+                              )}
+                            </div>
+                          ))}
+                      </div>
+                    </div>
+                  )}
                 </div>
               ) : searchResults !== null ? (
                 <div className="bg-gray-50 rounded-lg p-4 text-center">
