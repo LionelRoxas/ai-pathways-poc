@@ -1,5 +1,18 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 // lib/mcp/pathways-mcp-server.ts
+/**
+ * @deprecated This MCP server is deprecated and replaced by the orchestrator-agent system.
+ *
+ * NEW SYSTEM: /api/orchestrator uses JSONL-based data with CIP code routing.
+ *
+ * This file is kept for backwards compatibility only.
+ * Migration path:
+ * - Use /api/orchestrator for all new pathway queries
+ * - The orchestrator uses JSONL files instead of database queries
+ * - CIP codes are the universal connector between HS, College, and Career pathways
+ *
+ * See: src/app/lib/orchestrator/index.ts for the new implementation
+ */
 import { PrismaClient } from "@prisma/client";
 import {
   LightcastApiResponse,

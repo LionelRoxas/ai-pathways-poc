@@ -352,13 +352,10 @@ export default function UnifiedSleekChat({
       let requestBody: any;
 
       if (userProfile?.isComplete) {
-        apiEndpoint = "/api/ai-pathways";
+        // Use orchestrator for all pathway queries
+        apiEndpoint = "/api/orchestrator";
         requestBody = {
           message: userMessage.content,
-          messages: newMessages.map(msg => ({
-            role: msg.role,
-            content: msg.content,
-          })),
           userProfile: userProfile.profileSummary,
           extractedProfile: userProfile.extracted,
           language: currentLanguage.code,
@@ -404,15 +401,22 @@ export default function UnifiedSleekChat({
         return;
       }
 
-      // AUTO DATA PANEL OPENING - THIS IS THE NEW ADDITION
+      // AUTO DATA PANEL OPENING - Support both orchestrator and legacy formats
       if (data.data && Object.keys(data.data).length > 0) {
         setCurrentData(data.data);
 
-        // Check if there's actual data to display
+        // Check if there's actual data to display (support both formats)
         const hasActualData =
+          // Legacy format
           (data.data.uhPrograms && data.data.uhPrograms.length > 0) ||
           (data.data.doePrograms && data.data.doePrograms.length > 0) ||
           (data.data.pathways && data.data.pathways.length > 0) ||
+          (data.data.careerData && data.data.careerData.length > 0) ||
+          // Orchestrator format
+          (data.data.relatedHighSchool && data.data.relatedHighSchool.length > 0) ||
+          (data.data.collegeOptions && data.data.collegeOptions.length > 0) ||
+          (data.data.careerPaths && data.data.careerPaths.length > 0) ||
+          // Search results
           (data.data.searchResults &&
             ((data.data.searchResults.uhPrograms &&
               data.data.searchResults.uhPrograms.length > 0) ||
@@ -424,13 +428,24 @@ export default function UnifiedSleekChat({
           setDataPanelOpen(true);
 
           // Set the appropriate tab based on data type
-          if (data.data.uhPrograms && data.data.uhPrograms.length > 0) {
+          // Check orchestrator format first
+          if (data.data.relatedHighSchool && data.data.relatedHighSchool.length > 0) {
+            setActiveDataTab("doe");
+          } else if (data.data.collegeOptions && data.data.collegeOptions.length > 0) {
+            setActiveDataTab("uh");
+          } else if (data.data.careerPaths && data.data.careerPaths.length > 0) {
+            setActiveDataTab("careers");
+          }
+          // Then check legacy format
+          else if (data.data.uhPrograms && data.data.uhPrograms.length > 0) {
             setActiveDataTab("uh");
           } else if (
             data.data.doePrograms &&
             data.data.doePrograms.length > 0
           ) {
             setActiveDataTab("doe");
+          } else if (data.data.careerData && data.data.careerData.length > 0) {
+            setActiveDataTab("careers");
           } else if (data.data.searchResults) {
             setActiveDataTab("search");
           } else if (data.data.pathways && data.data.pathways.length > 0) {

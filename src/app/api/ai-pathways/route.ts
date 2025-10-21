@@ -1,5 +1,17 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 // app/api/ai-pathways/route.ts (Complete with Language and Markdown Support)
+/**
+ * @deprecated This endpoint is deprecated and replaced by /api/orchestrator
+ *
+ * NEW ENDPOINT: /api/orchestrator
+ * - Uses JSONL-based data instead of Prisma/database
+ * - CIP-code based routing and mapping
+ * - Modular agent architecture
+ * - Better performance with pre-indexed data
+ *
+ * This file is kept for backwards compatibility only.
+ * See: src/app/api/orchestrator/route.ts for the new implementation
+ */
 import { NextRequest, NextResponse } from "next/server";
 import { handleMCPRequest } from "../../lib/mcp/pathways-mcp-server";
 import Groq from "groq-sdk";
