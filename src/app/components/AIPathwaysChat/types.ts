@@ -353,3 +353,110 @@ export interface UserInteraction {
   userFeedback?: number | null; // 1-5 rating
   createdAt: Date;
 }
+
+// ==================== Orchestrator-Agent Types ====================
+
+/**
+ * Orchestrator Request
+ */
+export interface OrchestratorRequest {
+  message: string;
+  userProfile?: string;
+  extractedProfile?: ExtractedProfile;
+  focusArea?: 'highschool' | 'college' | 'workforce' | 'general';
+  language?: string;
+}
+
+/**
+ * Orchestrator Response
+ */
+export interface OrchestratorResponse {
+  relatedHighSchool: HighSchoolProgram[];
+  collegeOptions: CollegeProgram[];
+  careerPaths: CareerPathway[];
+  cipCodesUsed: string[];
+  cip2DigitUsed: string[];
+  suggestedQuestions: string[];
+  metadata: {
+    intent: string;
+    focusArea: string;
+    agentsInvoked: string[];
+    totalResults: number;
+    processingTimeMs: number;
+    cipContext: {
+      hasHighSchoolPrograms: boolean;
+      hasCollegePrograms: boolean;
+      hasCareerData: boolean;
+    };
+  };
+}
+
+/**
+ * High School Program (from orchestrator)
+ */
+export interface HighSchoolProgram {
+  programOfStudy: string;
+  careerCluster?: string;
+  description?: string;
+  cip2Digit: string[];
+  courseSequence: {
+    grade9: string[];
+    grade10: string[];
+    grade11: string[];
+    grade12: string[];
+    electives: string[];
+  };
+  recommendedCourses?: string[];
+  levelCourses?: string[];
+  schoolsOffering?: string[];
+  relevanceScore?: number;
+  matchReason?: string;
+}
+
+/**
+ * College Program (from orchestrator)
+ */
+export interface CollegeProgram {
+  cipCode: string;
+  programName: string;
+  campus: string;
+  degree?: string;
+  cip2Digit?: string;
+  relevanceScore?: number;
+  matchReason?: string;
+}
+
+/**
+ * Career Pathway (from orchestrator)
+ */
+export interface CareerPathway {
+  cipCode: string;
+  socCode: string;
+  cip2Digit?: string;
+  title?: string;
+  medianSalary?: number;
+  jobOpenings?: number;
+  companies?: number;
+  relevanceScore?: number;
+  matchReason?: string;
+  relatedPrograms?: {
+    highschool: string[];
+    college: string[];
+  };
+}
+
+/**
+ * CIP Context
+ */
+export interface CIPContext {
+  twoDigit: string[];
+  fullCodes: string[];
+  hasHighSchoolPrograms: boolean;
+  hasCollegePrograms: boolean;
+  hasCareerData: boolean;
+  relatedPrograms: {
+    highschool: string[];
+    college: string[];
+  };
+  keywords: string[];
+}
