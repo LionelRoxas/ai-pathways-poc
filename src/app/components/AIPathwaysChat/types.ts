@@ -186,9 +186,17 @@ export interface LightcastApiResponse {
 
 // Current data structure for data panel
 export interface CurrentData {
+  // Legacy format (for backwards compatibility)
   uhPrograms?: UHProgramData[];
   doePrograms?: DOEProgramData[];
   pathways?: PathwayData[];
+  careerData?: LightcastCareerData[];
+
+  // Orchestrator format (new)
+  relatedHighSchool?: HighSchoolProgram[];
+  collegeOptions?: CollegeProgram[];
+  careerPaths?: CareerPathway[];
+
   searchResults?: {
     uhPrograms: UHProgramData[];
     doePrograms: DOEProgramData[];
@@ -200,8 +208,12 @@ export interface CurrentData {
     availableCampuses: string[];
     availableDegrees: string[];
     careerClusters: string[];
+    // Orchestrator stats
+    totalHighSchool?: number;
+    totalCollege?: number;
+    totalCareers?: number;
+    cipCategories?: number;
   };
-  careerData?: LightcastCareerData[]; // ADD THIS LINE
 }
 
 // UI Tab configuration
@@ -396,18 +408,18 @@ export interface OrchestratorResponse {
  */
 export interface HighSchoolProgram {
   programOfStudy: string;
-  careerCluster?: string;
-  description?: string;
   cip2Digit: string[];
   courseSequence: {
     grade9: string[];
     grade10: string[];
     grade11: string[];
     grade12: string[];
-    electives: string[];
   };
   recommendedCourses?: string[];
-  levelCourses?: string[];
+  level1Courses?: string[];
+  level2Courses?: string[];
+  level3Courses?: string[];
+  level4Courses?: string[];
   schoolsOffering?: string[];
   relevanceScore?: number;
   matchReason?: string;

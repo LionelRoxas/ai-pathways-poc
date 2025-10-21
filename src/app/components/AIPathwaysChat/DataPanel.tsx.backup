@@ -22,9 +22,6 @@ import {
   DOEProgramData,
   PathwayData,
   LightcastCareerData,
-  HighSchoolProgram,
-  CollegeProgram,
-  CareerPathway,
 } from "./types";
 
 interface DataPanelProps {
@@ -105,7 +102,7 @@ export default function DataPanel({
 
   if (!dataPanelOpen || !currentData) return null;
 
-  // Determine available tabs based on data (support both legacy and orchestrator formats)
+  // Determine available tabs based on data
   const tabs: Tab[] = [
     // {
     //   id: "overview",
@@ -117,13 +114,13 @@ export default function DataPanel({
       id: "doe",
       label: "HS",
       icon: School,
-      show: (currentData.doePrograms?.length ?? 0) > 0 || (currentData.relatedHighSchool?.length ?? 0) > 0,
+      show: (currentData.doePrograms?.length ?? 0) > 0,
     },
     {
       id: "uh",
       label: "UH",
       icon: GraduationCap,
-      show: (currentData.uhPrograms?.length ?? 0) > 0 || (currentData.collegeOptions?.length ?? 0) > 0,
+      show: (currentData.uhPrograms?.length ?? 0) > 0,
     },
     {
       id: "pathways",
@@ -134,8 +131,8 @@ export default function DataPanel({
     {
       id: "careers",
       label: "Careers",
-      icon: Briefcase,
-      show: (currentData.careerData?.length ?? 0) > 0 || (currentData.careerPaths?.length ?? 0) > 0,
+      icon: Briefcase, // Import from lucide-react
+      show: (currentData.careerData?.length ?? 0) > 0,
     },
     {
       id: "search",
@@ -282,165 +279,8 @@ export default function DataPanel({
             </div>
           )}
 
-          {/* DOE Programs Tab - Orchestrator Format */}
-          {activeDataTab === "doe" && currentData.relatedHighSchool && (
-            <div className="space-y-3">
-              {currentData.relatedHighSchool.map((program: HighSchoolProgram, idx: number) => (
-                <div
-                  key={idx}
-                  className="bg-white border border-gray-200 rounded-lg p-4 hover:shadow-md transition-shadow"
-                >
-                  {/* Header */}
-                  <div className="flex items-start justify-between mb-3">
-                    <h5 className="font-semibold text-black text-base flex-1">
-                      {program.programOfStudy}
-                    </h5>
-                    {program.relevanceScore && (
-                      <span
-                        className={`px-2 py-1 rounded text-xs font-medium ${getRelevanceColor(program.relevanceScore)}`}
-                      >
-                        {Math.round(program.relevanceScore)}
-                      </span>
-                    )}
-                  </div>
-
-                  {/* Match Reason */}
-                  {program.matchReason && (
-                    <p className="text-xs text-blue-600 mb-3">
-                      {program.matchReason}
-                    </p>
-                  )}
-
-                  {/* CIP Categories */}
-                  {program.cip2Digit && program.cip2Digit.length > 0 && (
-                    <div className="mb-3">
-                      <p className="text-xs text-gray-500 mb-1">CIP Categories:</p>
-                      <div className="flex flex-wrap gap-1">
-                        {program.cip2Digit.map((cip, i) => (
-                          <span
-                            key={i}
-                            className="px-2 py-0.5 bg-purple-100 text-purple-700 text-xs rounded"
-                          >
-                            {cip}
-                          </span>
-                        ))}
-                      </div>
-                    </div>
-                  )}
-
-                  {/* Course Sequence */}
-                  <div className="space-y-1">
-                    {[
-                      { key: "grade9", label: "9" },
-                      { key: "grade10", label: "10" },
-                      { key: "grade11", label: "11" },
-                      { key: "grade12", label: "12" },
-                    ].map(({ key, label }) => {
-                      const courses = program.courseSequence[key as keyof typeof program.courseSequence];
-                      const expandKey = `${idx}-${key}`;
-                      const isExpanded = expandedGrades[expandKey];
-
-                      if (!courses || courses.length === 0) return null;
-
-                      return (
-                        <div key={key} className="text-xs">
-                          <button
-                            onClick={() => toggleGrade(String(idx), key)}
-                            className="w-full py-2 px-2 flex items-center justify-between hover:bg-gray-50 rounded transition-colors"
-                          >
-                            <span className="font-medium text-gray-700">
-                              Grade {label}
-                            </span>
-                            <ChevronRight
-                              className={`w-3 h-3 text-gray-400 transition-transform ${isExpanded ? "rotate-90" : ""}`}
-                            />
-                          </button>
-                          {isExpanded && (
-                            <div className="pl-4 py-2 space-y-1">
-                              {courses.map((course, i) => (
-                                <div key={i} className="text-gray-700 py-0.5">
-                                  • {course}
-                                </div>
-                              ))}
-                            </div>
-                          )}
-                        </div>
-                      );
-                    })}
-                  </div>
-
-                  {/* Recommended Courses */}
-                  {program.recommendedCourses && program.recommendedCourses.length > 0 && (
-                    <div className="mt-3 pt-3 border-t border-gray-100">
-                      <p className="text-xs font-medium text-gray-700 mb-1">
-                        Recommended:
-                      </p>
-                      <div className="text-xs text-gray-600">
-                        {program.recommendedCourses.join(", ")}
-                      </div>
-                    </div>
-                  )}
-
-                  {/* Level Courses */}
-                  {(program.level1Courses || program.level2Courses || program.level3Courses || program.level4Courses) && (
-                    <div className="mt-3 pt-3 border-t border-gray-100">
-                      <p className="text-xs font-medium text-gray-700 mb-2">
-                        Program of Study Courses:
-                      </p>
-                      <div className="grid grid-cols-2 gap-2 text-xs">
-                        {program.level1Courses && (
-                          <div>
-                            <span className="font-medium text-gray-600">Level 1:</span>
-                            <div className="text-gray-600">{program.level1Courses.join(", ")}</div>
-                          </div>
-                        )}
-                        {program.level2Courses && (
-                          <div>
-                            <span className="font-medium text-gray-600">Level 2:</span>
-                            <div className="text-gray-600">{program.level2Courses.join(", ")}</div>
-                          </div>
-                        )}
-                        {program.level3Courses && (
-                          <div>
-                            <span className="font-medium text-gray-600">Level 3:</span>
-                            <div className="text-gray-600">{program.level3Courses.join(", ")}</div>
-                          </div>
-                        )}
-                        {program.level4Courses && (
-                          <div>
-                            <span className="font-medium text-gray-600">Level 4:</span>
-                            <div className="text-gray-600">{program.level4Courses.join(", ")}</div>
-                          </div>
-                        )}
-                      </div>
-                    </div>
-                  )}
-
-                  {/* Schools Offering */}
-                  {program.schoolsOffering && program.schoolsOffering.length > 0 && (
-                    <div className="mt-3 pt-3 border-t border-gray-100">
-                      <p className="text-xs font-medium text-gray-700 mb-1">
-                        Available at {program.schoolsOffering.length} school{program.schoolsOffering.length > 1 ? "s" : ""}:
-                      </p>
-                      <div className="flex flex-wrap gap-1">
-                        {program.schoolsOffering.map((school, i) => (
-                          <span
-                            key={i}
-                            className="px-2 py-0.5 bg-gray-100 text-gray-700 text-xs rounded"
-                          >
-                            {school}
-                          </span>
-                        ))}
-                      </div>
-                    </div>
-                  )}
-                </div>
-              ))}
-            </div>
-          )}
-
-          {/* DOE Programs Tab - Legacy Format */}
-          {activeDataTab === "doe" && !currentData.relatedHighSchool && currentData.doePrograms && (
+          {/* DOE Programs Tab */}
+          {activeDataTab === "doe" && currentData.doePrograms && (
             <div className="space-y-3">
               {currentData.doePrograms.map((program: DOEProgramData) => (
                 <div
@@ -512,71 +352,8 @@ export default function DataPanel({
             </div>
           )}
 
-          {/* UH Programs Tab - Orchestrator Format */}
-          {activeDataTab === "uh" && currentData.collegeOptions && (
-            <div className="space-y-3">
-              {currentData.collegeOptions.map((program: CollegeProgram, idx: number) => (
-                <div
-                  key={idx}
-                  className="bg-white border border-gray-200 rounded-lg p-4 hover:shadow-md transition-shadow"
-                >
-                  {/* Header */}
-                  <div className="flex items-start justify-between mb-3">
-                    <h5 className="font-semibold text-black text-base flex-1">
-                      {program.programName}
-                    </h5>
-                    {program.relevanceScore && (
-                      <span
-                        className={`px-2 py-1 rounded text-xs font-medium ${getRelevanceColor(program.relevanceScore)}`}
-                      >
-                        {Math.round(program.relevanceScore)}
-                      </span>
-                    )}
-                  </div>
-
-                  {/* Match Reason */}
-                  {program.matchReason && (
-                    <p className="text-xs text-blue-600 mb-3">
-                      {program.matchReason}
-                    </p>
-                  )}
-
-                  {/* Campus and Degree */}
-                  <div className="flex items-center gap-3 mb-3 text-sm">
-                    <div className="flex items-center gap-1 text-gray-700">
-                      <MapPin className="w-4 h-4 text-gray-500" />
-                      <span className="font-medium">{program.campus}</span>
-                    </div>
-                    {program.degree && (
-                      <>
-                        <span className="text-gray-400">•</span>
-                        <div className="flex items-center gap-1 text-gray-700">
-                          <GraduationCap className="w-4 h-4 text-gray-500" />
-                          <span>{program.degree}</span>
-                        </div>
-                      </>
-                    )}
-                  </div>
-
-                  {/* CIP Code */}
-                  <div className="flex items-center gap-2 mb-2">
-                    <span className="text-xs text-gray-500">CIP Code:</span>
-                    <span className="px-2 py-0.5 bg-blue-100 text-blue-700 text-xs rounded font-mono">
-                      {program.cipCode}
-                    </span>
-                    {program.cip2Digit && (
-                      <span className="px-2 py-0.5 bg-purple-100 text-purple-700 text-xs rounded">
-                        Category: {program.cip2Digit}
-                      </span>
-                    )}
-                  </div>
-                </div>
-              ))}
-            </div>
-          )}
-
-          {/* UH Programs Tab - Legacy Format */}
-          {activeDataTab === "uh" && !currentData.collegeOptions && currentData.uhPrograms && (
+          {/* UH Programs Tab */}
+          {activeDataTab === "uh" && currentData.uhPrograms && (
             <div className="space-y-3">
               {currentData.uhPrograms.map((program: UHProgramData) => (
                 <div
@@ -681,147 +458,7 @@ export default function DataPanel({
             </div>
           )}
 
-          {/* Careers Tab - Orchestrator Format */}
-          {activeDataTab === "careers" && currentData.careerPaths && (
-            <div className="space-y-3">
-              <div className="mb-3 text-xs text-gray-600">
-                Showing {currentData.careerPaths.length} career pathway
-                {currentData.careerPaths.length !== 1 ? "s" : ""}
-              </div>
-              {currentData.careerPaths.map((career: CareerPathway, idx) => (
-                <div
-                  key={idx}
-                  className="bg-white border border-gray-200 rounded-lg p-4 hover:shadow-md transition-shadow"
-                >
-                  {/* Header */}
-                  <div className="flex items-start justify-between mb-3">
-                    <div className="flex-1">
-                      <h5 className="font-semibold text-black text-base">
-                        {career.title || `Career in ${career.socCode}`}
-                      </h5>
-                      {career.matchReason && (
-                        <p className="text-xs text-blue-600 mt-1">
-                          {career.matchReason}
-                        </p>
-                      )}
-                    </div>
-                    {career.relevanceScore && (
-                      <span
-                        className={`px-2 py-1 rounded text-xs font-medium ${getRelevanceColor(career.relevanceScore)}`}
-                      >
-                        {Math.round(career.relevanceScore)}
-                      </span>
-                    )}
-                  </div>
-
-                  {/* SOC and CIP Codes */}
-                  <div className="flex items-center gap-2 mb-3 flex-wrap">
-                    <div className="flex items-center gap-1">
-                      <span className="text-xs text-gray-500">SOC:</span>
-                      <span className="px-2 py-0.5 bg-green-100 text-green-700 text-xs rounded font-mono">
-                        {career.socCode}
-                      </span>
-                    </div>
-                    <div className="flex items-center gap-1">
-                      <span className="text-xs text-gray-500">CIP:</span>
-                      <span className="px-2 py-0.5 bg-blue-100 text-blue-700 text-xs rounded font-mono">
-                        {career.cipCode}
-                      </span>
-                    </div>
-                    {career.cip2Digit && (
-                      <span className="px-2 py-0.5 bg-purple-100 text-purple-700 text-xs rounded">
-                        Category: {career.cip2Digit}
-                      </span>
-                    )}
-                  </div>
-
-                  {/* Salary and Job Data */}
-                  {(career.medianSalary || career.jobOpenings) && (
-                    <div className="grid grid-cols-2 gap-2 mb-3">
-                      {career.medianSalary && (
-                        <div className="bg-green-50 rounded-lg p-2">
-                          <p className="text-xs text-gray-600">Median Salary</p>
-                          <p className="text-lg font-bold text-green-700">
-                            ${career.medianSalary.toLocaleString()}
-                          </p>
-                        </div>
-                      )}
-                      {career.jobOpenings && (
-                        <div className="bg-blue-50 rounded-lg p-2">
-                          <p className="text-xs text-gray-600">Job Openings</p>
-                          <p className="text-lg font-bold text-blue-700">
-                            {career.jobOpenings.toLocaleString()}
-                          </p>
-                        </div>
-                      )}
-                    </div>
-                  )}
-
-                  {/* Companies */}
-                  {career.companies && career.companies > 0 && (
-                    <div className="bg-gray-50 rounded p-2 text-xs mb-3">
-                      <span className="text-gray-600">Hiring Companies: </span>
-                      <span className="font-semibold text-gray-800">
-                        {career.companies.toLocaleString()}
-                      </span>
-                    </div>
-                  )}
-
-                  {/* Related Programs */}
-                  {career.relatedPrograms && (career.relatedPrograms.highschool?.length > 0 || career.relatedPrograms.college?.length > 0) && (
-                    <div className="mt-3 pt-3 border-t border-gray-100">
-                      <p className="text-xs font-medium text-gray-700 mb-2">
-                        Educational Pathways:
-                      </p>
-                      {career.relatedPrograms.highschool && career.relatedPrograms.highschool.length > 0 && (
-                        <div className="mb-2">
-                          <p className="text-xs text-gray-500 mb-1">High School:</p>
-                          <div className="flex flex-wrap gap-1">
-                            {career.relatedPrograms.highschool.slice(0, 3).map((program, i) => (
-                              <span
-                                key={i}
-                                className="px-2 py-0.5 bg-purple-100 text-purple-700 text-xs rounded"
-                              >
-                                {program}
-                              </span>
-                            ))}
-                            {career.relatedPrograms.highschool.length > 3 && (
-                              <span className="text-xs text-gray-500">
-                                +{career.relatedPrograms.highschool.length - 3} more
-                              </span>
-                            )}
-                          </div>
-                        </div>
-                      )}
-                      {career.relatedPrograms.college && career.relatedPrograms.college.length > 0 && (
-                        <div>
-                          <p className="text-xs text-gray-500 mb-1">College:</p>
-                          <div className="flex flex-wrap gap-1">
-                            {career.relatedPrograms.college.slice(0, 3).map((program, i) => (
-                              <span
-                                key={i}
-                                className="px-2 py-0.5 bg-blue-100 text-blue-700 text-xs rounded"
-                              >
-                                {program}
-                              </span>
-                            ))}
-                            {career.relatedPrograms.college.length > 3 && (
-                              <span className="text-xs text-gray-500">
-                                +{career.relatedPrograms.college.length - 3} more
-                              </span>
-                            )}
-                          </div>
-                        </div>
-                      )}
-                    </div>
-                  )}
-                </div>
-              ))}
-            </div>
-          )}
-
-          {/* Careers Tab - Legacy Format */}
-          {activeDataTab === "careers" && !currentData.careerPaths && currentData.careerData && (
+          {activeDataTab === "careers" && currentData.careerData && (
             <div className="space-y-3">
               <div className="mb-3 text-xs text-gray-600">
                 Showing {currentData.careerData.length} career pathway

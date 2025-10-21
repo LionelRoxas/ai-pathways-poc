@@ -36,24 +36,24 @@ export interface CIPToSOC {
 
 export interface POSToCoursesByGrade {
   PROGRAM_OF_STUDY: string;
-  GRADE_9?: string[];
-  GRADE_10?: string[];
-  GRADE_11?: string[];
-  GRADE_12?: string[];
-  ELECTIVES?: string[];
+  '9TH_GRADE_COURSES'?: string[];
+  '10TH_GRADE_COURSES'?: string[];
+  '11TH_GRADE_COURSES'?: string[];
+  '12TH_GRADE_COURSES'?: string[];
 }
 
 export interface POSToRecommendedCourses {
   PROGRAM_OF_STUDY: string;
   RECOMMENDED_COURSES?: string[];
-  LEVEL_COURSES?: string[];
+  LEVEL_1_POS_COURSES?: string[];
+  LEVEL_2_POS_COURSES?: string[];
+  LEVEL_3_POS_COURSES?: string[];
+  LEVEL_4_POS_COURSES?: string[];
 }
 
 export interface POSToHighSchool {
   PROGRAM_OF_STUDY: string;
-  SCHOOLS_OFFERING?: string[];
-  CAREER_CLUSTER?: string;
-  DESCRIPTION?: string;
+  HIGH_SCHOOL?: string[];
 }
 
 /**

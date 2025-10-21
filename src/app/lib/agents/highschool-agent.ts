@@ -10,18 +10,18 @@ import { ExtractedProfile } from '@/app/components/AIPathwaysChat/types';
 
 export interface HighSchoolProgram {
   programOfStudy: string;
-  careerCluster?: string;
-  description?: string;
   cip2Digit: string[];
   courseSequence: {
     grade9: string[];
     grade10: string[];
     grade11: string[];
     grade12: string[];
-    electives: string[];
   };
   recommendedCourses?: string[];
-  levelCourses?: string[];
+  level1Courses?: string[];
+  level2Courses?: string[];
+  level3Courses?: string[];
+  level4Courses?: string[];
   schoolsOffering?: string[];
   relevanceScore?: number;
   matchReason?: string;
@@ -167,19 +167,19 @@ export class HighSchoolAgent extends BaseAgent<HighSchoolProgram> {
       // Build the program object
       const program: HighSchoolProgram = {
         programOfStudy,
-        careerCluster: schoolInfo?.CAREER_CLUSTER,
-        description: schoolInfo?.DESCRIPTION,
         cip2Digit: cip2Codes,
         courseSequence: {
-          grade9: courses?.GRADE_9 || [],
-          grade10: courses?.GRADE_10 || [],
-          grade11: courses?.GRADE_11 || [],
-          grade12: courses?.GRADE_12 || [],
-          electives: courses?.ELECTIVES || []
+          grade9: courses?.['9TH_GRADE_COURSES'] || [],
+          grade10: courses?.['10TH_GRADE_COURSES'] || [],
+          grade11: courses?.['11TH_GRADE_COURSES'] || [],
+          grade12: courses?.['12TH_GRADE_COURSES'] || []
         },
         recommendedCourses: recommended?.RECOMMENDED_COURSES,
-        levelCourses: recommended?.LEVEL_COURSES,
-        schoolsOffering: schoolInfo?.SCHOOLS_OFFERING
+        level1Courses: recommended?.LEVEL_1_POS_COURSES,
+        level2Courses: recommended?.LEVEL_2_POS_COURSES,
+        level3Courses: recommended?.LEVEL_3_POS_COURSES,
+        level4Courses: recommended?.LEVEL_4_POS_COURSES,
+        schoolsOffering: schoolInfo?.HIGH_SCHOOL
       };
 
       // Calculate relevance score
@@ -240,7 +240,7 @@ export class HighSchoolAgent extends BaseAgent<HighSchoolProgram> {
 
     // Profile alignment - interests and career goals
     if (userProfile) {
-      const programText = `${program.programOfStudy} ${program.description || ''} ${program.careerCluster || ''}`.toLowerCase();
+      const programText = program.programOfStudy.toLowerCase();
 
       // Check interests
       if (userProfile.interests) {
@@ -257,7 +257,7 @@ export class HighSchoolAgent extends BaseAgent<HighSchoolProgram> {
 
     // Keyword match
     if (cipContext.keywords && cipContext.keywords.length > 0) {
-      const programText = `${program.programOfStudy} ${program.description || ''} ${program.careerCluster || ''}`;
+      const programText = program.programOfStudy;
       keywordMatch = this.calculateKeywordMatch(programText, cipContext.keywords);
     }
 
