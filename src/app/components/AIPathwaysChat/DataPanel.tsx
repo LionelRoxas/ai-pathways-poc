@@ -5,7 +5,7 @@
 import React from "react";
 import {
   Briefcase,
-  PanelRight,
+  X,
   Building2,
   Sparkles,
   Target,
@@ -43,6 +43,16 @@ export default function DataPanel({
     socCodes
   );
   console.log(`[DataPanel] 🎯 Active tab:`, activeDataTab);
+
+  // 🎯 Ensure we always have a valid tab selected
+  React.useEffect(() => {
+    if (socCodes.length > 0) {
+      const validTabs = ["active-posts", "companies", "skills", "company-skills"];
+      if (!validTabs.includes(activeDataTab)) {
+        setActiveDataTab("active-posts"); // Set default if current tab is invalid
+      }
+    }
+  }, [socCodes, activeDataTab, setActiveDataTab]);
 
   // Don't render if panel is closed or no SOC codes
   if (!dataPanelOpen || socCodes.length === 0) return null;
@@ -90,7 +100,7 @@ export default function DataPanel({
               className="p-1 hover:bg-gray-100 rounded transition-colors"
               aria-label="Close panel"
             >
-              <PanelRight className="w-4 h-4 text-gray-600" />
+              <X className="w-4 h-4 text-gray-600" />
             </button>
           </div>
 

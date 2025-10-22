@@ -8,7 +8,7 @@ import {
   ChevronUp,
   School,
   GraduationCap,
-  Briefcase,
+  // Briefcase,
   ChevronRight,
   BookOpen,
 } from "lucide-react";
@@ -455,7 +455,7 @@ const PathwayVisualization: React.FC<{ data: PathwayData }> = ({ data }) => {
         </details>
       )}
 
-      {data.careers && data.careers.length > 0 && (
+      {/* {data.careers && data.careers.length > 0 && (
         <details className="bg-gray-50 rounded-lg p-3">
           <summary className="cursor-pointer font-medium flex items-center gap-2 text-sm">
             <Briefcase className="w-4 h-4 text-green-600" />
@@ -474,7 +474,7 @@ const PathwayVisualization: React.FC<{ data: PathwayData }> = ({ data }) => {
             ))}
           </div>
         </details>
-      )}
+      )} */}
     </div>
   );
 };

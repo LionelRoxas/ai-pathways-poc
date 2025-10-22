@@ -208,7 +208,7 @@ export default function UnifiedSleekChat({
   const [dataPanelOpen, setDataPanelOpen] = useState(false);
   const [currentData, setCurrentData] = useState<CurrentData | null>(null);
   const [suggestedQuestions, setSuggestedQuestions] = useState<string[]>([]);
-  const [activeDataTab, setActiveDataTab] = useState<string>("active-posts"); // ✅ Changed default tab
+  const [activeDataTab, setActiveDataTab] = useState<string>("active-posts"); // Default fallback
   const [isUpdatingProfile, setIsUpdatingProfile] = useState(false);
   const lastUpdateRef = useRef<number>(0);
   const [displayedSocCodes, setDisplayedSocCodes] = useState<string[]>([]); // ✅ Added state
@@ -220,6 +220,17 @@ export default function UnifiedSleekChat({
     greeting: "",
     description: "",
   };
+
+  // 🎯 Effect to set initial tab based on context
+  useEffect(() => {
+    if (userProfile?.extracted?.currentStatus === "working") {
+      setActiveDataTab("companies"); // Focus on companies for working professionals
+    } else if (userProfile?.extracted?.educationLevel === "high_school") {
+      setActiveDataTab("skills"); // Focus on skills for high school students
+    } else {
+      setActiveDataTab("active-posts"); // Default for everyone else
+    }
+  }, [userProfile?.extracted]);
 
   useEffect(() => {
     const greeting = getInitialGreeting(currentLanguage);
@@ -555,32 +566,8 @@ export default function UnifiedSleekChat({
 
         if (hasActualData && !dataPanelOpen) {
           setDataPanelOpen(true);
-
-          // Determine which tab to open based on data priority
-          if (data.data.careerData && data.data.careerData.length > 0) {
-            setActiveDataTab("careers");
-          } else if (
-            data.data.highSchoolPrograms &&
-            data.data.highSchoolPrograms.length > 0
-          ) {
-            setActiveDataTab("pathways");
-          } else if (
-            data.data.collegePrograms &&
-            data.data.collegePrograms.length > 0
-          ) {
-            setActiveDataTab("pathways");
-          } else if (data.data.uhPrograms && data.data.uhPrograms.length > 0) {
-            setActiveDataTab("uh");
-          } else if (
-            data.data.doePrograms &&
-            data.data.doePrograms.length > 0
-          ) {
-            setActiveDataTab("doe");
-          } else if (data.data.pathways && data.data.pathways.length > 0) {
-            setActiveDataTab("pathways");
-          } else if (data.data.searchResults) {
-            setActiveDataTab("search");
-          }
+          // Always set to a valid tab for the SOC-based DataPanel
+          setActiveDataTab("active-posts");
         }
       }
 
@@ -666,7 +653,14 @@ export default function UnifiedSleekChat({
         isOpen={navSidebarOpen}
         onToggle={() => setNavSidebarOpen(!navSidebarOpen)}
         currentLanguage={currentLanguage}
-        onDataPanelToggle={() => setDataPanelOpen(!dataPanelOpen)}
+        onDataPanelToggle={() => {
+          const newPanelState = !dataPanelOpen;
+          setDataPanelOpen(newPanelState);
+          // Ensure we have a valid tab when opening
+          if (newPanelState) {
+            setActiveDataTab("active-posts");
+          }
+        }}
         dataPanelOpen={dataPanelOpen}
         hasDataToShow={hasDataToShow()}
         onProfileClick={() => setSidebarOpen(!sidebarOpen)}
