@@ -13,6 +13,7 @@ interface ChatInputProps {
   messagesLength: number;
   dataPanelOpen: boolean;
   sidebarOpen: boolean;
+  navSidebarOpen: boolean; // Add this
 }
 
 export default function ChatInput({
@@ -23,6 +24,7 @@ export default function ChatInput({
   userProfile,
   dataPanelOpen,
   sidebarOpen,
+  navSidebarOpen,
 }: ChatInputProps) {
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const [isFocused, setIsFocused] = useState(false);
@@ -58,13 +60,20 @@ export default function ChatInput({
     }, 0);
   };
 
+  const getLeftOffset = () => {
+    if (sidebarOpen) {
+      return 320; // LeftSidebar width only
+    }
+    return navSidebarOpen ? 256 : 56; // NavSidebar width
+  };
+
   return (
     <div
-      className="fixed bottom-0 z-50 bg-white border-gray-200 transition-all duration-300"
+      className="fixed bottom-0 bg-transparent border-gray-200 transition-all duration-300"
       style={{
         fontFamily:
           '"SF Pro Display", "Inter", -apple-system, BlinkMacSystemFont, sans-serif',
-        left: sidebarOpen ? "320px" : "0",
+        left: `${getLeftOffset()}px`,
         right: dataPanelOpen ? "384px" : "0",
       }}
     >
@@ -72,8 +81,8 @@ export default function ChatInput({
         {/* Loading indicator bar */}
         {isLoading && <div className="absolute top-0 left-0 right-0 h-0.5" />}
 
-        <div className="p-4">
-          <div className="max-w-4xl mx-auto">
+        <div className="p-0">
+          <div className="max-w-4xl mx-auto bg-white px-4 py-1">
             {/* Main Input Container */}
             <div
               className={`
@@ -141,7 +150,7 @@ export default function ChatInput({
             </div>
 
             {/* Bottom Status Bar */}
-            <div className="mt-3 flex items-center justify-between text-xs">
+            <div className="mt-3 mb-1 flex items-center justify-between text-xs">
               <div className="flex items-center gap-3 text-gray-600">
                 <div className="flex items-center gap-1.5">
                   <img

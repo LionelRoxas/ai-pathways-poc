@@ -2,7 +2,7 @@
 "use client";
 
 import React, { useState, useEffect } from "react";
-import { Activity, ArrowRight } from "lucide-react";
+import { ArrowRight } from "lucide-react";
 import UnifiedSleekChat from "./components/AIPathwaysChat/UnifiedSleekChat";
 import LanguageSelection, { Language } from "./components/LanguageSelection";
 
@@ -56,9 +56,6 @@ export default function MainPage() {
       {/* Simple corner logo */}
       <div className="absolute top-8 left-8">
         <div className="flex items-center gap-2">
-          <div className="w-8 h-8 bg-black rounded-lg flex items-center justify-center">
-            <Activity className="w-4 h-4 text-white" />
-          </div>
           <span className="text-sm font-medium text-gray-900">
             Kamaʻāina Pathways
           </span>

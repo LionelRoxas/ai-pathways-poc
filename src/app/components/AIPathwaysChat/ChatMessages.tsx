@@ -1,12 +1,16 @@
 // components/ChatMessages.tsx
 import React, { useRef, useEffect, useState } from "react";
 import {
-  Activity,
   Database,
   ArrowRight,
   Zap,
   ChevronDown,
   ChevronUp,
+  School,
+  GraduationCap,
+  Briefcase,
+  ChevronRight,
+  BookOpen,
 } from "lucide-react";
 import { Message, UserProfile } from "./types";
 
@@ -21,14 +25,56 @@ interface ChatMessagesProps {
   sidebarOpen: boolean;
   dataPanelOpen: boolean;
   setSidebarOpen: (open: boolean) => void;
+  navSidebarOpen: boolean;
 }
 
-// Simple Markdown renderer component - ONLY bold and bullets
+interface ProgramDetails {
+  coursesByGrade?: {
+    "9TH_GRADE_COURSES"?: string[];
+    "10TH_GRADE_COURSES"?: string[];
+    "11TH_GRADE_COURSES"?: string[];
+    "12TH_GRADE_COURSES"?: string[];
+  };
+  coursesByLevel?: {
+    LEVEL_1_POS_COURSES?: string[];
+    LEVEL_2_POS_COURSES?: string[];
+    LEVEL_3_POS_COURSES?: string[];
+    LEVEL_4_POS_COURSES?: string[];
+    RECOMMENDED_COURSES?: string[];
+  };
+}
+
+interface PathwayData {
+  highSchoolPrograms?: Array<{
+    name: string;
+    schools: string[];
+    schoolCount: number;
+    details?: ProgramDetails;
+  }>;
+  collegePrograms?: Array<{
+    name: string;
+    campuses: string[];
+    campusCount: number;
+    variants?: string[];
+    variantCount?: number;
+  }>;
+  careers?: Array<{
+    title: string;
+    cipCode?: string;
+  }>;
+  summary?: {
+    totalHighSchoolPrograms?: number;
+    totalHighSchools?: number;
+    totalCollegePrograms?: number;
+    totalCollegeCampuses?: number;
+    totalCareerPaths?: number;
+  };
+}
+
 const MarkdownRenderer: React.FC<{ content: string; className?: string }> = ({
   content,
   className = "",
 }) => {
-  // Basic markdown parsing for bold and bullet points only
   const parseMarkdown = (text: string): React.ReactNode => {
     const lines = text.split("\n");
     const elements: React.ReactNode[] = [];
@@ -36,24 +82,20 @@ const MarkdownRenderer: React.FC<{ content: string; className?: string }> = ({
     let inList = false;
 
     const processInlineMarkdown = (text: string): React.ReactNode => {
-      // Process only bold markdown
       const parts: React.ReactNode[] = [];
       let key = 0;
 
-      // Pattern to match only bold markdown elements
       const pattern = /(\*\*[^*]+\*\*)/g;
       let lastIndex = 0;
       let match;
 
       while ((match = pattern.exec(text)) !== null) {
-        // Add text before the match
         if (match.index > lastIndex) {
           parts.push(text.substring(lastIndex, match.index));
         }
 
         const matchedText = match[0];
         if (matchedText.startsWith("**") && matchedText.endsWith("**")) {
-          // Bold
           parts.push(
             <strong key={`bold-${key++}`} className="font-bold">
               {matchedText.slice(2, -2)}
@@ -64,7 +106,6 @@ const MarkdownRenderer: React.FC<{ content: string; className?: string }> = ({
         lastIndex = match.index + matchedText.length;
       }
 
-      // Add remaining text
       if (lastIndex < text.length) {
         parts.push(text.substring(lastIndex));
       }
@@ -73,18 +114,13 @@ const MarkdownRenderer: React.FC<{ content: string; className?: string }> = ({
     };
 
     lines.forEach((line, index) => {
-      // Check for bullet points
       if (line.trim().startsWith("- ")) {
         inList = true;
         currentList.push(line.trim().substring(2));
-      }
-      // Check for numbered lists (1. 2. etc)
-      else if (/^\d+\.\s/.test(line.trim())) {
+      } else if (/^\d+\.\s/.test(line.trim())) {
         inList = true;
         currentList.push(line.trim().replace(/^\d+\.\s/, ""));
-      }
-      // Regular paragraph
-      else if (line.trim() !== "") {
+      } else if (line.trim() !== "") {
         if (inList && currentList.length > 0) {
           elements.push(
             <ul
@@ -110,7 +146,6 @@ const MarkdownRenderer: React.FC<{ content: string; className?: string }> = ({
       }
     });
 
-    // Handle any remaining list items
     if (currentList.length > 0) {
       elements.push(
         <ul
@@ -137,28 +172,353 @@ const MarkdownRenderer: React.FC<{ content: string; className?: string }> = ({
   );
 };
 
+const PathwayVisualization: React.FC<{ data: PathwayData }> = ({ data }) => {
+  const [expandedPrograms, setExpandedPrograms] = useState<Set<string>>(
+    new Set()
+  );
+  const [expandedCollegeVariants, setExpandedCollegeVariants] = useState<
+    Set<string>
+  >(new Set());
+
+  const toggleProgramExpanded = (programName: string) => {
+    setExpandedPrograms(prev => {
+      const newSet = new Set(prev);
+      if (newSet.has(programName)) {
+        newSet.delete(programName);
+      } else {
+        newSet.add(programName);
+      }
+      return newSet;
+    });
+  };
+
+  const toggleCollegeVariants = (programName: string) => {
+    setExpandedCollegeVariants(prev => {
+      const newSet = new Set(prev);
+      if (newSet.has(programName)) {
+        newSet.delete(programName);
+      } else {
+        newSet.add(programName);
+      }
+      return newSet;
+    });
+  };
+
+  const formatProgramDetails = (
+    programName: string,
+    details?: ProgramDetails
+  ) => {
+    if (!details) return null;
+
+    const isExpanded = expandedPrograms.has(programName);
+    const { coursesByGrade, coursesByLevel } = details;
+
+    return (
+      <div className="mt-2 border-t pt-2">
+        <button
+          onClick={() => toggleProgramExpanded(programName)}
+          className="flex items-center gap-2 text-xs font-medium text-blue-600 hover:text-blue-700 transition-colors"
+        >
+          {isExpanded ? (
+            <ChevronDown className="w-3 h-3" />
+          ) : (
+            <ChevronRight className="w-3 h-3" />
+          )}
+          <BookOpen className="w-3 h-3" />
+          View Course Sequence
+        </button>
+
+        {isExpanded && (
+          <div className="mt-2 pl-4">
+            {coursesByGrade && (
+              <div className="mb-3">
+                <div className="text-xs font-semibold text-gray-700 mb-2">
+                  Courses by Grade Level
+                </div>
+                {coursesByGrade["9TH_GRADE_COURSES"] && (
+                  <div className="mb-2">
+                    <div className="text-xs font-medium text-blue-600">
+                      9th Grade
+                    </div>
+                    <ul className="text-xs text-gray-600 ml-4 mt-1 space-y-0.5">
+                      {coursesByGrade["9TH_GRADE_COURSES"].map(
+                        (course, idx) => (
+                          <li key={idx}>• {course}</li>
+                        )
+                      )}
+                    </ul>
+                  </div>
+                )}
+                {coursesByGrade["10TH_GRADE_COURSES"] && (
+                  <div className="mb-2">
+                    <div className="text-xs font-medium text-blue-600">
+                      10th Grade
+                    </div>
+                    <ul className="text-xs text-gray-600 ml-4 mt-1 space-y-0.5">
+                      {coursesByGrade["10TH_GRADE_COURSES"].map(
+                        (course, idx) => (
+                          <li key={idx}>• {course}</li>
+                        )
+                      )}
+                    </ul>
+                  </div>
+                )}
+                {coursesByGrade["11TH_GRADE_COURSES"] && (
+                  <div className="mb-2">
+                    <div className="text-xs font-medium text-blue-600">
+                      11th Grade
+                    </div>
+                    <ul className="text-xs text-gray-600 ml-4 mt-1 space-y-0.5">
+                      {coursesByGrade["11TH_GRADE_COURSES"].map(
+                        (course, idx) => (
+                          <li key={idx}>• {course}</li>
+                        )
+                      )}
+                    </ul>
+                  </div>
+                )}
+                {coursesByGrade["12TH_GRADE_COURSES"] && (
+                  <div className="mb-2">
+                    <div className="text-xs font-medium text-blue-600">
+                      12th Grade
+                    </div>
+                    <ul className="text-xs text-gray-600 ml-4 mt-1 space-y-0.5">
+                      {coursesByGrade["12TH_GRADE_COURSES"].map(
+                        (course, idx) => (
+                          <li key={idx}>• {course}</li>
+                        )
+                      )}
+                    </ul>
+                  </div>
+                )}
+              </div>
+            )}
+
+            {coursesByLevel && (
+              <div>
+                <div className="text-xs font-semibold text-gray-700 mb-2">
+                  Program of Study Levels
+                </div>
+                {coursesByLevel.LEVEL_1_POS_COURSES && (
+                  <div className="mb-2">
+                    <div className="text-xs font-medium text-purple-600">
+                      Level 1 (Introductory)
+                    </div>
+                    <ul className="text-xs text-gray-600 ml-4 mt-1 space-y-0.5">
+                      {coursesByLevel.LEVEL_1_POS_COURSES.map((course, idx) => (
+                        <li key={idx}>• {course}</li>
+                      ))}
+                    </ul>
+                  </div>
+                )}
+                {coursesByLevel.LEVEL_2_POS_COURSES && (
+                  <div className="mb-2">
+                    <div className="text-xs font-medium text-purple-600">
+                      Level 2 (Concentrator)
+                    </div>
+                    <ul className="text-xs text-gray-600 ml-4 mt-1 space-y-0.5">
+                      {coursesByLevel.LEVEL_2_POS_COURSES.map((course, idx) => (
+                        <li key={idx}>• {course}</li>
+                      ))}
+                    </ul>
+                  </div>
+                )}
+                {coursesByLevel.LEVEL_3_POS_COURSES && (
+                  <div className="mb-2">
+                    <div className="text-xs font-medium text-purple-600">
+                      Level 3 (Advanced)
+                    </div>
+                    <ul className="text-xs text-gray-600 ml-4 mt-1 space-y-0.5">
+                      {coursesByLevel.LEVEL_3_POS_COURSES.map((course, idx) => (
+                        <li key={idx}>• {course}</li>
+                      ))}
+                    </ul>
+                  </div>
+                )}
+                {coursesByLevel.LEVEL_4_POS_COURSES && (
+                  <div className="mb-2">
+                    <div className="text-xs font-medium text-purple-600">
+                      Level 4 (Capstone)
+                    </div>
+                    <ul className="text-xs text-gray-600 ml-4 mt-1 space-y-0.5">
+                      {coursesByLevel.LEVEL_4_POS_COURSES.map((course, idx) => (
+                        <li key={idx}>• {course}</li>
+                      ))}
+                    </ul>
+                  </div>
+                )}
+                {coursesByLevel.RECOMMENDED_COURSES && (
+                  <div className="mb-2">
+                    <div className="text-xs font-medium text-green-600">
+                      Recommended Courses
+                    </div>
+                    <ul className="text-xs text-gray-600 ml-4 mt-1 space-y-0.5">
+                      {coursesByLevel.RECOMMENDED_COURSES.map((course, idx) => (
+                        <li key={idx}>• {course}</li>
+                      ))}
+                    </ul>
+                  </div>
+                )}
+              </div>
+            )}
+          </div>
+        )}
+      </div>
+    );
+  };
+
+  return (
+    <div className="mt-4 space-y-3">
+      {data.highSchoolPrograms && data.highSchoolPrograms.length > 0 && (
+        <details className="bg-gray-50 rounded-lg p-3">
+          <summary className="cursor-pointer font-medium flex items-center gap-2 text-sm">
+            <School className="w-4 h-4 text-blue-600" />
+            <span className="text-gray-900">
+              High School Programs ({data.highSchoolPrograms.length})
+            </span>
+          </summary>
+          <div className="mt-3 space-y-2">
+            {data.highSchoolPrograms.map((prog, idx) => (
+              <div
+                key={idx}
+                className="bg-white rounded-lg p-3 text-sm shadow-sm border border-gray-200"
+              >
+                <div className="font-semibold text-gray-900">{prog.name}</div>
+                <div className="text-gray-600 text-xs mt-1">
+                  {prog.schoolCount} school{prog.schoolCount !== 1 ? "s" : ""}:{" "}
+                  {prog.schools.join(", ")}
+                </div>
+                {formatProgramDetails(prog.name, prog.details)}
+              </div>
+            ))}
+          </div>
+        </details>
+      )}
+
+      {data.collegePrograms && data.collegePrograms.length > 0 && (
+        <details className="bg-gray-50 rounded-lg p-3">
+          <summary className="cursor-pointer font-medium flex items-center gap-2 text-sm">
+            <GraduationCap className="w-4 h-4 text-purple-600" />
+            <span className="text-gray-900">
+              College Programs ({data.collegePrograms.length})
+            </span>
+          </summary>
+          <div className="mt-3 space-y-2">
+            {data.collegePrograms.map((prog, idx) => (
+              <div
+                key={idx}
+                className="bg-white rounded-lg p-3 text-sm shadow-sm border border-gray-200"
+              >
+                <div className="font-semibold text-gray-900">{prog.name}</div>
+                <div className="text-gray-600 text-xs mt-1">
+                  {prog.campusCount} campus
+                  {prog.campusCount !== 1 ? "es" : ""}:{" "}
+                  {prog.campuses.join(", ")}
+                </div>
+
+                {prog.variants && prog.variants.length > 0 && (
+                  <div className="mt-2">
+                    <button
+                      onClick={() => toggleCollegeVariants(prog.name)}
+                      className="flex items-center gap-2 text-xs font-medium text-purple-600 hover:text-purple-700 transition-colors"
+                    >
+                      {expandedCollegeVariants.has(prog.name) ? (
+                        <ChevronDown className="w-3 h-3" />
+                      ) : (
+                        <ChevronRight className="w-3 h-3" />
+                      )}
+                      <GraduationCap className="w-3 h-3" />
+                      View {prog.variantCount || prog.variants.length}{" "}
+                      Specialization
+                      {(prog.variantCount || prog.variants.length) !== 1
+                        ? "s"
+                        : ""}
+                    </button>
+
+                    {expandedCollegeVariants.has(prog.name) && (
+                      <div className="mt-2 pl-4 space-y-1">
+                        {prog.variants.map((variant, vIdx) => (
+                          <div
+                            key={vIdx}
+                            className="text-xs text-gray-700 bg-purple-50 rounded px-2 py-1"
+                          >
+                            • {variant}
+                          </div>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                )}
+              </div>
+            ))}
+          </div>
+        </details>
+      )}
+
+      {data.careers && data.careers.length > 0 && (
+        <details className="bg-gray-50 rounded-lg p-3">
+          <summary className="cursor-pointer font-medium flex items-center gap-2 text-sm">
+            <Briefcase className="w-4 h-4 text-green-600" />
+            <span className="text-gray-900">
+              Career Paths ({data.careers.length})
+            </span>
+          </summary>
+          <div className="mt-3 space-y-1">
+            {data.careers.map((career, idx) => (
+              <div
+                key={idx}
+                className="bg-white rounded px-3 py-2 text-sm border border-gray-200"
+              >
+                {career.title}
+              </div>
+            ))}
+          </div>
+        </details>
+      )}
+    </div>
+  );
+};
+
 export default function ChatMessages({
   messages,
   isLoading,
-  // isAnalyzing,
   suggestedQuestions,
   setSuggestedQuestions,
   setMessage,
   userProfile,
   sidebarOpen,
   dataPanelOpen,
+  navSidebarOpen,
 }: ChatMessagesProps) {
   const messagesEndRef = useRef<HTMLDivElement>(null);
-  // const userMessageCount = messages.filter(msg => msg.role === "user").length;
   const [showSuggestions, setShowSuggestions] = useState(false);
+  const [loadingSeconds, setLoadingSeconds] = useState(0);
 
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages]);
 
+  useEffect(() => {
+    if (isLoading) {
+      setLoadingSeconds(0);
+      const interval = setInterval(() => {
+        setLoadingSeconds(s => s + 1);
+      }, 1000);
+
+      return () => clearInterval(interval);
+    }
+  }, [isLoading]);
+
   const handleSuggestedQuestionClick = (question: string) => {
     setMessage(question);
     setSuggestedQuestions([]);
+  };
+
+  const getLeftOffset = () => {
+    if (sidebarOpen) {
+      return 320; // LeftSidebar width only
+    }
+    return navSidebarOpen ? 256 : 56; // NavSidebar width
   };
 
   return (
@@ -167,7 +527,7 @@ export default function ChatMessages({
       style={{
         fontFamily:
           '"SF Pro Display", "Inter", -apple-system, BlinkMacSystemFont, sans-serif',
-        marginLeft: sidebarOpen ? "320px" : "0",
+        marginLeft: `${getLeftOffset()}px`,
         marginRight: dataPanelOpen ? "384px" : "0",
       }}
     >
@@ -180,18 +540,10 @@ export default function ChatMessages({
             <div
               className={`flex gap-3 max-w-[85%] ${msg.role === "user" ? "flex-row-reverse" : ""}`}
             >
-              {/* Avatar */}
               <div className="flex-shrink-0">
-                {msg.role === "assistant" ? (
-                  <div className="w-10 h-10 bg-black rounded-xl flex items-center justify-center">
-                    <Activity className="w-5 h-5 text-white" />
-                  </div>
-                ) : (
-                  ""
-                )}
+                {msg.role === "assistant" ? "" : ""}
               </div>
 
-              {/* Message Content */}
               <div
                 className={`flex-1 min-w-0 ${msg.role === "user" ? "max-w-lg" : ""}`}
               >
@@ -199,7 +551,7 @@ export default function ChatMessages({
                   className={`${
                     msg.role === "user"
                       ? "bg-black text-white px-5 py-3.5 rounded-2xl rounded-tr-md"
-                      : "bg-white border-2 text-black px-5 py-3.5 rounded-2xl rounded-tl-md"
+                      : "bg-white text-black px-5 py-3.5"
                   } text-sm leading-relaxed`}
                 >
                   <div style={{ lineHeight: "1.6" }}>
@@ -213,7 +565,14 @@ export default function ChatMessages({
                     )}
                   </div>
 
-                  {/* Data indicator for assistant messages */}
+                  {msg.data &&
+                    msg.role === "assistant" &&
+                    (msg.data.highSchoolPrograms ||
+                      msg.data.collegePrograms ||
+                      msg.data.careers) && (
+                      <PathwayVisualization data={msg.data} />
+                    )}
+
                   {msg.metadata &&
                     msg.metadata.totalResults > 0 &&
                     msg.role === "assistant" && (
@@ -248,55 +607,36 @@ export default function ChatMessages({
           </div>
         ))}
 
-        {/* Loading State */}
         {isLoading && (
           <div className="flex justify-start">
             <div className="flex gap-3 max-w-[85%]">
-              <div className="w-10 h-10 bg-black rounded-xl flex items-center justify-center">
-                <Activity className="w-5 h-5 text-white animate-pulse" />
-              </div>
-              <div className="bg-white border-2 px-5 py-3.5 rounded-2xl rounded-tl-md">
-                <div className="flex items-center gap-3">
-                  <div className="flex gap-1">
-                    <div className="w-2 h-2 bg-black rounded-full animate-pulse"></div>
-                    <div
-                      className="w-2 h-2 bg-black rounded-full animate-pulse"
-                      style={{ animationDelay: "150ms" }}
-                    ></div>
-                    <div
-                      className="w-2 h-2 bg-black rounded-full animate-pulse"
-                      style={{ animationDelay: "300ms" }}
-                    ></div>
+              <div className="bg-white px-5 py-3.5 rounded-2xl rounded-tl-md">
+                <span className="text-sm text-black font-medium">
+                  <div className="flex items-center gap-2">
+                    <div className="flex gap-1">
+                      <span
+                        className="w-2 h-2 bg-gray-400 rounded-full animate-bounce"
+                        style={{ animationDelay: "0ms" }}
+                      ></span>
+                      <span
+                        className="w-2 h-2 bg-gray-400 rounded-full animate-bounce"
+                        style={{ animationDelay: "150ms" }}
+                      ></span>
+                      <span
+                        className="w-2 h-2 bg-gray-400 rounded-full animate-bounce"
+                        style={{ animationDelay: "300ms" }}
+                      ></span>
+                    </div>
+                    <span className="text-xs text-gray-400">
+                      Thinking... {loadingSeconds}s
+                    </span>
                   </div>
-                  <span className="text-sm text-black font-medium">
-                    {userProfile?.isComplete
-                      ? "Querying MCP server"
-                      : "Processing"}
-                  </span>
-                </div>
+                </span>
               </div>
             </div>
           </div>
         )}
 
-        {/* Profile Analysis State */}
-        {/* {isAnalyzing && (
-          <div className="flex justify-center py-6">
-            <div className="bg-white border-2 border-black rounded-2xl px-6 py-4 flex items-center gap-3 max-w-md">
-              <div className="w-5 h-5 border-2 border-black border-t-transparent rounded-full animate-spin"></div>
-              <div>
-                <p className="text-sm font-bold text-black">
-                  Building Your Profile
-                </p>
-                <p className="text-xs text-gray-600 mt-0.5">
-                  Analyzing conversation patterns...
-                </p>
-              </div>
-            </div>
-          </div>
-        )} */}
-
-        {/* Suggested Questions */}
         {suggestedQuestions.length > 0 && !isLoading && (
           <div className="flex justify-center py-6">
             <div className="max-w-2xl w-full">
@@ -338,42 +678,6 @@ export default function ChatMessages({
             </div>
           </div>
         )}
-
-        {/* Progress Indicator - Discovery Phase */}
-        {/* {!userProfile?.isComplete && userMessageCount > 0 && (
-          <div className="flex justify-center py-6">
-            <div className="bg-white border-2 border-black rounded-2xl px-6 py-4 max-w-md w-full">
-              <div className="flex items-center justify-between mb-3">
-                <div className="flex items-center gap-2">
-                  <div className="w-2 h-2 bg-black rounded-full animate-pulse"></div>
-                  <span className="text-sm font-bold text-black">
-                    Discovery Phase
-                  </span>
-                </div>
-                <span className="text-xs font-medium text-gray-600">
-                  {userMessageCount}/7 responses
-                </span>
-              </div>
-
-              <div className="relative w-full bg-white border-2 border-black rounded-full h-2 overflow-hidden">
-                <div
-                  className="absolute top-0 left-0 h-full bg-black transition-all duration-700 ease-out"
-                  style={{
-                    width: `${Math.min(100, (userMessageCount / 7) * 100)}%`,
-                  }}
-                />
-              </div>
-
-              {userMessageCount >= 4 && userMessageCount < 7 && (
-                <p className="text-xs text-gray-600 mt-3 text-center font-medium">
-                  {7 - userMessageCount} more response
-                  {7 - userMessageCount > 1 ? "s" : ""} for personalized
-                  recommendations
-                </p>
-              )}
-            </div>
-          </div>
-        )} */}
 
         <div ref={messagesEndRef} />
       </div>

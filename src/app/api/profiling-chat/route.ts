@@ -247,17 +247,17 @@ export async function POST(request: NextRequest) {
     // Analyze conversation state with debug logging
     const profilingState = analyzeProfilingState(messages);
 
-    // Check if profile is ready (7 messages with reasonable readiness score)
+    // Check if profile is ready (3 messages with reasonable readiness score)
     const isProfileReady =
-      profilingState.userMessageCount >= 7 &&
-      profilingState.readinessScore >= 40;
+      profilingState.userMessageCount >= 3 &&
+      profilingState.readinessScore >= 10;
 
     console.log("=== PROFILE READINESS CHECK ===");
     console.log(
       "User messages:",
       profilingState.userMessageCount,
-      ">=7?",
-      profilingState.userMessageCount >= 7
+      ">=3?",
+      profilingState.userMessageCount >= 3
     );
     console.log(
       "Readiness score:",

@@ -1,6 +1,6 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import React from "react";
-import { CheckCircle, User, X, Target, MapPin, Clock } from "lucide-react";
+import { X, User, Target, MapPin, Clock } from "lucide-react";
 import { UserProfile } from "./types";
 
 // Enhanced profile completeness utility
@@ -174,11 +174,8 @@ export default function LeftSidebar({
       }}
     >
       {/* Header */}
-      <div className="sticky top-0 bg-white border-b border-gray-200 p-3 flex items-center justify-between z-10">
+      <div className="sticky top-0 bg-white border-b border-gray-200 p-3.5 flex items-center justify-between z-10">
         <div className="flex items-center">
-          <div className="w-8 h-8 flex items-center justify-center">
-            <User className="w-4 h-4 text-black" />
-          </div>
           <h2 className="font-bold text-black text-sm">Your Profile</h2>
         </div>
         <button
@@ -196,19 +193,6 @@ export default function LeftSidebar({
           <div className="space-y-5">
             {/* Status Header */}
             <div className="bg-gray-50 rounded-lg p-4">
-              <div className="flex items-center justify-between mb-3">
-                <div className="flex items-center gap-2">
-                  <CheckCircle className="w-4 h-4 text-black" />
-                  <span className="font-semibold text-sm text-black">
-                    Confidence Score
-                  </span>
-                </div>
-                {userProfile.confidence && (
-                  <span className="text-sm font-bold text-black">
-                    {userProfile.confidence.overall}%
-                  </span>
-                )}
-              </div>
               <p className="text-xs leading-relaxed text-gray-700">
                 {userProfile.profileSummary}
               </p>
@@ -283,53 +267,56 @@ export default function LeftSidebar({
                 {/* Key Information */}
                 <div>
                   <h4 className="font-semibold text-black text-xs mb-3">
-                  INFORMATION
+                    INFORMATION
                   </h4>
 
                   <div className="space-y-2 text-xs">
-                  {userProfile.extracted?.educationLevel && userProfile.extracted.educationLevel !== "null" && (
-                    <div className="flex items-center gap-2 text-gray-700">
-                    <User className="w-3 h-3" />
-                    <span>
-                      {userProfile.extracted.educationLevel.replace(
-                      /_/g,
-                      " "
+                    {userProfile.extracted?.educationLevel &&
+                      userProfile.extracted.educationLevel !== "null" && (
+                        <div className="flex items-center gap-2 text-gray-700">
+                          <User className="w-3 h-3" />
+                          <span>
+                            {userProfile.extracted.educationLevel.replace(
+                              /_/g,
+                              " "
+                            )}
+                          </span>
+                        </div>
                       )}
-                    </span>
-                    </div>
-                  )}
 
-                  {userProfile.extracted?.location && userProfile.extracted.location !== "null" && (
-                    <div className="flex items-center gap-2 text-gray-700">
-                    <MapPin className="w-3 h-3" />
-                    <span>
-                      {userProfile.extracted.location.replace(/_/g, " ")}
-                    </span>
-                    </div>
-                  )}
+                    {userProfile.extracted?.location &&
+                      userProfile.extracted.location !== "null" && (
+                        <div className="flex items-center gap-2 text-gray-700">
+                          <MapPin className="w-3 h-3" />
+                          <span>
+                            {userProfile.extracted.location.replace(/_/g, " ")}
+                          </span>
+                        </div>
+                      )}
 
-                  {userProfile.extracted?.timeline && userProfile.extracted.timeline !== "null" && (
-                    <div className="flex items-center gap-2 text-gray-700">
-                    <Clock className="w-3 h-3" />
-                    <span>
-                      {userProfile.extracted.timeline.replace(/_/g, " ")}
-                    </span>
-                    </div>
-                  )}
+                    {userProfile.extracted?.timeline &&
+                      userProfile.extracted.timeline !== "null" && (
+                        <div className="flex items-center gap-2 text-gray-700">
+                          <Clock className="w-3 h-3" />
+                          <span>
+                            {userProfile.extracted.timeline.replace(/_/g, " ")}
+                          </span>
+                        </div>
+                      )}
 
-                  {userProfile.extracted?.careerGoals &&
-                    userProfile.extracted.careerGoals.length > 0 && (
-                    <div className="flex items-center gap-2 text-gray-700">
-                      <Target className="w-3 h-3" />
-                      <span>
-                      {userProfile.extracted.careerGoals.length} career
-                      goal
-                      {userProfile.extracted.careerGoals.length > 1
-                        ? "s"
-                        : ""}
-                      </span>
-                    </div>
-                    )}
+                    {userProfile.extracted?.careerGoals &&
+                      userProfile.extracted.careerGoals.length > 0 && (
+                        <div className="flex items-center gap-2 text-gray-700">
+                          <Target className="w-3 h-3" />
+                          <span>
+                            {userProfile.extracted.careerGoals.length} career
+                            goal
+                            {userProfile.extracted.careerGoals.length > 1
+                              ? "s"
+                              : ""}
+                          </span>
+                        </div>
+                      )}
                   </div>
                 </div>
 
@@ -377,14 +364,14 @@ export default function LeftSidebar({
                 <div className="flex justify-between items-center mb-2">
                   <span className="text-xs text-gray-600">Progress</span>
                   <span className="text-xs text-black font-semibold">
-                    {userMessageCount}/7
+                    {userMessageCount}/3
                   </span>
                 </div>
                 <div className="w-full bg-gray-100 rounded-full h-1.5">
                   <div
                     className="bg-black h-1.5 rounded-full transition-all duration-500"
                     style={{
-                      width: `${Math.min(100, (userMessageCount / 7) * 100)}%`,
+                      width: `${Math.min(100, (userMessageCount / 3) * 100)}%`,
                     }}
                   />
                 </div>

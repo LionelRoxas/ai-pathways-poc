@@ -1,14 +1,13 @@
 /* eslint-disable react-hooks/exhaustive-deps */
-// components/AIPathwaysChat/UnifiedSleekChat.tsx (Updated with auto data panel)
+// components/AIPathwaysChat/UnifiedSleekChat.tsx
 /* eslint-disable @typescript-eslint/no-explicit-any */
 import React, { useState, useEffect, useRef } from "react";
-import { Menu, PanelRight, Activity, Globe } from "lucide-react";
 import { Language } from "../LanguageSelection";
 
-// Import other components (same as before)
 import ChatMessages from "./ChatMessages";
 import ChatInput from "./ChatInput";
 import LeftSidebar from "./LeftSidebar";
+import NavSidebar from "./NavSidebar";
 import DataPanel from "./DataPanel";
 import { Message, UserProfile, CurrentData } from "./types";
 
@@ -18,7 +17,120 @@ interface UnifiedSleekChatProps {
   selectedLanguage: Language | null;
 }
 
-// Language-specific greetings
+/**
+ * Extracts SOC codes from the most recent assistant message that contains career data
+ * Returns empty array if no careers found
+ */
+const extractDisplayedSocCodes = (
+  messages: Message[],
+  currentData: CurrentData | null
+): string[] => {
+  console.log(
+    "\n[SOC Extraction] ==================== Starting Extraction ===================="
+  );
+
+  // Find the most recent assistant message with career data
+  const messageWithCareers = [...messages]
+    .reverse()
+    .find(
+      msg =>
+        msg.role === "assistant" &&
+        msg.data?.careers &&
+        Array.isArray(msg.data.careers) &&
+        msg.data.careers.length > 0
+    );
+
+  if (!messageWithCareers?.data?.careers) {
+    console.log("[SOC Extraction] ❌ No careers found in messages");
+    return [];
+  }
+
+  const displayedCareers = messageWithCareers.data.careers;
+  console.log(
+    `[SOC Extraction] 📋 Found ${displayedCareers.length} displayed careers in message:`
+  );
+  displayedCareers.forEach((career: any, idx: number) => {
+    console.log(
+      `[SOC Extraction]    ${idx + 1}. "${career.title}" (CIP: ${career.cipCode || "N/A"})`
+    );
+  });
+
+  if (!currentData?.careers || !Array.isArray(currentData.careers)) {
+    console.log("[SOC Extraction] ❌ No currentData.careers available");
+    return [];
+  }
+
+  console.log(
+    `[SOC Extraction] 🗄️  Total careers in currentData: ${currentData.careers.length}`
+  );
+
+  // Extract SOC codes by matching displayed careers with currentData
+  const socCodes: string[] = [];
+  let matchedCount = 0;
+
+  displayedCareers.forEach((displayedCareer: any, idx: number) => {
+    console.log(
+      `\n[SOC Extraction] 🔍 Career ${idx + 1}: "${displayedCareer.title}"`
+    );
+
+    // Match by title or cipCode
+    const matchingCareer = currentData.careers?.find(
+      (career: any) =>
+        career.title === displayedCareer.title ||
+        (displayedCareer.cipCode &&
+          career.cipCode &&
+          career.cipCode === displayedCareer.cipCode)
+    );
+
+    if (matchingCareer) {
+      matchedCount++;
+      console.log(`[SOC Extraction]    ✅ Found match in currentData`);
+
+      if (matchingCareer.socCodes && Array.isArray(matchingCareer.socCodes)) {
+        console.log(
+          `[SOC Extraction]    ✅ Adding ${matchingCareer.socCodes.length} SOC codes: [${matchingCareer.socCodes.join(", ")}]`
+        );
+        socCodes.push(...matchingCareer.socCodes);
+      } else {
+        console.log(
+          `[SOC Extraction]    ⚠️  Career matched but no SOC codes found`
+        );
+      }
+    } else {
+      console.log(`[SOC Extraction]    ❌ No match found in currentData`);
+      console.log(
+        `[SOC Extraction]       - Displayed title: "${displayedCareer.title}"`
+      );
+      console.log(
+        `[SOC Extraction]       - Displayed CIP: ${displayedCareer.cipCode || "N/A"}`
+      );
+    }
+  });
+
+  // Remove duplicates
+  const uniqueSocCodes = [...new Set(socCodes)];
+
+  console.log(`\n[SOC Extraction] ✅ EXTRACTION COMPLETE:`);
+  console.log(
+    `[SOC Extraction]    - Displayed careers: ${displayedCareers.length}`
+  );
+  console.log(`[SOC Extraction]    - Matched careers: ${matchedCount}`);
+  console.log(
+    `[SOC Extraction]    - Total SOC codes (with duplicates): ${socCodes.length}`
+  );
+  console.log(
+    `[SOC Extraction]    - Unique SOC codes: ${uniqueSocCodes.length}`
+  );
+  console.log(
+    `[SOC Extraction]    - SOC codes: [${uniqueSocCodes.join(", ")}]`
+  );
+  console.log(
+    "[SOC Extraction] ==================== End Extraction ====================\n"
+  );
+
+  return uniqueSocCodes;
+};
+
 const getInitialGreeting = (language: Language | null): string => {
   if (!language)
     return "Aloha! I'm your Hawaii Education & Career Advisor. I'll help you explore educational pathways from high school to college, using real data from Hawaii's schools and universities. What's your current situation - are you in high school, college, working, or exploring your options?";
@@ -38,7 +150,6 @@ const getInitialGreeting = (language: Language | null): string => {
   }
 };
 
-// Language-specific suggested questions
 const getInitialSuggestions = (language: Language | null): string[] => {
   if (!language || language.code === "en") {
     return [
@@ -92,15 +203,16 @@ export default function UnifiedSleekChat({
   const [isLoading, setIsLoading] = useState(false);
   const [userProfile, setUserProfile] = useState<UserProfile | null>(null);
   const [isAnalyzing, setIsAnalyzing] = useState(false);
-  const [sidebarOpen, setSidebarOpen] = useState(true);
+  const [sidebarOpen, setSidebarOpen] = useState(false);
+  const [navSidebarOpen, setNavSidebarOpen] = useState(false);
   const [dataPanelOpen, setDataPanelOpen] = useState(false);
   const [currentData, setCurrentData] = useState<CurrentData | null>(null);
   const [suggestedQuestions, setSuggestedQuestions] = useState<string[]>([]);
-  const [activeDataTab, setActiveDataTab] = useState<string>("overview");
+  const [activeDataTab, setActiveDataTab] = useState<string>("active-posts"); // ✅ Changed default tab
   const [isUpdatingProfile, setIsUpdatingProfile] = useState(false);
   const lastUpdateRef = useRef<number>(0);
+  const [displayedSocCodes, setDisplayedSocCodes] = useState<string[]>([]); // ✅ Added state
 
-  // Use the selected language, default to English if not provided
   const currentLanguage = selectedLanguage || {
     code: "en",
     name: "English",
@@ -114,6 +226,29 @@ export default function UnifiedSleekChat({
     setMessages([{ role: "assistant", content: greeting }]);
     setSuggestedQuestions(getInitialSuggestions(currentLanguage));
   }, []);
+
+  // ✅ NEW: Extract SOC codes from displayed careers when messages or data changes
+  useEffect(() => {
+    console.log(
+      "\n[Parent] 🔄 Messages or currentData changed, triggering SOC extraction"
+    );
+    console.log(`[Parent]    - Total messages: ${messages.length}`);
+    console.log(`[Parent]    - CurrentData available: ${!!currentData}`);
+
+    const extractedSocCodes = extractDisplayedSocCodes(messages, currentData);
+
+    console.log(
+      `[Parent] 🎯 Setting displayedSocCodes to ${extractedSocCodes.length} codes`
+    );
+    setDisplayedSocCodes(extractedSocCodes);
+
+    // Auto-open DataPanel when SOC codes are available
+    if (extractedSocCodes.length > 0 && !dataPanelOpen) {
+      console.log("[Parent] 🎯 Opening DataPanel with extracted SOC codes");
+      setDataPanelOpen(true);
+      setActiveDataTab("active-posts");
+    }
+  }, [messages, currentData]);
 
   const getUserMessageCount = () => {
     return messages.filter(msg => msg.role === "user").length;
@@ -212,18 +347,13 @@ export default function UnifiedSleekChat({
     }
   };
 
-  const buildProfile = async (
+  const generateProfile = async (
     transcript: string,
     currentUserMessageCount: number,
     allMessages: Message[]
   ) => {
     setIsAnalyzing(true);
     try {
-      console.log(
-        "Building profile with user message count:",
-        currentUserMessageCount
-      );
-
       const userMessages = allMessages.filter(msg => msg.role === "user");
       const avgLength =
         userMessages.length > 0
@@ -239,7 +369,7 @@ export default function UnifiedSleekChat({
           userMessageCount: currentUserMessageCount,
           conversationMetrics: {
             totalMessages: allMessages.length,
-            userMessages: currentUserMessageCount,
+            userMessages: userMessages.length,
             averageLength: avgLength,
           },
           language: currentLanguage.code,
@@ -255,8 +385,6 @@ export default function UnifiedSleekChat({
             isComplete: true,
             confidence: data.confidence,
           });
-
-          lastUpdateRef.current = currentUserMessageCount;
 
           try {
             const suggestionsResponse = await fetch(
@@ -334,7 +462,7 @@ export default function UnifiedSleekChat({
   const handleSend = async () => {
     if (!message.trim() || isLoading) return;
 
-    const userMessage = { role: "user" as const, content: message };
+    const userMessage = { role: "user" as const, content: message.trim() };
     const newMessages = [...messages, userMessage];
     setMessages(newMessages);
     setMessage("");
@@ -343,6 +471,7 @@ export default function UnifiedSleekChat({
     const currentUserCount = newMessages.filter(
       msg => msg.role === "user"
     ).length;
+
     if (shouldUpdateProfile(currentUserCount)) {
       updateProfile(newMessages);
     }
@@ -352,16 +481,18 @@ export default function UnifiedSleekChat({
       let requestBody: any;
 
       if (userProfile?.isComplete) {
-        apiEndpoint = "/api/ai-pathways";
+        apiEndpoint = "/api/pathway";
         requestBody = {
           message: userMessage.content,
-          messages: newMessages.map(msg => ({
+          conversationHistory: newMessages.map(msg => ({
             role: msg.role,
             content: msg.content,
           })),
-          userProfile: userProfile.profileSummary,
-          extractedProfile: userProfile.extracted,
           language: currentLanguage.code,
+          userProfile: {
+            summary: userProfile.profileSummary,
+            extracted: userProfile.extracted,
+          },
         };
       } else {
         requestBody = {
@@ -400,16 +531,19 @@ export default function UnifiedSleekChat({
           msg => msg.role === "user"
         ).length;
 
-        await buildProfile(transcript, currentUserCount, newMessages);
+        await generateProfile(transcript, currentUserCount, newMessages);
+        setIsLoading(false);
         return;
       }
 
-      // AUTO DATA PANEL OPENING - THIS IS THE NEW ADDITION
       if (data.data && Object.keys(data.data).length > 0) {
         setCurrentData(data.data);
 
-        // Check if there's actual data to display
         const hasActualData =
+          (data.data.highSchoolPrograms &&
+            data.data.highSchoolPrograms.length > 0) ||
+          (data.data.collegePrograms && data.data.collegePrograms.length > 0) ||
+          (data.data.careers && data.data.careers.length > 0) ||
           (data.data.uhPrograms && data.data.uhPrograms.length > 0) ||
           (data.data.doePrograms && data.data.doePrograms.length > 0) ||
           (data.data.pathways && data.data.pathways.length > 0) ||
@@ -419,22 +553,33 @@ export default function UnifiedSleekChat({
               (data.data.searchResults.doePrograms &&
                 data.data.searchResults.doePrograms.length > 0)));
 
-        // Auto-open data panel if there's data and it's not already open
         if (hasActualData && !dataPanelOpen) {
           setDataPanelOpen(true);
 
-          // Set the appropriate tab based on data type
-          if (data.data.uhPrograms && data.data.uhPrograms.length > 0) {
+          // Determine which tab to open based on data priority
+          if (data.data.careerData && data.data.careerData.length > 0) {
+            setActiveDataTab("careers");
+          } else if (
+            data.data.highSchoolPrograms &&
+            data.data.highSchoolPrograms.length > 0
+          ) {
+            setActiveDataTab("pathways");
+          } else if (
+            data.data.collegePrograms &&
+            data.data.collegePrograms.length > 0
+          ) {
+            setActiveDataTab("pathways");
+          } else if (data.data.uhPrograms && data.data.uhPrograms.length > 0) {
             setActiveDataTab("uh");
           } else if (
             data.data.doePrograms &&
             data.data.doePrograms.length > 0
           ) {
             setActiveDataTab("doe");
-          } else if (data.data.searchResults) {
-            setActiveDataTab("search");
           } else if (data.data.pathways && data.data.pathways.length > 0) {
             setActiveDataTab("pathways");
+          } else if (data.data.searchResults) {
+            setActiveDataTab("search");
           }
         }
       }
@@ -485,6 +630,10 @@ export default function UnifiedSleekChat({
   const hasDataToShow = () => {
     if (!currentData) return false;
     return (
+      (currentData.highSchoolPrograms &&
+        currentData.highSchoolPrograms.length > 0) ||
+      (currentData.collegePrograms && currentData.collegePrograms.length > 0) ||
+      (currentData.careers && currentData.careers.length > 0) ||
       (currentData.uhPrograms && currentData.uhPrograms.length > 0) ||
       (currentData.doePrograms && currentData.doePrograms.length > 0) ||
       (currentData.pathways && currentData.pathways.length > 0) ||
@@ -493,76 +642,54 @@ export default function UnifiedSleekChat({
           currentData.searchResults.uhPrograms.length > 0) ||
           (currentData.searchResults.doePrograms &&
             currentData.searchResults.doePrograms.length > 0))) ||
-      currentData.stats
+      !!currentData.stats
     );
+  };
+
+  const getLeftOffset = () => {
+    if (sidebarOpen) {
+      return 320; // LeftSidebar width only
+    }
+    return navSidebarOpen ? 256 : 56; // NavSidebar width
   };
 
   return (
     <div
-      className="h-screen flex bg-slate-50"
+      className="h-screen bg-slate-50"
       style={{
         fontFamily:
           '"Inter", "Segoe UI", "Roboto", "Helvetica Neue", sans-serif',
       }}
     >
-      <LeftSidebar
-        sidebarOpen={sidebarOpen}
-        userProfile={userProfile}
-        onClose={() => setSidebarOpen(false)}
-        userMessageCount={getUserMessageCount()}
+      {/* Navigation Sidebar - z-20, fixed at left: 0 */}
+      <NavSidebar
+        isOpen={navSidebarOpen}
+        onToggle={() => setNavSidebarOpen(!navSidebarOpen)}
+        currentLanguage={currentLanguage}
+        onDataPanelToggle={() => setDataPanelOpen(!dataPanelOpen)}
+        dataPanelOpen={dataPanelOpen}
+        hasDataToShow={hasDataToShow()}
+        onProfileClick={() => setSidebarOpen(!sidebarOpen)}
       />
 
-      <div className="flex-1 flex flex-col">
-        {/* Header with language indicator */}
-        <div className="border-b border-slate-200 p-3 flex items-center justify-between bg-white">
-          <div className="flex items-center gap-3">
-            <button
-              onClick={() => setSidebarOpen(!sidebarOpen)}
-              className="p-2 hover:bg-slate-100 rounded-lg transition-colors"
-            >
-              <Menu className="w-4 h-4 text-slate-600" />
-            </button>
-            <div className="flex items-center gap-2">
-              <div className="w-6 h-6 bg-slate-900 rounded-lg flex items-center justify-center">
-                <Activity className="w-3.5 h-3.5 text-white" />
-              </div>
-              <span className="font-bold text-slate-900 text-sm">
-                Kamaʻāina Pathways
-              </span>
-            </div>
-          </div>
+      {/* Profile Sidebar - z-30, fixed at left: 0, overlays NavSidebar */}
+      {sidebarOpen && (
+        <LeftSidebar
+          sidebarOpen={sidebarOpen}
+          userProfile={userProfile}
+          onClose={() => setSidebarOpen(false)}
+          userMessageCount={getUserMessageCount()}
+        />
+      )}
 
-          <div className="flex items-center gap-2">
-            {/* Language indicator */}
-            <div className="flex items-center gap-1.5 px-3 py-1.5 bg-slate-100 rounded-lg">
-              <Globe className="w-3.5 h-3.5 text-slate-600" />
-              <span className="text-xs font-medium text-slate-700">
-                {currentLanguage.name}
-              </span>
-            </div>
-
-            {/* Show button once profile is complete or there's data */}
-            {(userProfile?.isComplete || hasDataToShow()) && (
-              <button
-                onClick={() => setDataPanelOpen(!dataPanelOpen)}
-                className={`p-2 rounded-lg transition-colors flex items-center gap-1.5 ${
-                  dataPanelOpen
-                    ? "bg-black text-white"
-                    : "bg-slate-100 text-slate-700 hover:bg-slate-200"
-                }`}
-              >
-                <PanelRight
-                  className={`w-4 h-4 transition-transform ${dataPanelOpen ? "rotate-180" : ""}`}
-                />
-                {hasDataToShow() && (
-                  <span className="w-2 h-2 bg-green-500 rounded-full animate-pulse"></span>
-                )}
-              </button>
-            )}
-          </div>
-        </div>
-
-        <div className="flex-1 flex">
+      {/* Main Content Area - ONLY shifts based on NavSidebar width */}
+      <div
+        className="flex flex-col h-screen transition-all duration-300"
+        style={{
+          left: `${getLeftOffset()}px`,
+        }}
+      >
+        <div className="flex-1 flex overflow-hidden">
           <div className="flex-1 flex flex-col">
             <ChatMessages
               messages={messages}
@@ -575,17 +702,10 @@ export default function UnifiedSleekChat({
               sidebarOpen={sidebarOpen}
               dataPanelOpen={dataPanelOpen}
               setSidebarOpen={setSidebarOpen}
+              navSidebarOpen={navSidebarOpen}
             />
           </div>
         </div>
-
-        <DataPanel
-          dataPanelOpen={dataPanelOpen}
-          setDataPanelOpen={setDataPanelOpen}
-          currentData={currentData}
-          activeDataTab={activeDataTab}
-          setActiveDataTab={setActiveDataTab}
-        />
 
         <ChatInput
           message={message}
@@ -596,8 +716,18 @@ export default function UnifiedSleekChat({
           messagesLength={messages.length}
           dataPanelOpen={dataPanelOpen}
           sidebarOpen={sidebarOpen}
+          navSidebarOpen={navSidebarOpen}
         />
       </div>
+
+      {/* Data Panel - positioned as overlay */}
+      <DataPanel
+        dataPanelOpen={dataPanelOpen}
+        setDataPanelOpen={setDataPanelOpen}
+        socCodes={displayedSocCodes} // ✅ Pass extracted SOC codes from displayed careers
+        activeDataTab={activeDataTab}
+        setActiveDataTab={setActiveDataTab}
+      />
     </div>
   );
 }

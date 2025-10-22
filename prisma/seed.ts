@@ -1,3 +1,4 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
 // prisma/seed.ts
 import { PrismaClient } from "@prisma/client";
 import fs from "fs";

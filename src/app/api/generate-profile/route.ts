@@ -296,8 +296,8 @@ export async function POST(request: NextRequest) {
       );
     }
 
-    // Ensure we have enough conversation content - 7 messages as requested
-    if (userMessageCount < 7) {
+    // Ensure we have enough conversation content - 3 messages as requested
+    if (userMessageCount < 3) {
       return NextResponse.json(
         { error: "Insufficient conversation data", needMoreMessages: true },
         { status: 400 }
@@ -318,7 +318,7 @@ export async function POST(request: NextRequest) {
     }
 
     // Only return profile if confidence is reasonable
-    if (enhancedProfile.confidence.overall < 30) {
+    if (enhancedProfile.confidence.overall < 10) {
       return NextResponse.json(
         {
           error: "Insufficient information for reliable profile",

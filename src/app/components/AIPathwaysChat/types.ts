@@ -87,6 +87,8 @@ export interface UHProgramData {
   concentration?: string | null; // Optional concentration/specialization
   programName: string; // Full program name
   description?: string | null;
+  location?: string | null; // Added for compatibility
+  duration?: string | null; // Added for compatibility
   cipCategory?: string | null; // 2-digit CIP category
   estimatedDuration?: string | null; // '2 years', '4 years', etc.
   deliveryMode?: string[]; // ['in_person', 'online', 'hybrid']
@@ -102,6 +104,7 @@ export interface DOEProgramData {
   id: string;
   programOfStudy: string; // Name of the pathway
   careerCluster?: string | null; // 'STEM', 'Health', 'Business', etc.
+  pathwayDescription?: string | null; // Added for compatibility
   courseSequence: {
     grade9: string[];
     grade10: string[];
@@ -110,6 +113,7 @@ export interface DOEProgramData {
     electives: string[];
   };
   gradRequirements: string[];
+  gradeAvailability?: Record<string, string[]>; // Added for compatibility
   relevanceScore: number; // Dynamic relevance score
   uhPathways?: Array<{
     campus: string;
@@ -121,6 +125,7 @@ export interface DOEProgramData {
 
 // Education Pathway Data (DOE to UH connections)
 export interface PathwayData {
+  name?: string; // Added for compatibility
   doeProgram: {
     id: string;
     programOfStudy: string;
@@ -141,6 +146,10 @@ export interface PathwayData {
     concentration?: string | null;
     estimatedDuration?: string | null;
   }>;
+  highSchoolPrograms?: Array<{ // Added for compatibility
+    programOfStudy: string;
+    schools: number;
+  }>;
 }
 
 export interface LightcastCareerData {
@@ -150,7 +159,12 @@ export interface LightcastCareerData {
   uniqueCompanies: number;
   uniquePostings: number;
   relevanceScore?: number;
+  // SOC CODE FIELDS - Added for SOC visualizers
+  socCode?: string; // Primary SOC code field
+  soc5?: string; // Alternative SOC code field (5-digit)
+  soc_code?: string; // Another alternative SOC code field
 }
+
 export interface LightcastApiResponse {
   data: {
     ranking: {
@@ -184,8 +198,77 @@ export interface LightcastApiResponse {
   };
 }
 
+// ========================================
+// PATHWAY API DATA STRUCTURES (from /api/pathway)
+// ========================================
+
+// Program Details for High School Programs
+export interface ProgramDetails {
+  coursesByGrade?: {
+    "9TH_GRADE_COURSES"?: string[];
+    "10TH_GRADE_COURSES"?: string[];
+    "11TH_GRADE_COURSES"?: string[];
+    "12TH_GRADE_COURSES"?: string[];
+  };
+  coursesByLevel?: {
+    LEVEL_1_POS_COURSES?: string[];
+    LEVEL_2_POS_COURSES?: string[];
+    LEVEL_3_POS_COURSES?: string[];
+    LEVEL_4_POS_COURSES?: string[];
+    RECOMMENDED_COURSES?: string[];
+  };
+}
+
+// High School Program from Pathway API
+export interface HighSchoolProgram {
+  name: string;
+  schools: string[];
+  schoolCount: number;
+  details?: ProgramDetails;
+}
+
+// College Program from Pathway API
+export interface CollegeProgram {
+  name: string;
+  campuses: string[];
+  campusCount: number;
+  variants?: string[]; // All program specializations
+  variantCount?: number; // Total number of specializations
+}
+
+// Career from Pathway API
+export interface Career {
+  title: string;
+  cipCode?: string;
+  socCodes: string[];
+}
+
+// Summary data from Pathway API
+export interface PathwaySummary {
+  totalHighSchoolPrograms?: number;
+  totalHighSchools?: number;
+  totalCollegePrograms?: number;
+  totalCollegeCampuses?: number;
+  totalCareerPaths?: number;
+}
+
+// Complete Pathway Data Structure from /api/pathway
+export interface PathwayApiData {
+  highSchoolPrograms?: HighSchoolProgram[];
+  collegePrograms?: CollegeProgram[];
+  careers?: Career[];
+  summary?: PathwaySummary;
+}
+
+// ========================================
+// CURRENT DATA STRUCTURE (UPDATED)
+// ========================================
+
 // Current data structure for data panel
+// Now supports both old structure (uhPrograms, doePrograms, etc.)
+// and new pathway API structure (highSchoolPrograms, collegePrograms, careers)
 export interface CurrentData {
+  // Old structure (for backward compatibility)
   uhPrograms?: UHProgramData[];
   doePrograms?: DOEProgramData[];
   pathways?: PathwayData[];
@@ -201,7 +284,16 @@ export interface CurrentData {
     availableDegrees: string[];
     careerClusters: string[];
   };
-  careerData?: LightcastCareerData[]; // ADD THIS LINE
+  careerData?: LightcastCareerData[];
+
+  // New pathway API structure (from /api/pathway)
+  highSchoolPrograms?: HighSchoolProgram[];
+  collegePrograms?: CollegeProgram[];
+  careers?: Career[];
+  summary?: PathwaySummary;
+
+  // SOC CODES - Added for SOC-based visualizers
+  socCodes?: string[]; // Array of unique SOC codes extracted from careerData
 }
 
 // UI Tab configuration

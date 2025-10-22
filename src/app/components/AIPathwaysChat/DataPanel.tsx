@@ -1,157 +1,75 @@
+/* eslint-disable react-hooks/exhaustive-deps */
 /* eslint-disable @typescript-eslint/no-explicit-any */
-// components/DataPanel.tsx
-import React, { useState } from "react";
+// components/AIPathwaysChat/DataPanel.tsx
+// CLEANED UP VERSION - Only 4 SOC Visualizers, SOC codes passed as prop
+import React from "react";
 import {
-  // X,
-  // Database,
-  // BarChart3,
-  GraduationCap,
-  School,
-  MapPin,
-  Clock,
-  ChevronRight,
-  Search,
-  Loader2,
   Briefcase,
   PanelRight,
+  Building2,
+  Sparkles,
+  Target,
 } from "lucide-react";
-import {
-  CurrentData,
-  Tab,
-  UHProgramData,
-  DOEProgramData,
-  PathwayData,
-  LightcastCareerData,
-} from "./types";
+
+// Import all 4 SOC Visualizers
+import JobTitlesSkillsVisualizer from "./JobTitlesSkillsVisualizer";
+import JobTitlesCompaniesVisualizer from "./JobTitlesCompaniesVisualizer";
+import CompaniesSkillsVisualizer from "./CompaniesSkillsVisualizer";
+import ActivePostsVisualizer from "./ActivePostsVisualizer";
 
 interface DataPanelProps {
   dataPanelOpen: boolean;
   setDataPanelOpen: (open: boolean) => void;
-  currentData: CurrentData | null;
+  socCodes: string[]; // ✅ Now passed directly as prop
   activeDataTab: string;
   setActiveDataTab: (tab: string) => void;
 }
 
-// Simplified helper functions
-const getRelevanceColor = (score: number) => {
-  if (score >= 80) return "text-green-700 bg-green-50";
-  if (score >= 60) return "text-blue-700 bg-blue-50";
-  if (score >= 40) return "text-amber-700 bg-amber-50";
-  return "text-gray-600 bg-gray-50";
-};
+interface Tab {
+  id: string;
+  label: string;
+  icon: any;
+}
 
 export default function DataPanel({
   dataPanelOpen,
   setDataPanelOpen,
-  currentData,
+  socCodes, // ✅ Use prop directly
   activeDataTab,
   setActiveDataTab,
 }: DataPanelProps) {
-  const [expandedGrades, setExpandedGrades] = React.useState<
-    Record<string, boolean>
-  >({});
+  console.log(
+    `[DataPanel] 🎯 Received ${socCodes.length} SOC codes:`,
+    socCodes
+  );
+  console.log(`[DataPanel] 🎯 Active tab:`, activeDataTab);
 
-  // Search state
-  const [searchQuery, setSearchQuery] = useState("");
-  const [isSearching, setIsSearching] = useState(false);
-  const [searchResults, setSearchResults] = useState<{
-    uhPrograms: UHProgramData[];
-    doePrograms: DOEProgramData[];
-    careerData: LightcastCareerData[];
-  } | null>(null);
+  // Don't render if panel is closed or no SOC codes
+  if (!dataPanelOpen || socCodes.length === 0) return null;
 
-  const toggleGrade = (programId: string, grade: string) => {
-    const key = `${programId}-${grade}`;
-    setExpandedGrades(prev => ({ ...prev, [key]: !prev[key] }));
-  };
-
-  // Handle direct search
-  const handleSearch = async () => {
-    if (!searchQuery.trim()) return;
-
-    setIsSearching(true);
-    try {
-      const response = await fetch("/api/direct-search", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ query: searchQuery }),
-      });
-
-      if (response.ok) {
-        const data = await response.json();
-        setSearchResults(data.results);
-      } else {
-        console.error("Search failed");
-        setSearchResults({ uhPrograms: [], doePrograms: [], careerData: [] });
-      }
-    } catch (error) {
-      console.error("Search error:", error);
-      setSearchResults({ uhPrograms: [], doePrograms: [], careerData: [] });
-    } finally {
-      setIsSearching(false);
-    }
-  };
-
-  // Clear search when switching tabs
-  React.useEffect(() => {
-    if (activeDataTab !== "search") {
-      setSearchResults(null);
-      setSearchQuery("");
-    }
-  }, [activeDataTab]);
-
-  if (!dataPanelOpen || !currentData) return null;
-
-  // Determine available tabs based on data
+  // Only 4 tabs - all SOC-based visualizers
   const tabs: Tab[] = [
-    // {
-    //   id: "overview",
-    //   label: "Overview",
-    //   icon: BarChart3,
-    //   show: !!currentData.stats,
-    // },
     {
-      id: "doe",
-      label: "HS",
-      icon: School,
-      show: (currentData.doePrograms?.length ?? 0) > 0,
+      id: "active-posts",
+      label: "Jobs",
+      icon: Briefcase,
     },
     {
-      id: "uh",
-      label: "UH",
-      icon: GraduationCap,
-      show: (currentData.uhPrograms?.length ?? 0) > 0,
+      id: "companies",
+      label: "Companies",
+      icon: Building2,
     },
     {
-      id: "pathways",
-      label: "Paths",
-      icon: null,
-      show: (currentData.pathways?.length ?? 0) > 0,
+      id: "skills",
+      label: "Skills",
+      icon: Sparkles,
     },
     {
-      id: "careers",
-      label: "Careers",
-      icon: Briefcase, // Import from lucide-react
-      show: (currentData.careerData?.length ?? 0) > 0,
+      id: "company-skills",
+      label: "Demand",
+      icon: Target,
     },
-    {
-      id: "search",
-      label: "Search",
-      icon: Search,
-      show: true,
-    },
-  ].filter(tab => tab.show);
-
-  // Determine what search results to show
-  const displaySearchResults = searchResults || currentData.searchResults;
-  const hasSearchResults =
-    displaySearchResults &&
-    (displaySearchResults.uhPrograms?.length > 0 ||
-      displaySearchResults.doePrograms?.length > 0);
-
-  // Also check if we have career data from search
-  const hasCareerData =
-    searchResults?.careerData && searchResults.careerData.length > 0;
+  ];
 
   return (
     <div className="fixed top-0 right-0 bottom-0 w-96 bg-white border-l border-gray-200 z-40">
@@ -160,498 +78,104 @@ export default function DataPanel({
         <div className="p-3 border-b border-gray-200">
           <div className="flex items-center justify-between mb-4">
             <div className="flex items-center gap-2">
-              {" "}
-              <div className="flex items-center gap-2">
-                <h3 className="font-semibold text-gray-900 text-sm tracking-tight">
-                  Hawaii Data Intelligence
-                </h3>
-                <span className="px-2 py-0.5 bg-gray-100 text-gray-600 text-xs font-medium rounded">
-                  2025
-                </span>
-              </div>
+              <h3 className="font-semibold text-gray-900 text-sm tracking-tight">
+                Career Market Data
+              </h3>
+              <span className="text-xs text-gray-500 bg-gray-100 px-2 py-0.5 rounded">
+                {socCodes.length} SOC {socCodes.length === 1 ? "code" : "codes"}
+              </span>
             </div>
             <button
               onClick={() => setDataPanelOpen(false)}
-              className={`p-2 rounded-lg transition-colors flex items-center gap-1.5 ${
-                dataPanelOpen
-                  ? "bg-gray-200 text-black hover:bg-gray-400"
-                  : "bg-slate-100 text-slate-700 hover:bg-slate-200"
-              }`}
+              className="p-1 hover:bg-gray-100 rounded transition-colors"
+              aria-label="Close panel"
             >
-              <PanelRight
-                className={`w-4 h-4 transition-transform ${dataPanelOpen ? "rotate-180" : ""}`}
-              />
-              {currentData && (
-                <span className="w-2 h-2 bg-green-500 rounded-full animate-pulse"></span>
-              )}
+              <PanelRight className="w-4 h-4 text-gray-600" />
             </button>
           </div>
 
-          {/* Navigation Tabs */}
-          <div className="flex gap-1 overflow-x-auto pb-1 scrollbar-thin scrollbar-thumb-gray-300 scrollbar-track-transparent">
+          {/* Tabs - Only 4 visualizers */}
+          <div className="flex gap-1 overflow-x-auto pb-1">
             {tabs.map(tab => (
               <button
                 key={tab.id}
                 onClick={() => setActiveDataTab(tab.id)}
-                className={`flex items-center gap-1.5 px-3 py-1.5 text-xs rounded-lg transition-all font-medium whitespace-nowrap ${
-                  activeDataTab === tab.id
-                    ? "bg-black text-white"
-                    : "hover:bg-gray-100 text-gray-600"
-                }`}
+                className={`
+                  px-3 py-1.5 rounded-lg text-xs font-medium transition-all whitespace-nowrap flex items-center gap-1.5
+                  ${
+                    activeDataTab === tab.id
+                      ? "bg-black text-white"
+                      : "bg-gray-100 text-gray-700 hover:bg-gray-200"
+                  }
+                `}
               >
-                <tab.icon className="w-3 h-3" />
-                <span>{tab.label}</span>
+                <tab.icon className="w-3.5 h-3.5" />
+                {tab.label}
               </button>
             ))}
           </div>
         </div>
 
-        {/* Content Area */}
-        <div className="flex-1 overflow-y-auto bg-white p-4">
-          {/* Overview Tab */}
-          {activeDataTab === "overview" && currentData.stats && (
-            <div className="space-y-4">
-              <div className="grid grid-cols-2 gap-3">
-                <div className="bg-gray-50 rounded-lg p-3">
-                  <div className="flex items-center gap-2 mb-1">
-                    <GraduationCap className="w-3 h-3 text-blue-600" />
-                    <span className="text-xs text-gray-600">UH Programs</span>
-                  </div>
-                  <div className="text-2xl font-bold text-black">
-                    {currentData.stats.totalUHPrograms}
-                  </div>
-                </div>
-
-                <div className="bg-gray-50 rounded-lg p-3">
-                  <div className="flex items-center gap-2 mb-1">
-                    <School className="w-3 h-3 text-purple-600" />
-                    <span className="text-xs text-gray-600">HS Pathways</span>
-                  </div>
-                  <div className="text-2xl font-bold text-black">
-                    {currentData.stats.totalDOEPrograms}
-                  </div>
-                </div>
-
-                <div className="bg-gray-50 rounded-lg p-3">
-                  <div className="flex items-center gap-2 mb-1">
-                    <ChevronRight className="w-3 h-3 text-green-600" />
-                    <span className="text-xs text-gray-600">Connections</span>
-                  </div>
-                  <div className="text-2xl font-bold text-black">
-                    {currentData.stats.totalPathways}
-                  </div>
-                </div>
-
-                <div className="bg-gray-50 rounded-lg p-3">
-                  <div className="flex items-center gap-2 mb-1">
-                    <MapPin className="w-3 h-3 text-orange-600" />
-                    <span className="text-xs text-gray-600">Campuses</span>
-                  </div>
-                  <div className="text-2xl font-bold text-black">
-                    {currentData.stats.availableCampuses.length}
-                  </div>
-                </div>
-              </div>
-
-              <div className="bg-black text-white rounded-lg p-4">
-                <h4 className="font-semibold text-sm mb-3">
-                  Available Options
+        {/* Content - Only visualizers */}
+        <div className="flex-1 overflow-y-auto p-3">
+          {/* Active Job Postings */}
+          {activeDataTab === "active-posts" && (
+            <div className="space-y-3">
+              <div className="bg-blue-50 rounded-lg p-3 border border-blue-100">
+                <h4 className="text-sm font-semibold text-blue-900 mb-1">
+                  Active Job Postings
                 </h4>
-                <div className="space-y-2 text-xs">
-                  <div className="flex justify-between">
-                    <span className="opacity-80">Degree Types</span>
-                    <span className="font-semibold">
-                      {currentData.stats.availableDegrees.length}
-                    </span>
-                  </div>
-                  <div className="flex justify-between">
-                    <span className="opacity-80">Career Clusters</span>
-                    <span className="font-semibold">
-                      {currentData.stats.careerClusters.length}
-                    </span>
-                  </div>
-                  <div className="flex justify-between">
-                    <span className="opacity-80">Islands Covered</span>
-                    <span className="font-semibold">4</span>
-                  </div>
-                </div>
-              </div>
-            </div>
-          )}
-
-          {/* DOE Programs Tab */}
-          {activeDataTab === "doe" && currentData.doePrograms && (
-            <div className="space-y-3">
-              {currentData.doePrograms.map((program: DOEProgramData) => (
-                <div
-                  key={program.id}
-                  className="bg-white rounded-lg p-3 hover:bg-gray-50 transition-colors"
-                >
-                  <div className="flex items-start justify-between mb-2">
-                    <h5 className="font-semibold text-black text-sm">
-                      {program.programOfStudy}
-                    </h5>
-                    <span
-                      className={`px-2 py-0.5 rounded text-xs font-medium ${getRelevanceColor(program.relevanceScore)}`}
-                    >
-                      {program.relevanceScore}
-                    </span>
-                  </div>
-
-                  {program.careerCluster && (
-                    <p className="text-xs text-gray-600 mb-2">
-                      {program.careerCluster}
-                    </p>
-                  )}
-
-                  <div className="space-y-1">
-                    {["grade9", "grade10", "grade11", "grade12"].map(grade => {
-                      const gradeNum = grade.replace("grade", "");
-                      const courses =
-                        program.courseSequence[
-                          grade as keyof typeof program.courseSequence
-                        ];
-                      const key = `${program.id}-${grade}`;
-                      const isExpanded = expandedGrades[key];
-
-                      if (!courses || courses.length === 0) return null;
-
-                      return (
-                        <div key={grade} className="text-xs">
-                          <button
-                            onClick={() => toggleGrade(program.id, grade)}
-                            className="w-full py-1 flex items-center justify-between hover:bg-gray-100 rounded transition-colors"
-                          >
-                            <span className="font-medium text-gray-700">
-                              Grade {gradeNum}
-                            </span>
-                            <ChevronRight
-                              className={`w-3 h-3 text-gray-400 transition-transform ${isExpanded ? "rotate-90" : ""}`}
-                            />
-                          </button>
-                          {isExpanded && (
-                            <div className="pl-4 py-1 text-gray-600">
-                              {courses.join(", ")}
-                            </div>
-                          )}
-                        </div>
-                      );
-                    })}
-                  </div>
-
-                  {program.totalUHPathways > 0 && (
-                    <div className="mt-3 pt-3 border-t border-gray-100">
-                      <span className="text-xs text-gray-600">
-                        {program.totalUHPathways} college pathway
-                        {program.totalUHPathways > 1 ? "s" : ""}
-                      </span>
-                    </div>
-                  )}
-                </div>
-              ))}
-            </div>
-          )}
-
-          {/* UH Programs Tab */}
-          {activeDataTab === "uh" && currentData.uhPrograms && (
-            <div className="space-y-3">
-              {currentData.uhPrograms.map((program: UHProgramData) => (
-                <div
-                  key={program.id}
-                  className="bg-white rounded-lg p-3 hover:bg-gray-50 transition-colors"
-                >
-                  <div className="flex items-start justify-between mb-2">
-                    <h5 className="font-semibold text-black text-sm flex-1">
-                      {program.programName}
-                    </h5>
-                    <span
-                      className={`px-2 py-0.5 rounded text-xs font-medium ${getRelevanceColor(program.relevanceScore)}`}
-                    >
-                      {program.relevanceScore}
-                    </span>
-                  </div>
-
-                  <div className="flex items-center gap-2 mb-2 text-xs">
-                    <span className="font-medium text-gray-700">
-                      {program.degree}
-                    </span>
-                    <span className="text-gray-400">•</span>
-                    <span className="text-gray-600">{program.campus}</span>
-                  </div>
-
-                  {program.concentration && (
-                    <p className="text-xs text-gray-600 mb-2">
-                      {program.concentration}
-                    </p>
-                  )}
-
-                  {program.estimatedDuration && (
-                    <div className="flex items-center gap-1 text-xs text-gray-600">
-                      <Clock className="w-3 h-3" />
-                      <span>{program.estimatedDuration}</span>
-                    </div>
-                  )}
-
-                  {program.doePathways && program.doePathways.length > 0 && (
-                    <div className="mt-3 pt-3 border-t border-gray-100">
-                      <p className="text-xs text-gray-500 mb-1">HS Pathways:</p>
-                      <div className="flex flex-wrap gap-1">
-                        {program.doePathways.map((pathway, idx) => (
-                          <span
-                            key={idx}
-                            className="px-2 py-0.5 bg-gray-100 text-gray-700 text-xs rounded"
-                          >
-                            {pathway.programOfStudy}
-                          </span>
-                        ))}
-                      </div>
-                    </div>
-                  )}
-                </div>
-              ))}
-            </div>
-          )}
-
-          {/* Pathways Tab */}
-          {activeDataTab === "pathways" && currentData.pathways && (
-            <div className="space-y-3">
-              {currentData.pathways.map((pathway: PathwayData, idx: number) => (
-                <div key={idx} className="bg-gray-50 rounded-lg p-3">
-                  <h5 className="font-semibold text-black text-sm mb-3">
-                    {pathway.doeProgram.programOfStudy}
-                  </h5>
-
-                  <div className="mb-3">
-                    <p className="text-xs text-gray-600 mb-1">High School:</p>
-                    <p className="text-xs text-gray-700">
-                      4-year specialized course sequence
-                    </p>
-                  </div>
-
-                  <div>
-                    <p className="text-xs text-gray-600 mb-2">
-                      College Options ({pathway.uhPrograms.length}):
-                    </p>
-                    <div className="space-y-1">
-                      {pathway.uhPrograms.slice(0, 3).map(uhProgram => (
-                        <div
-                          key={uhProgram.id}
-                          className="bg-white rounded p-2 text-xs"
-                        >
-                          <div className="font-medium text-black">
-                            {uhProgram.programName}
-                          </div>
-                          <div className="text-gray-600">
-                            {uhProgram.degree} • {uhProgram.campus}
-                          </div>
-                        </div>
-                      ))}
-                      {pathway.uhPrograms.length > 3 && (
-                        <p className="text-xs text-gray-500 text-center pt-1">
-                          +{pathway.uhPrograms.length - 3} more
-                        </p>
-                      )}
-                    </div>
-                  </div>
-                </div>
-              ))}
-            </div>
-          )}
-
-          {activeDataTab === "careers" && currentData.careerData && (
-            <div className="space-y-3">
-              <div className="mb-3 text-xs text-gray-600">
-                Showing {currentData.careerData.length} career pathway
-                {currentData.careerData.length !== 1 ? "s" : ""}
-              </div>
-              {currentData.careerData.map(
-                (career: LightcastCareerData, idx) => (
-                  <div
-                    key={idx}
-                    className="bg-white rounded-lg p-3 hover:bg-gray-50 transition-colors"
-                  >
-                    <div className="flex items-start justify-between mb-2">
-                      <div className="flex-1">
-                        <h5 className="font-semibold text-black text-sm">
-                          {career.subjectArea}
-                        </h5>
-                        <p className="text-xs text-gray-500 mt-0.5">
-                          CIP Code: {career.cipCode}
-                        </p>
-                      </div>
-                      {career.relevanceScore && (
-                        <span
-                          className={`px-2 py-0.5 rounded text-xs font-medium ${getRelevanceColor(career.relevanceScore)}`}
-                        >
-                          {career.relevanceScore}
-                        </span>
-                      )}
-                    </div>
-
-                    <div className="bg-green-50 rounded-lg p-2 mb-2">
-                      <p className="text-xs text-gray-600">Median Salary</p>
-                      <p className="text-lg font-bold text-green-700">
-                        ${career.medianSalary.toLocaleString()}
-                      </p>
-                    </div>
-
-                    <div className="grid grid-cols-2 gap-2 text-xs">
-                      <div className="bg-gray-50 rounded p-2">
-                        <p className="text-gray-600">Companies</p>
-                        <p className="font-semibold text-black">
-                          {career.uniqueCompanies}
-                        </p>
-                      </div>
-                      <div className="bg-gray-50 rounded p-2">
-                        <p className="text-gray-600">Job Postings</p>
-                        <p className="font-semibold text-black">
-                          {career.uniquePostings}
-                        </p>
-                      </div>
-                    </div>
-                  </div>
-                )
-              )}
-            </div>
-          )}
-
-          {/* Search Tab */}
-          {activeDataTab === "search" && (
-            <div className="space-y-4">
-              {/* Search Bar */}
-              <div>
-                <div className="flex gap-2">
-                  <input
-                    type="text"
-                    value={searchQuery}
-                    onChange={e => setSearchQuery(e.target.value)}
-                    onKeyDown={e => e.key === "Enter" && handleSearch()}
-                    placeholder="Search programs..."
-                    className="flex-1 px-3 py-2 text-sm bg-gray-50 rounded-lg focus:outline-none focus:ring-2 focus:ring-black focus:bg-white transition-colors"
-                  />
-                  <button
-                    onClick={handleSearch}
-                    disabled={isSearching || !searchQuery.trim()}
-                    className="px-4 py-2 bg-black text-white text-xs font-medium rounded-lg hover:bg-gray-800 disabled:bg-gray-300 transition-colors flex items-center gap-1"
-                  >
-                    {isSearching ? (
-                      <Loader2 className="w-3 h-3 animate-spin" />
-                    ) : (
-                      <Search className="w-3 h-3" />
-                    )}
-                  </button>
-                </div>
-                <p className="text-xs text-gray-500 mt-2">
-                  Search all programs and pathways
+                <p className="text-xs text-blue-700">
+                  Real-time job market data for {socCodes.length} occupation
+                  {socCodes.length > 1 ? "s" : ""}
                 </p>
               </div>
+              <ActivePostsVisualizer socCodes={socCodes} />
+            </div>
+          )}
 
-              {/* Search Results */}
-              {hasSearchResults || hasCareerData ? (
-                <div className="space-y-4">
-                  {displaySearchResults?.uhPrograms &&
-                    displaySearchResults.uhPrograms.length > 0 && (
-                      <div>
-                        <h4 className="text-xs font-semibold text-gray-700 mb-2">
-                          UH Programs ({displaySearchResults.uhPrograms.length})
-                        </h4>
-                        <div className="space-y-2">
-                          {displaySearchResults.uhPrograms
-                            .slice(0, 10)
-                            .map((program: UHProgramData) => (
-                              <div
-                                key={program.id}
-                                className="bg-gray-50 rounded-lg p-2 hover:bg-gray-100 transition-colors"
-                              >
-                                <p className="text-xs font-semibold text-black">
-                                  {program.programName}
-                                </p>
-                                <p className="text-xs text-gray-600">
-                                  {program.degree} • {program.campus}
-                                </p>
-                              </div>
-                            ))}
-                        </div>
-                      </div>
-                    )}
+          {/* Companies Hiring */}
+          {activeDataTab === "companies" && (
+            <div className="space-y-3">
+              <div className="bg-green-50 rounded-lg p-3 border border-green-100">
+                <h4 className="text-sm font-semibold text-green-900 mb-1">
+                  Top Hiring Companies
+                </h4>
+                <p className="text-xs text-green-700">
+                  Companies actively hiring for these roles
+                </p>
+              </div>
+              <JobTitlesCompaniesVisualizer socCodes={socCodes} />
+            </div>
+          )}
 
-                  {displaySearchResults?.doePrograms &&
-                    displaySearchResults.doePrograms.length > 0 && (
-                      <div>
-                        <h4 className="text-xs font-semibold text-gray-700 mb-2">
-                          HS Pathways ({displaySearchResults.doePrograms.length}
-                          )
-                        </h4>
-                        <div className="space-y-2">
-                          {displaySearchResults.doePrograms
-                            .slice(0, 10)
-                            .map((program: DOEProgramData) => (
-                              <div
-                                key={program.id}
-                                className="bg-gray-50 rounded-lg p-2 hover:bg-gray-100 transition-colors"
-                              >
-                                <p className="text-xs font-semibold text-black">
-                                  {program.programOfStudy}
-                                </p>
-                                {program.careerCluster && (
-                                  <p className="text-xs text-gray-600">
-                                    {program.careerCluster}
-                                  </p>
-                                )}
-                              </div>
-                            ))}
-                        </div>
-                      </div>
-                    )}
+          {/* Skills Analysis */}
+          {activeDataTab === "skills" && (
+            <div className="space-y-3">
+              <div className="bg-purple-50 rounded-lg p-3 border border-purple-100">
+                <h4 className="text-sm font-semibold text-purple-900 mb-1">
+                  In-Demand Skills
+                </h4>
+                <p className="text-xs text-purple-700">
+                  Most requested skills for these careers
+                </p>
+              </div>
+              <JobTitlesSkillsVisualizer socCodes={socCodes} />
+            </div>
+          )}
 
-                  {hasCareerData && (
-                    <div>
-                      <h4 className="text-xs font-semibold text-gray-700 mb-2">
-                        Career Pathways ({searchResults.careerData.length})
-                      </h4>
-                      <div className="space-y-2">
-                        {searchResults.careerData
-                          .slice(0, 10)
-                          .map((career, idx) => (
-                            <div
-                              key={idx}
-                              className="bg-gray-50 rounded-lg p-2 hover:bg-gray-100 transition-colors"
-                            >
-                              <p className="text-xs font-semibold text-black">
-                                {career.subjectArea}
-                              </p>
-                              <p className="text-xs text-gray-600">
-                                ${career.medianSalary.toLocaleString()} •{" "}
-                                {career.uniquePostings} jobs
-                              </p>
-                              {career.relevanceScore && (
-                                <span className="text-xs text-gray-500">
-                                  Match: {career.relevanceScore}%
-                                </span>
-                              )}
-                            </div>
-                          ))}
-                      </div>
-                    </div>
-                  )}
-                </div>
-              ) : searchResults !== null ? (
-                <div className="bg-gray-50 rounded-lg p-4 text-center">
-                  <p className="text-sm font-medium text-gray-700 mb-1">
-                    No results found
-                  </p>
-                  <p className="text-xs text-gray-500">
-                    Try different keywords
-                  </p>
-                </div>
-              ) : (
-                <div className="bg-gray-50 rounded-lg p-6 text-center">
-                  <Search className="w-8 h-8 text-gray-300 mx-auto mb-2" />
-                  <p className="text-xs text-gray-600">
-                    Enter keywords to search
-                  </p>
-                </div>
-              )}
+          {/* Skills Demand by Company */}
+          {activeDataTab === "company-skills" && (
+            <div className="space-y-3">
+              <div className="bg-orange-50 rounded-lg p-3 border border-orange-100">
+                <h4 className="text-sm font-semibold text-orange-900 mb-1">
+                  Skill Demand Analysis
+                </h4>
+                <p className="text-xs text-orange-700">
+                  Skills sought by top employers
+                </p>
+              </div>
+              <CompaniesSkillsVisualizer socCodes={socCodes} />
             </div>
           )}
         </div>
