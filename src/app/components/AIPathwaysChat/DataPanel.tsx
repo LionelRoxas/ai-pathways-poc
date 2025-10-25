@@ -42,6 +42,7 @@ export default function DataPanel({
 
   // 🎯 Only trigger tab validation if socCodes actually change
   const prevSocCodesRef = React.useRef<string[]>([]);
+
   React.useEffect(() => {
     const codesChanged =
       socCodes.length !== prevSocCodesRef.current.length ||
@@ -54,13 +55,6 @@ export default function DataPanel({
       prevSocCodesRef.current = socCodes;
     }
   }, [socCodes, activeDataTab, setActiveDataTab]);
-
-  // 🎯 Always set "companies" tab when panel opens
-  React.useEffect(() => {
-    if (dataPanelOpen && socCodes.length > 0) {
-      setActiveDataTab("companies");
-    }
-  }, [dataPanelOpen]);
 
   // Don't render if panel is closed or no SOC codes
   if (!dataPanelOpen || socCodes.length === 0) return null;

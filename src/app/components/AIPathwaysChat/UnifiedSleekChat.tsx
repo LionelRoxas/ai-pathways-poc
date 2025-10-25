@@ -204,7 +204,7 @@ export default function UnifiedSleekChat({
   const [dataPanelOpen, setDataPanelOpen] = useState(false);
   const [currentData, setCurrentData] = useState<CurrentData | null>(null);
   const [suggestedQuestions, setSuggestedQuestions] = useState<string[]>([]);
-  const [activeDataTab, setActiveDataTab] = useState<string>("active-posts");
+  const [activeDataTab, setActiveDataTab] = useState<string>("companies");
   const [isUpdatingProfile, setIsUpdatingProfile] = useState(false);
   const lastUpdateRef = useRef<number>(0);
   const [displayedSocCodes, setDisplayedSocCodes] = useState<string[]>([]);
@@ -225,7 +225,7 @@ export default function UnifiedSleekChat({
     } else if (userProfile?.extracted?.educationLevel === "high_school") {
       setActiveDataTab("skills"); // Focus on skills for high school students
     } else {
-      setActiveDataTab("active-posts"); // Default for everyone else
+      setActiveDataTab("companies"); // Default to companies tab
     }
   }, [userProfile?.extracted]);
 
@@ -490,7 +490,7 @@ export default function UnifiedSleekChat({
         if (extractedSocCodes.length > 0 && !dataPanelOpen) {
           console.log("[Parent] 🎯 Opening DataPanel with extracted SOC codes");
           setDataPanelOpen(true);
-          setActiveDataTab("active-posts");
+          setActiveDataTab("companies");
         }
       }
     }, [messages, currentData]);
@@ -717,7 +717,7 @@ export default function UnifiedSleekChat({
 
                 if (hasActualData && !dataPanelOpen) {
                   setDataPanelOpen(true);
-                  setActiveDataTab("active-posts");
+                  setActiveDataTab("companies");
                 }
               }
 
@@ -851,7 +851,7 @@ export default function UnifiedSleekChat({
         if (hasActualData && !dataPanelOpen) {
           setDataPanelOpen(true);
           // Always set to a valid tab for the SOC-based DataPanel
-          setActiveDataTab("active-posts");
+          setActiveDataTab("companies");
         }
       }
 
@@ -941,7 +941,7 @@ export default function UnifiedSleekChat({
           const newPanelState = !dataPanelOpen;
           setDataPanelOpen(newPanelState);
           if (newPanelState) {
-            setActiveDataTab("active-posts");
+            setActiveDataTab("companies");
           }
         }}
         dataPanelOpen={dataPanelOpen}

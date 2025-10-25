@@ -124,19 +124,12 @@ export default function NavSidebar({
                   onClick={() => onSwitchChat?.(session.id)}
                   className="flex-1 flex items-center gap-3 text-left min-w-0"
                 >
-                  <div
-                    className={`w-2 h-2 rounded-full flex-shrink-0 ${
-                      currentChatId === session.id
-                        ? "bg-slate-600"
-                        : "bg-slate-300"
-                    }`}
-                  ></div>
                   <span className="text-sm text-slate-600 truncate whitespace-nowrap">
                     {session.title}
                   </span>
                 </button>
                 <button
-                  onClick={(e) => {
+                  onClick={e => {
                     e.stopPropagation();
                     onDeleteChat?.(session.id);
                   }}
@@ -154,7 +147,6 @@ export default function NavSidebar({
 
       {/* Bottom Section */}
       <div className="flex-shrink-0 border-t border-slate-200 p-2 space-y-1 bg-white">
-
         {/* Data Panel Toggle */}
         {(hasDataToShow || dataPanelOpen) && (
           <button
