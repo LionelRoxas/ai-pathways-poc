@@ -8,10 +8,13 @@ import {
   aggregateCollegePrograms,
   formatCollegeProgramsForFrontend,
 } from "@/app/lib/helpers/pathway-aggregator";
+import { CacheService } from "@/app/lib/cache/cache-service";
 
 // Enable streaming if needed
 export const runtime = "nodejs";
 export const dynamic = "force-dynamic";
+
+const cache = CacheService.getInstance();
 
 /**
  * POST /api/pathway
@@ -51,6 +54,30 @@ export async function POST(request: NextRequest) {
     if (profile) {
       console.log(`[Pathway API] Using existing profile:`, profile);
     }
+
+    // Generate cache key
+    const cacheKey = cache.generateCacheKey(
+      "/api/pathway",
+      {
+        message: message.toLowerCase().trim(),
+        profileInterests: profile?.extracted?.interests?.join(",") || "",
+        profileEducation: profile?.extracted?.educationLevel || "",
+      },
+      profile?.profileSummary
+    );
+
+    // Try to get from cache
+    const cachedResult = await cache.get(cacheKey);
+    if (cachedResult && !process.env.DISABLE_CACHE) {
+      console.log(`[Pathway API] ✅ Cache hit for query: "${message}"`);
+      return NextResponse.json({
+        ...cachedResult,
+        cached: true,
+        processingTime: Date.now() - startTime,
+      });
+    }
+
+    console.log(`[Pathway API] 🔄 Cache miss, processing query...`);
 
     // Process the query using the orchestrator (includes verification)
     // Now passing the profile as context
@@ -143,6 +170,25 @@ export async function POST(request: NextRequest) {
     console.log(
       `[Pathway API] Found: ${formattedResponse.data.summary.totalHighSchoolPrograms} HS programs, ${formattedResponse.data.summary.totalCollegePrograms} college program families`
     );
+
+    // Cache the result
+    if (!process.env.DISABLE_CACHE) {
+      await cache.set(
+        cacheKey,
+        formattedResponse,
+        {
+          ttl: 3600, // 1 hour
+          tags: ["pathway", "search"],
+        },
+        {
+          query: message,
+          profileBased: !!profile,
+          resultCounts: formattedResponse.data.summary,
+          timestamp: new Date().toISOString(),
+        }
+      );
+      console.log(`[Pathway API] 💾 Cached result for future queries`);
+    }
 
     return NextResponse.json(formattedResponse);
   } catch (error: any) {
