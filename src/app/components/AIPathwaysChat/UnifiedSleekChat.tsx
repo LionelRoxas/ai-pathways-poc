@@ -73,37 +73,17 @@ const extractDisplayedSocCodes = (
       `\n[SOC Extraction] 🔍 Career ${idx + 1}: "${displayedCareer.title}"`
     );
 
-    // Match by title or cipCode
-    const matchingCareer = currentData.careers?.find(
-      (career: any) =>
-        career.title === displayedCareer.title ||
-        (displayedCareer.cipCode &&
-          career.cipCode &&
-          career.cipCode === displayedCareer.cipCode)
-    );
-
-    if (matchingCareer) {
+    // The displayed career title is actually the SOC code itself
+    // Just use the title directly as the SOC code
+    const displayedSocCode = displayedCareer.title;
+    
+    // Validate it looks like a SOC code (XX-XXXX format)
+    if (displayedSocCode && /^\d{2}-\d{4}$/.test(displayedSocCode)) {
       matchedCount++;
-      console.log(`[SOC Extraction]    ✅ Found match in currentData`);
-
-      if (matchingCareer.socCodes && Array.isArray(matchingCareer.socCodes)) {
-        console.log(
-          `[SOC Extraction]    ✅ Adding ${matchingCareer.socCodes.length} SOC codes: [${matchingCareer.socCodes.join(", ")}]`
-        );
-        socCodes.push(...matchingCareer.socCodes);
-      } else {
-        console.log(
-          `[SOC Extraction]    ⚠️  Career matched but no SOC codes found`
-        );
-      }
+      console.log(`[SOC Extraction]    ✅ Using displayed SOC code directly: ${displayedSocCode}`);
+      socCodes.push(displayedSocCode);
     } else {
-      console.log(`[SOC Extraction]    ❌ No match found in currentData`);
-      console.log(
-        `[SOC Extraction]       - Displayed title: "${displayedCareer.title}"`
-      );
-      console.log(
-        `[SOC Extraction]       - Displayed CIP: ${displayedCareer.cipCode || "N/A"}`
-      );
+      console.log(`[SOC Extraction]    ❌ Invalid SOC code format: "${displayedSocCode}"`);
     }
   });
 
@@ -114,7 +94,7 @@ const extractDisplayedSocCodes = (
   console.log(
     `[SOC Extraction]    - Displayed careers: ${displayedCareers.length}`
   );
-  console.log(`[SOC Extraction]    - Matched careers: ${matchedCount}`);
+  console.log(`[SOC Extraction]    - Valid SOC codes extracted: ${matchedCount}`);
   console.log(
     `[SOC Extraction]    - Total SOC codes (with duplicates): ${socCodes.length}`
   );
@@ -195,9 +175,25 @@ const getInitialSuggestions = (language: Language | null): string[] => {
   }
 };
 
+interface ChatSession {
+  id: string;
+  title: string;
+  messages: Message[];
+  userProfile: UserProfile | null;
+  currentData: CurrentData | null;
+  displayedSocCodes: string[];
+  createdAt: Date;
+  updatedAt: Date;
+}
+
 export default function UnifiedSleekChat({
   selectedLanguage,
 }: UnifiedSleekChatProps) {
+  // Chat session management
+  const [chatSessions, setChatSessions] = useState<ChatSession[]>([]);
+  const [currentChatId, setCurrentChatId] = useState<string>("");
+  
+  // Current chat state
   const [messages, setMessages] = useState<Message[]>([]);
   const [message, setMessage] = useState("");
   const [isLoading, setIsLoading] = useState(false);
@@ -208,10 +204,11 @@ export default function UnifiedSleekChat({
   const [dataPanelOpen, setDataPanelOpen] = useState(false);
   const [currentData, setCurrentData] = useState<CurrentData | null>(null);
   const [suggestedQuestions, setSuggestedQuestions] = useState<string[]>([]);
-  const [activeDataTab, setActiveDataTab] = useState<string>("active-posts"); // Default fallback
+  const [activeDataTab, setActiveDataTab] = useState<string>("active-posts");
   const [isUpdatingProfile, setIsUpdatingProfile] = useState(false);
   const lastUpdateRef = useRef<number>(0);
-  const [displayedSocCodes, setDisplayedSocCodes] = useState<string[]>([]); // ✅ Added state
+  const [displayedSocCodes, setDisplayedSocCodes] = useState<string[]>([]);
+  const isInitializing = useRef(false);
 
   const currentLanguage = selectedLanguage || {
     code: "en",
@@ -234,32 +231,269 @@ export default function UnifiedSleekChat({
 
   useEffect(() => {
     const greeting = getInitialGreeting(currentLanguage);
-    setMessages([{ role: "assistant", content: greeting }]);
+    
+    // Try to load chat sessions from localStorage
+    const savedSessions = localStorage.getItem('chatSessions');
+    const savedCurrentId = localStorage.getItem('currentChatId');
+    
+    if (savedSessions && savedCurrentId) {
+      try {
+        const sessions: ChatSession[] = JSON.parse(savedSessions).map((s: any) => ({
+          ...s,
+          createdAt: new Date(s.createdAt),
+          updatedAt: new Date(s.updatedAt),
+        }));
+        
+        isInitializing.current = true;
+        setChatSessions(sessions);
+        setCurrentChatId(savedCurrentId);
+        
+        // Load the current session
+        const currentSession = sessions.find(s => s.id === savedCurrentId);
+        if (currentSession) {
+          setMessages(currentSession.messages);
+          setUserProfile(currentSession.userProfile);
+          setCurrentData(currentSession.currentData);
+          setDisplayedSocCodes(currentSession.displayedSocCodes);
+          setDataPanelOpen(currentSession.displayedSocCodes.length > 0);
+        }
+        setTimeout(() => { isInitializing.current = false; }, 100);
+      } catch (error) {
+        console.error('Failed to load chat sessions:', error);
+        // Initialize new session if loading fails
+        initializeNewSession(greeting);
+      }
+    } else {
+      // Initialize first chat session
+      initializeNewSession(greeting);
+    }
+    
     setSuggestedQuestions(getInitialSuggestions(currentLanguage));
   }, []);
 
-  // ✅ NEW: Extract SOC codes from displayed careers when messages or data changes
+  const initializeNewSession = (greeting: string) => {
+    const initialChatId = `chat-${Date.now()}`;
+    const initialSession: ChatSession = {
+      id: initialChatId,
+      title: "New Conversation",
+      messages: [{ role: "assistant", content: greeting }],
+      userProfile: null,
+      currentData: null,
+      displayedSocCodes: [],
+      createdAt: new Date(),
+      updatedAt: new Date(),
+    };
+    
+    isInitializing.current = true;
+    setMessages([{ role: "assistant", content: greeting }]);
+    setChatSessions([initialSession]);
+    setCurrentChatId(initialChatId);
+    
+    // Save to localStorage immediately
+    localStorage.setItem('chatSessions', JSON.stringify([initialSession]));
+    localStorage.setItem('currentChatId', initialChatId);
+    
+    setTimeout(() => { isInitializing.current = false; }, 100);
+  };
+
+  // Save current chat session whenever state changes
   useEffect(() => {
-    console.log(
-      "\n[Parent] 🔄 Messages or currentData changed, triggering SOC extraction"
-    );
-    console.log(`[Parent]    - Total messages: ${messages.length}`);
-    console.log(`[Parent]    - CurrentData available: ${!!currentData}`);
-
-    const extractedSocCodes = extractDisplayedSocCodes(messages, currentData);
-
-    console.log(
-      `[Parent] 🎯 Setting displayedSocCodes to ${extractedSocCodes.length} codes`
-    );
-    setDisplayedSocCodes(extractedSocCodes);
-
-    // Auto-open DataPanel when SOC codes are available
-    if (extractedSocCodes.length > 0 && !dataPanelOpen) {
-      console.log("[Parent] 🎯 Opening DataPanel with extracted SOC codes");
-      setDataPanelOpen(true);
-      setActiveDataTab("active-posts");
+    if (isInitializing.current) {
+      return; // Skip during initialization
     }
-  }, [messages, currentData]);
+    
+    if (currentChatId && messages.length > 0) {
+      setChatSessions(prev => {
+        // Check if this session already exists
+        const sessionExists = prev.some(s => s.id === currentChatId);
+        
+        const updated = sessionExists
+          ? prev.map(session => 
+              session.id === currentChatId
+                ? {
+                    ...session,
+                    messages,
+                    userProfile, // ✅ Save this chat's unique profile
+                    currentData,
+                    displayedSocCodes,
+                    updatedAt: new Date(),
+                    // Auto-generate title from first user message
+                    title: messages.find(m => m.role === "user")?.content.slice(0, 50) || "New Conversation",
+                  }
+                : session
+            )
+          : prev; // Don't modify if session doesn't exist (it was just created by initializeNewSession)
+        
+        // Save to localStorage
+        localStorage.setItem('chatSessions', JSON.stringify(updated));
+        localStorage.setItem('currentChatId', currentChatId);
+        
+        return updated;
+      });
+    }
+  }, [currentChatId, messages, userProfile, currentData, displayedSocCodes]);
+
+  // Create new chat
+  const createNewChat = () => {
+    const newChatId = `chat-${Date.now()}`;
+    const greeting = getInitialGreeting(currentLanguage);
+    
+    const newSession: ChatSession = {
+      id: newChatId,
+      title: "New Conversation",
+      messages: [{ role: "assistant", content: greeting }],
+      userProfile: null, // ✅ Each chat starts with no profile
+      currentData: null,
+      displayedSocCodes: [],
+      createdAt: new Date(),
+      updatedAt: new Date(),
+    };
+    
+    setChatSessions(prev => {
+      const updated = [newSession, ...prev];
+      localStorage.setItem('chatSessions', JSON.stringify(updated));
+      localStorage.setItem('currentChatId', newChatId);
+      return updated;
+    });
+    setCurrentChatId(newChatId);
+    
+    // ✅ Reset ALL current state including profile
+    setMessages([{ role: "assistant", content: greeting }]);
+    setUserProfile(null); // Reset profile for new chat
+    setCurrentData(null);
+    setDisplayedSocCodes([]);
+    setSuggestedQuestions(getInitialSuggestions(currentLanguage));
+    setDataPanelOpen(false);
+    setIsAnalyzing(false);
+    setIsUpdatingProfile(false);
+    lastUpdateRef.current = 0; // Reset profile update counter
+  };
+
+  // Switch to a different chat
+  const switchToChat = (chatId: string) => {
+    const session = chatSessions.find(s => s.id === chatId);
+    if (session) {
+      setCurrentChatId(chatId);
+      
+      // ✅ Restore ALL state including the profile specific to this chat
+      setMessages(session.messages);
+      setUserProfile(session.userProfile); // Restore this chat's profile
+      setCurrentData(session.currentData);
+      setDisplayedSocCodes(session.displayedSocCodes);
+      setDataPanelOpen(session.displayedSocCodes.length > 0);
+      
+      // Reset profile update counter based on this chat's message count
+      const userMessageCount = session.messages.filter(m => m.role === "user").length;
+      lastUpdateRef.current = PROFILE_UPDATE_INTERVALS.filter(interval => interval < userMessageCount).pop() || 0;
+      
+      // Update localStorage
+      localStorage.setItem('currentChatId', chatId);
+    }
+  };
+
+  // Delete a chat session
+  const deleteChat = (chatId: string) => {
+    const isDeletingCurrent = chatId === currentChatId;
+    
+    setChatSessions(prev => {
+      const updated = prev.filter(s => s.id !== chatId);
+      
+      // Update localStorage
+      localStorage.setItem('chatSessions', JSON.stringify(updated));
+      
+      return updated;
+    });
+    
+    // Handle switching after state update
+    if (isDeletingCurrent) {
+      // Wait for state to update, then switch or create new chat
+      setTimeout(() => {
+        setChatSessions(current => {
+          if (current.length > 0) {
+            // Switch to the most recent remaining chat
+            const mostRecent = current[0];
+            const session = current.find(s => s.id === mostRecent.id);
+            if (session) {
+              setCurrentChatId(mostRecent.id);
+              setMessages(session.messages);
+              setUserProfile(session.userProfile);
+              setCurrentData(session.currentData);
+              setDisplayedSocCodes(session.displayedSocCodes);
+              setDataPanelOpen(session.displayedSocCodes.length > 0);
+              
+              const userMessageCount = session.messages.filter(m => m.role === "user").length;
+              lastUpdateRef.current = PROFILE_UPDATE_INTERVALS.filter(interval => interval < userMessageCount).pop() || 0;
+              
+              localStorage.setItem('currentChatId', mostRecent.id);
+            }
+          } else {
+            // No chats left, create a new one
+            const greeting = getInitialGreeting(currentLanguage);
+            const newChatId = `chat-${Date.now()}`;
+            const newSession: ChatSession = {
+              id: newChatId,
+              title: "New Conversation",
+              messages: [{ role: "assistant", content: greeting }],
+              userProfile: null,
+              currentData: null,
+              displayedSocCodes: [],
+              createdAt: new Date(),
+              updatedAt: new Date(),
+            };
+            
+            setCurrentChatId(newChatId);
+            setMessages([{ role: "assistant", content: greeting }]);
+            setUserProfile(null);
+            setCurrentData(null);
+            setDisplayedSocCodes([]);
+            setSuggestedQuestions(getInitialSuggestions(currentLanguage));
+            setDataPanelOpen(false);
+            setIsAnalyzing(false);
+            setIsUpdatingProfile(false);
+            lastUpdateRef.current = 0;
+            
+            localStorage.setItem('chatSessions', JSON.stringify([newSession]));
+            localStorage.setItem('currentChatId', newChatId);
+            
+            return [newSession];
+          }
+          return current;
+        });
+      }, 0);
+    }
+  };
+
+  // ✅ NEW: Extract SOC codes from displayed careers when messages or data changes
+    const prevSocCodesRef = useRef<string[]>([]);
+    useEffect(() => {
+      console.log(
+        "\n[Parent] 🔄 Messages or currentData changed, triggering SOC extraction"
+      );
+      console.log(`[Parent]    - Total messages: ${messages.length}`);
+      console.log(`[Parent]    - CurrentData available: ${!!currentData}`);
+
+      const extractedSocCodes = extractDisplayedSocCodes(messages, currentData);
+
+      // Only update displayedSocCodes if they actually changed
+      const codesChanged =
+        extractedSocCodes.length !== prevSocCodesRef.current.length ||
+        extractedSocCodes.some((code, idx) => code !== prevSocCodesRef.current[idx]);
+
+      if (codesChanged) {
+        console.log(
+          `[Parent] 🎯 Setting displayedSocCodes to ${extractedSocCodes.length} codes`
+        );
+        setDisplayedSocCodes(extractedSocCodes);
+        prevSocCodesRef.current = extractedSocCodes;
+
+        // Auto-open DataPanel when SOC codes are available
+        if (extractedSocCodes.length > 0 && !dataPanelOpen) {
+          console.log("[Parent] 🎯 Opening DataPanel with extracted SOC codes");
+          setDataPanelOpen(true);
+          setActiveDataTab("active-posts");
+        }
+      }
+    }, [messages, currentData]);
 
   const getUserMessageCount = () => {
     return messages.filter(msg => msg.role === "user").length;
@@ -390,12 +624,14 @@ export default function UnifiedSleekChat({
       if (response.ok) {
         const data = await response.json();
         if (data.profile && data.extracted) {
-          setUserProfile({
+          const newProfile = {
             profileSummary: data.profile,
             extracted: data.extracted,
             isComplete: true,
             confidence: data.confidence,
-          });
+          };
+          
+          setUserProfile(newProfile);
 
           try {
             const suggestionsResponse = await fetch(
@@ -430,14 +666,77 @@ export default function UnifiedSleekChat({
             setSuggestedQuestions(getInitialSuggestions(currentLanguage));
           }
 
-          const profileReadyMessage = getProfileReadyMessage(currentLanguage);
-          setMessages(prev => [
-            ...prev,
-            {
-              role: "assistant",
-              content: profileReadyMessage,
-            },
-          ]);
+          // ✅ NEW: Automatically call pathway API with the last user message
+          const lastUserMessage = allMessages[allMessages.length - 1];
+          
+          setIsAnalyzing(false);
+          setIsLoading(true);
+          
+          try {
+            const pathwayResponse = await fetch("/api/pathway", {
+              method: "POST",
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify({
+                message: lastUserMessage.content,
+                conversationHistory: allMessages.map(msg => ({
+                  role: msg.role,
+                  content: msg.content,
+                })),
+                language: currentLanguage.code,
+                userProfile: {
+                  summary: data.profile,
+                  extracted: data.extracted,
+                },
+              }),
+            });
+
+            if (pathwayResponse.ok) {
+              const pathwayData = await pathwayResponse.json();
+
+              if (pathwayData.data && Object.keys(pathwayData.data).length > 0) {
+                setCurrentData(pathwayData.data);
+
+                const hasActualData =
+                  (pathwayData.data.highSchoolPrograms &&
+                    pathwayData.data.highSchoolPrograms.length > 0) ||
+                  (pathwayData.data.collegePrograms && 
+                    pathwayData.data.collegePrograms.length > 0) ||
+                  (pathwayData.data.careers && 
+                    pathwayData.data.careers.length > 0) ||
+                  (pathwayData.data.uhPrograms && 
+                    pathwayData.data.uhPrograms.length > 0) ||
+                  (pathwayData.data.doePrograms && 
+                    pathwayData.data.doePrograms.length > 0) ||
+                  (pathwayData.data.pathways && 
+                    pathwayData.data.pathways.length > 0) ||
+                  (pathwayData.data.searchResults &&
+                    ((pathwayData.data.searchResults.uhPrograms &&
+                      pathwayData.data.searchResults.uhPrograms.length > 0) ||
+                      (pathwayData.data.searchResults.doePrograms &&
+                        pathwayData.data.searchResults.doePrograms.length > 0)));
+
+                if (hasActualData && !dataPanelOpen) {
+                  setDataPanelOpen(true);
+                  setActiveDataTab("active-posts");
+                }
+              }
+
+              if (pathwayData.suggestedQuestions) {
+                setSuggestedQuestions(pathwayData.suggestedQuestions);
+              }
+
+              const assistantMessage: Message = {
+                role: "assistant",
+                content: pathwayData.message,
+                data: pathwayData.data,
+                metadata: pathwayData.metadata,
+              };
+
+              setMessages(prev => [...prev, assistantMessage]);
+            }
+          } catch (error) {
+            console.error("Error calling pathway API:", error);
+          }
         }
       } else {
         const errorData = await response.json();
@@ -451,22 +750,7 @@ export default function UnifiedSleekChat({
       console.error("Error building profile:", error);
     } finally {
       setIsAnalyzing(false);
-    }
-  };
-
-  const getProfileReadyMessage = (language: Language): string => {
-    switch (language.code) {
-      case "haw":
-        return "Maikaʻi! Ua loaʻa iaʻu ka ʻike e pili ana iā ʻoe. ʻIke ʻoe i ka papa ma ka ʻaoʻao hema. Hiki iaʻu ke hāʻawi i nā manaʻo kūpono no nā papahana hoʻonaʻauao a me nā ala ʻoihana ma Hawaiʻi. He aha kāu makemake e ʻike?";
-
-      case "hwp":
-        return "Shoots! I get plenny info about you now. You can check your profile on da left side yeah. Now I can give you da kine personalized recommendations for Hawaii education programs and career pathways. Wat you like know about?";
-
-      case "tl":
-        return "Mahusay! Nakuha ko na ang iyong profile batay sa ating pag-uusap. Makikita mo ito sa kaliwang bahagi. Handa na akong magbigay ng personalized na rekomendasyon para sa mga programang pang-edukasyon at career pathways sa Hawaii. Ano ang gusto mong malaman?";
-
-      default:
-        return "Excellent! I've built a comprehensive profile based on our conversation. You can see it in the sidebar. I'm now ready to provide personalized recommendations for Hawaii's educational programs and pathways. What would you like to explore?";
+      setIsLoading(false);
     }
   };
 
@@ -656,7 +940,6 @@ export default function UnifiedSleekChat({
         onDataPanelToggle={() => {
           const newPanelState = !dataPanelOpen;
           setDataPanelOpen(newPanelState);
-          // Ensure we have a valid tab when opening
           if (newPanelState) {
             setActiveDataTab("active-posts");
           }
@@ -664,6 +947,11 @@ export default function UnifiedSleekChat({
         dataPanelOpen={dataPanelOpen}
         hasDataToShow={hasDataToShow()}
         onProfileClick={() => setSidebarOpen(!sidebarOpen)}
+        onNewChat={createNewChat}
+        chatSessions={chatSessions}
+        currentChatId={currentChatId}
+        onSwitchChat={switchToChat}
+        onDeleteChat={deleteChat}
       />
 
       {/* Profile Sidebar - z-30, fixed at left: 0, overlays NavSidebar */}
@@ -711,6 +999,7 @@ export default function UnifiedSleekChat({
           dataPanelOpen={dataPanelOpen}
           sidebarOpen={sidebarOpen}
           navSidebarOpen={navSidebarOpen}
+          userMessageCount={getUserMessageCount()}
         />
       </div>
 

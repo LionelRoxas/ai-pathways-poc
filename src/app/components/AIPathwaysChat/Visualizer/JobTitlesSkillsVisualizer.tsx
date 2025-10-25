@@ -3,12 +3,8 @@
 // UPDATED: Uses Next.js API proxy instead of direct external API call
 import React, { useState, useEffect } from "react";
 import {
-  Briefcase,
-  TrendingUp,
-  DollarSign,
   ChevronDown,
   ChevronUp,
-  Sparkles,
 } from "lucide-react";
 
 interface Skill {
@@ -152,7 +148,6 @@ const JobTitlesSkillsVisualizer: React.FC<JobTitlesSkillsVisualizerProps> = ({
       {/* Header with Totals */}
       <div className="bg-gradient-to-r from-blue-50 to-purple-50 rounded-lg p-4 border border-blue-200">
         <h3 className="text-sm font-semibold text-gray-900 mb-3 flex items-center gap-2">
-          <Briefcase className="w-4 h-4" />
           Job Titles & Skills Analysis
         </h3>
         <div className="grid grid-cols-2 gap-3">
@@ -174,7 +169,6 @@ const JobTitlesSkillsVisualizer: React.FC<JobTitlesSkillsVisualizerProps> = ({
       {/* Job Titles List */}
       <div className="space-y-3">
         <h4 className="text-xs font-semibold text-gray-700 flex items-center gap-1">
-          <TrendingUp className="w-3 h-3" />
           Top Job Titles ({jobTitles.length})
         </h4>
 
@@ -214,7 +208,6 @@ const JobTitlesSkillsVisualizer: React.FC<JobTitlesSkillsVisualizerProps> = ({
                 {/* Salary Badge */}
                 <div className="flex items-center gap-2">
                   <div className="flex items-center gap-1 bg-green-50 px-2 py-1 rounded">
-                    <DollarSign className="w-3 h-3 text-green-700" />
                     <span className="text-xs font-semibold text-green-700">
                       {formatSalary(job.median_salary)}
                     </span>
@@ -227,7 +220,6 @@ const JobTitlesSkillsVisualizer: React.FC<JobTitlesSkillsVisualizerProps> = ({
               {isExpanded && (
                 <div className="border-t border-gray-200 bg-gray-50 p-4">
                   <div className="flex items-center gap-2 mb-3">
-                    <Sparkles className="w-3 h-3 text-purple-600" />
                     <h6 className="text-xs font-semibold text-gray-700">
                       Top Skills & Competencies
                     </h6>
@@ -252,7 +244,6 @@ const JobTitlesSkillsVisualizer: React.FC<JobTitlesSkillsVisualizerProps> = ({
                         <div className="flex items-center gap-3 text-xs text-gray-600">
                           {skill.median_salary && (
                             <span className="flex items-center gap-1">
-                              <DollarSign className="w-3 h-3" />
                               {formatSalary(skill.median_salary)}
                             </span>
                           )}

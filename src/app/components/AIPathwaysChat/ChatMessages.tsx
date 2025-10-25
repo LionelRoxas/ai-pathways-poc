@@ -10,7 +10,6 @@ import {
   GraduationCap,
   // Briefcase,
   ChevronRight,
-  BookOpen,
 } from "lucide-react";
 import { Message, UserProfile } from "./types";
 
@@ -214,151 +213,173 @@ const PathwayVisualization: React.FC<{ data: PathwayData }> = ({ data }) => {
     const { coursesByGrade, coursesByLevel } = details;
 
     return (
-      <div className="mt-2 border-t pt-2">
+      <div className="mt-3 pt-3 border-t border-slate-100">
         <button
           onClick={() => toggleProgramExpanded(programName)}
-          className="flex items-center gap-2 text-xs font-medium text-blue-600 hover:text-blue-700 transition-colors"
+          className="flex items-center gap-2 text-xs font-medium text-blue-700 hover:text-blue-900 transition-colors"
         >
           {isExpanded ? (
-            <ChevronDown className="w-3 h-3" />
+            <ChevronDown className="w-3.5 h-3.5" />
           ) : (
-            <ChevronRight className="w-3 h-3" />
+            <ChevronRight className="w-3.5 h-3.5" />
           )}
-          <BookOpen className="w-3 h-3" />
-          View Course Sequence
+          <span>View Course Sequence</span>
         </button>
 
         {isExpanded && (
-          <div className="mt-2 pl-4">
+          <div className="mt-3 space-y-4">
             {coursesByGrade && (
-              <div className="mb-3">
-                <div className="text-xs font-semibold text-gray-700 mb-2">
+              <div>
+                <div className="text-xs font-semibold text-slate-700 mb-2.5 uppercase tracking-wide">
                   Courses by Grade Level
                 </div>
-                {coursesByGrade["9TH_GRADE_COURSES"] && (
-                  <div className="mb-2">
-                    <div className="text-xs font-medium text-blue-600">
-                      9th Grade
+                <div className="space-y-3">
+                  {coursesByGrade["9TH_GRADE_COURSES"] && (
+                    <div className="bg-blue-50 border border-blue-100 rounded-lg p-3">
+                      <div className="text-xs font-semibold text-blue-900 mb-2">
+                        9th Grade
+                      </div>
+                      <div className="space-y-1">
+                        {coursesByGrade["9TH_GRADE_COURSES"].map((course, idx) => (
+                          <div key={idx} className="text-xs text-slate-700 flex items-start gap-2">
+                            <span className="text-blue-400 mt-0.5">•</span>
+                            <span>{course}</span>
+                          </div>
+                        ))}
+                      </div>
                     </div>
-                    <ul className="text-xs text-gray-600 ml-4 mt-1 space-y-0.5">
-                      {coursesByGrade["9TH_GRADE_COURSES"].map(
-                        (course, idx) => (
-                          <li key={idx}>• {course}</li>
-                        )
-                      )}
-                    </ul>
-                  </div>
-                )}
-                {coursesByGrade["10TH_GRADE_COURSES"] && (
-                  <div className="mb-2">
-                    <div className="text-xs font-medium text-blue-600">
-                      10th Grade
+                  )}
+                  {coursesByGrade["10TH_GRADE_COURSES"] && (
+                    <div className="bg-blue-50 border border-blue-100 rounded-lg p-3">
+                      <div className="text-xs font-semibold text-blue-900 mb-2">
+                        10th Grade
+                      </div>
+                      <div className="space-y-1">
+                        {coursesByGrade["10TH_GRADE_COURSES"].map((course, idx) => (
+                          <div key={idx} className="text-xs text-slate-700 flex items-start gap-2">
+                            <span className="text-blue-400 mt-0.5">•</span>
+                            <span>{course}</span>
+                          </div>
+                        ))}
+                      </div>
                     </div>
-                    <ul className="text-xs text-gray-600 ml-4 mt-1 space-y-0.5">
-                      {coursesByGrade["10TH_GRADE_COURSES"].map(
-                        (course, idx) => (
-                          <li key={idx}>• {course}</li>
-                        )
-                      )}
-                    </ul>
-                  </div>
-                )}
-                {coursesByGrade["11TH_GRADE_COURSES"] && (
-                  <div className="mb-2">
-                    <div className="text-xs font-medium text-blue-600">
-                      11th Grade
+                  )}
+                  {coursesByGrade["11TH_GRADE_COURSES"] && (
+                    <div className="bg-blue-50 border border-blue-100 rounded-lg p-3">
+                      <div className="text-xs font-semibold text-blue-900 mb-2">
+                        11th Grade
+                      </div>
+                      <div className="space-y-1">
+                        {coursesByGrade["11TH_GRADE_COURSES"].map((course, idx) => (
+                          <div key={idx} className="text-xs text-slate-700 flex items-start gap-2">
+                            <span className="text-blue-400 mt-0.5">•</span>
+                            <span>{course}</span>
+                          </div>
+                        ))}
+                      </div>
                     </div>
-                    <ul className="text-xs text-gray-600 ml-4 mt-1 space-y-0.5">
-                      {coursesByGrade["11TH_GRADE_COURSES"].map(
-                        (course, idx) => (
-                          <li key={idx}>• {course}</li>
-                        )
-                      )}
-                    </ul>
-                  </div>
-                )}
-                {coursesByGrade["12TH_GRADE_COURSES"] && (
-                  <div className="mb-2">
-                    <div className="text-xs font-medium text-blue-600">
-                      12th Grade
+                  )}
+                  {coursesByGrade["12TH_GRADE_COURSES"] && (
+                    <div className="bg-blue-50 border border-blue-100 rounded-lg p-3">
+                      <div className="text-xs font-semibold text-blue-900 mb-2">
+                        12th Grade
+                      </div>
+                      <div className="space-y-1">
+                        {coursesByGrade["12TH_GRADE_COURSES"].map((course, idx) => (
+                          <div key={idx} className="text-xs text-slate-700 flex items-start gap-2">
+                            <span className="text-blue-400 mt-0.5">•</span>
+                            <span>{course}</span>
+                          </div>
+                        ))}
+                      </div>
                     </div>
-                    <ul className="text-xs text-gray-600 ml-4 mt-1 space-y-0.5">
-                      {coursesByGrade["12TH_GRADE_COURSES"].map(
-                        (course, idx) => (
-                          <li key={idx}>• {course}</li>
-                        )
-                      )}
-                    </ul>
-                  </div>
-                )}
+                  )}
+                </div>
               </div>
             )}
 
             {coursesByLevel && (
               <div>
-                <div className="text-xs font-semibold text-gray-700 mb-2">
+                <div className="text-xs font-semibold text-slate-700 mb-2.5 uppercase tracking-wide">
                   Program of Study Levels
                 </div>
-                {coursesByLevel.LEVEL_1_POS_COURSES && (
-                  <div className="mb-2">
-                    <div className="text-xs font-medium text-purple-600">
-                      Level 1 (Introductory)
+                <div className="space-y-3">
+                  {coursesByLevel.LEVEL_1_POS_COURSES && (
+                    <div className="bg-purple-50 border border-purple-100 rounded-lg p-3">
+                      <div className="text-xs font-semibold text-purple-900 mb-2">
+                        Level 1 - Introductory
+                      </div>
+                      <div className="space-y-1">
+                        {coursesByLevel.LEVEL_1_POS_COURSES.map((course, idx) => (
+                          <div key={idx} className="text-xs text-slate-700 flex items-start gap-2">
+                            <span className="text-purple-400 mt-0.5">•</span>
+                            <span>{course}</span>
+                          </div>
+                        ))}
+                      </div>
                     </div>
-                    <ul className="text-xs text-gray-600 ml-4 mt-1 space-y-0.5">
-                      {coursesByLevel.LEVEL_1_POS_COURSES.map((course, idx) => (
-                        <li key={idx}>• {course}</li>
-                      ))}
-                    </ul>
-                  </div>
-                )}
-                {coursesByLevel.LEVEL_2_POS_COURSES && (
-                  <div className="mb-2">
-                    <div className="text-xs font-medium text-purple-600">
-                      Level 2 (Concentrator)
+                  )}
+                  {coursesByLevel.LEVEL_2_POS_COURSES && (
+                    <div className="bg-purple-50 border border-purple-100 rounded-lg p-3">
+                      <div className="text-xs font-semibold text-purple-900 mb-2">
+                        Level 2 - Concentrator
+                      </div>
+                      <div className="space-y-1">
+                        {coursesByLevel.LEVEL_2_POS_COURSES.map((course, idx) => (
+                          <div key={idx} className="text-xs text-slate-700 flex items-start gap-2">
+                            <span className="text-purple-400 mt-0.5">•</span>
+                            <span>{course}</span>
+                          </div>
+                        ))}
+                      </div>
                     </div>
-                    <ul className="text-xs text-gray-600 ml-4 mt-1 space-y-0.5">
-                      {coursesByLevel.LEVEL_2_POS_COURSES.map((course, idx) => (
-                        <li key={idx}>• {course}</li>
-                      ))}
-                    </ul>
-                  </div>
-                )}
-                {coursesByLevel.LEVEL_3_POS_COURSES && (
-                  <div className="mb-2">
-                    <div className="text-xs font-medium text-purple-600">
-                      Level 3 (Advanced)
+                  )}
+                  {coursesByLevel.LEVEL_3_POS_COURSES && (
+                    <div className="bg-purple-50 border border-purple-100 rounded-lg p-3">
+                      <div className="text-xs font-semibold text-purple-900 mb-2">
+                        Level 3 - Advanced
+                      </div>
+                      <div className="space-y-1">
+                        {coursesByLevel.LEVEL_3_POS_COURSES.map((course, idx) => (
+                          <div key={idx} className="text-xs text-slate-700 flex items-start gap-2">
+                            <span className="text-purple-400 mt-0.5">•</span>
+                            <span>{course}</span>
+                          </div>
+                        ))}
+                      </div>
                     </div>
-                    <ul className="text-xs text-gray-600 ml-4 mt-1 space-y-0.5">
-                      {coursesByLevel.LEVEL_3_POS_COURSES.map((course, idx) => (
-                        <li key={idx}>• {course}</li>
-                      ))}
-                    </ul>
-                  </div>
-                )}
-                {coursesByLevel.LEVEL_4_POS_COURSES && (
-                  <div className="mb-2">
-                    <div className="text-xs font-medium text-purple-600">
-                      Level 4 (Capstone)
+                  )}
+                  {coursesByLevel.LEVEL_4_POS_COURSES && (
+                    <div className="bg-purple-50 border border-purple-100 rounded-lg p-3">
+                      <div className="text-xs font-semibold text-purple-900 mb-2">
+                        Level 4 - Capstone
+                      </div>
+                      <div className="space-y-1">
+                        {coursesByLevel.LEVEL_4_POS_COURSES.map((course, idx) => (
+                          <div key={idx} className="text-xs text-slate-700 flex items-start gap-2">
+                            <span className="text-purple-400 mt-0.5">•</span>
+                            <span>{course}</span>
+                          </div>
+                        ))}
+                      </div>
                     </div>
-                    <ul className="text-xs text-gray-600 ml-4 mt-1 space-y-0.5">
-                      {coursesByLevel.LEVEL_4_POS_COURSES.map((course, idx) => (
-                        <li key={idx}>• {course}</li>
-                      ))}
-                    </ul>
-                  </div>
-                )}
-                {coursesByLevel.RECOMMENDED_COURSES && (
-                  <div className="mb-2">
-                    <div className="text-xs font-medium text-green-600">
-                      Recommended Courses
+                  )}
+                  {coursesByLevel.RECOMMENDED_COURSES && (
+                    <div className="bg-green-50 border border-green-100 rounded-lg p-3">
+                      <div className="text-xs font-semibold text-green-900 mb-2">
+                        Recommended Courses
+                      </div>
+                      <div className="space-y-1">
+                        {coursesByLevel.RECOMMENDED_COURSES.map((course, idx) => (
+                          <div key={idx} className="text-xs text-slate-700 flex items-start gap-2">
+                            <span className="text-green-400 mt-0.5">•</span>
+                            <span>{course}</span>
+                          </div>
+                        ))}
+                      </div>
                     </div>
-                    <ul className="text-xs text-gray-600 ml-4 mt-1 space-y-0.5">
-                      {coursesByLevel.RECOMMENDED_COURSES.map((course, idx) => (
-                        <li key={idx}>• {course}</li>
-                      ))}
-                    </ul>
-                  </div>
-                )}
+                  )}
+                </div>
               </div>
             )}
           </div>
@@ -370,23 +391,42 @@ const PathwayVisualization: React.FC<{ data: PathwayData }> = ({ data }) => {
   return (
     <div className="mt-4 space-y-3">
       {data.highSchoolPrograms && data.highSchoolPrograms.length > 0 && (
-        <details className="bg-gray-50 rounded-lg p-3">
-          <summary className="cursor-pointer font-medium flex items-center gap-2 text-sm">
-            <School className="w-4 h-4 text-blue-600" />
-            <span className="text-gray-900">
-              High School Programs ({data.highSchoolPrograms.length})
-            </span>
+        <details className="group bg-gradient-to-br from-slate-50 to-slate-100 rounded-xl border border-slate-200 overflow-hidden transition-all hover:shadow-md">
+          <summary className="cursor-pointer px-4 py-3 flex items-center justify-between text-sm font-medium text-slate-900 hover:bg-white/50 transition-colors">
+            <div className="flex items-center gap-2.5">
+              <div className="w-8 h-8 rounded-lg bg-blue-100 flex items-center justify-center">
+                <School className="w-4 h-4 text-blue-700" />
+              </div>
+              <div>
+                <div className="font-semibold text-slate-900">High School Programs</div>
+                <div className="text-xs text-slate-500">{data.highSchoolPrograms.length} programs available</div>
+              </div>
+            </div>
+            <ChevronRight className="w-4 h-4 text-slate-400 group-open:rotate-90 transition-transform" />
           </summary>
-          <div className="mt-3 space-y-2">
+          <div className="px-4 pb-4 pt-2 space-y-2.5 bg-white">
             {data.highSchoolPrograms.map((prog, idx) => (
               <div
                 key={idx}
-                className="bg-white rounded-lg p-3 text-sm shadow-sm border border-gray-200"
+                className="bg-white rounded-lg p-4 border border-slate-200 hover:border-blue-300 hover:shadow-sm transition-all"
               >
-                <div className="font-semibold text-gray-900">{prog.name}</div>
-                <div className="text-gray-600 text-xs mt-1">
-                  {prog.schoolCount} school{prog.schoolCount !== 1 ? "s" : ""}:{" "}
-                  {prog.schools.join(", ")}
+                <div className="font-semibold text-slate-900 mb-2">{prog.name}</div>
+                <div className="mb-2">
+                  <span className="inline-flex items-center gap-2 text-xs text-slate-600 mb-2">
+                    <span className="px-2 py-1 bg-slate-100 rounded-md font-medium">
+                      {prog.schoolCount} school{prog.schoolCount !== 1 ? "s" : ""}
+                    </span>
+                  </span>
+                  <div className="mt-2 flex flex-wrap gap-1.5">
+                    {prog.schools.map((school, sIdx) => (
+                      <span
+                        key={sIdx}
+                        className="inline-flex items-center px-2.5 py-1 bg-blue-50 text-blue-700 text-xs rounded-md border border-blue-100"
+                      >
+                        {school}
+                      </span>
+                    ))}
+                  </div>
                 </div>
                 {formatProgramDetails(prog.name, prog.details)}
               </div>
@@ -396,53 +436,70 @@ const PathwayVisualization: React.FC<{ data: PathwayData }> = ({ data }) => {
       )}
 
       {data.collegePrograms && data.collegePrograms.length > 0 && (
-        <details className="bg-gray-50 rounded-lg p-3">
-          <summary className="cursor-pointer font-medium flex items-center gap-2 text-sm">
-            <GraduationCap className="w-4 h-4 text-purple-600" />
-            <span className="text-gray-900">
-              College Programs ({data.collegePrograms.length})
-            </span>
+        <details className="group bg-gradient-to-br from-purple-50 to-purple-100 rounded-xl border border-purple-200 overflow-hidden transition-all hover:shadow-md">
+          <summary className="cursor-pointer px-4 py-3 flex items-center justify-between text-sm font-medium text-slate-900 hover:bg-white/50 transition-colors">
+            <div className="flex items-center gap-2.5">
+              <div className="w-8 h-8 rounded-lg bg-purple-100 flex items-center justify-center">
+                <GraduationCap className="w-4 h-4 text-purple-700" />
+              </div>
+              <div>
+                <div className="font-semibold text-slate-900">College Programs</div>
+                <div className="text-xs text-slate-500">{data.collegePrograms.length} programs available</div>
+              </div>
+            </div>
+            <ChevronRight className="w-4 h-4 text-slate-400 group-open:rotate-90 transition-transform" />
           </summary>
-          <div className="mt-3 space-y-2">
+          <div className="px-4 pb-4 pt-2 space-y-2.5 bg-white">
             {data.collegePrograms.map((prog, idx) => (
               <div
                 key={idx}
-                className="bg-white rounded-lg p-3 text-sm shadow-sm border border-gray-200"
+                className="bg-white rounded-lg p-4 border border-slate-200 hover:border-purple-300 hover:shadow-sm transition-all"
               >
-                <div className="font-semibold text-gray-900">{prog.name}</div>
-                <div className="text-gray-600 text-xs mt-1">
-                  {prog.campusCount} campus
-                  {prog.campusCount !== 1 ? "es" : ""}:{" "}
-                  {prog.campuses.join(", ")}
+                <div className="font-semibold text-slate-900 mb-2">{prog.name}</div>
+                <div className="mb-2">
+                  <span className="inline-flex items-center gap-2 text-xs text-slate-600 mb-2">
+                    <span className="px-2 py-1 bg-slate-100 rounded-md font-medium">
+                      {prog.campusCount} campus{prog.campusCount !== 1 ? "es" : ""}
+                    </span>
+                  </span>
+                  <div className="mt-2 flex flex-wrap gap-1.5">
+                    {prog.campuses.map((campus, cIdx) => (
+                      <span
+                        key={cIdx}
+                        className="inline-flex items-center px-2.5 py-1 bg-purple-50 text-purple-700 text-xs rounded-md border border-purple-100"
+                      >
+                        {campus}
+                      </span>
+                    ))}
+                  </div>
                 </div>
 
                 {prog.variants && prog.variants.length > 0 && (
-                  <div className="mt-2">
+                  <div className="mt-3 pt-3 border-t border-slate-100">
                     <button
                       onClick={() => toggleCollegeVariants(prog.name)}
-                      className="flex items-center gap-2 text-xs font-medium text-purple-600 hover:text-purple-700 transition-colors"
+                      className="flex items-center gap-2 text-xs font-medium text-purple-700 hover:text-purple-900 transition-colors"
                     >
                       {expandedCollegeVariants.has(prog.name) ? (
-                        <ChevronDown className="w-3 h-3" />
+                        <ChevronDown className="w-3.5 h-3.5" />
                       ) : (
-                        <ChevronRight className="w-3 h-3" />
+                        <ChevronRight className="w-3.5 h-3.5" />
                       )}
-                      <GraduationCap className="w-3 h-3" />
-                      View {prog.variantCount || prog.variants.length}{" "}
-                      Specialization
-                      {(prog.variantCount || prog.variants.length) !== 1
-                        ? "s"
-                        : ""}
+                      <span>
+                        {prog.variantCount || prog.variants.length}{" "}
+                        Specialization{(prog.variantCount || prog.variants.length) !== 1 ? "s" : ""}
+                      </span>
                     </button>
 
                     {expandedCollegeVariants.has(prog.name) && (
-                      <div className="mt-2 pl-4 space-y-1">
+                      <div className="mt-2 space-y-1.5">
                         {prog.variants.map((variant, vIdx) => (
                           <div
                             key={vIdx}
-                            className="text-xs text-gray-700 bg-purple-50 rounded px-2 py-1"
+                            className="text-xs text-slate-700 bg-purple-50 border border-purple-100 rounded-md px-3 py-2 flex items-start gap-2"
                           >
-                            • {variant}
+                            <span className="text-purple-400 mt-0.5">•</span>
+                            <span className="flex-1">{variant}</span>
                           </div>
                         ))}
                       </div>
@@ -456,24 +513,24 @@ const PathwayVisualization: React.FC<{ data: PathwayData }> = ({ data }) => {
       )}
 
       {/* {data.careers && data.careers.length > 0 && (
-        <details className="bg-gray-50 rounded-lg p-3">
-          <summary className="cursor-pointer font-medium flex items-center gap-2 text-sm">
-            <Briefcase className="w-4 h-4 text-green-600" />
-            <span className="text-gray-900">
-              Career Paths ({data.careers.length})
-            </span>
-          </summary>
-          <div className="mt-3 space-y-1">
-            {data.careers.map((career, idx) => (
-              <div
-                key={idx}
-                className="bg-white rounded px-3 py-2 text-sm border border-gray-200"
-              >
-                {career.title}
-              </div>
-            ))}
+      <details className="bg-gray-50 rounded-lg p-3">
+        <summary className="cursor-pointer font-medium flex items-center gap-2 text-sm">
+        <Briefcase className="w-4 h-4 text-green-600" />
+        <span className="text-gray-900">
+          Career Paths ({Array.from(new Set(data.careers.map(c => c.title))).length})
+        </span>
+        </summary>
+        <div className="mt-3 space-y-1">
+        {Array.from(new Set(data.careers.map(c => c.title))).map((title, idx) => (
+          <div
+          key={idx}
+          className="bg-white rounded px-3 py-2 text-sm border border-gray-200"
+          >
+          {title}
           </div>
-        </details>
+        ))}
+        </div>
+      </details>
       )} */}
     </div>
   );
@@ -493,6 +550,9 @@ export default function ChatMessages({
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const [showSuggestions, setShowSuggestions] = useState(false);
   const [loadingSeconds, setLoadingSeconds] = useState(0);
+  
+  // Check if this is the initial state (no user messages yet)
+  const isInitialState = messages.filter(m => m.role === "user").length === 0;
 
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
@@ -521,6 +581,75 @@ export default function ChatMessages({
     return navSidebarOpen ? 256 : 56; // NavSidebar width
   };
 
+  // If initial state, render centered Claude-like layout
+  if (isInitialState) {
+    return (
+      <div
+        className="flex-1 flex flex-col items-center justify-center transition-all duration-300 bg-white"
+        style={{
+          fontFamily:
+            '"SF Pro Display", "Inter", -apple-system, BlinkMacSystemFont, sans-serif',
+          marginLeft: `${getLeftOffset()}px`,
+          marginRight: dataPanelOpen ? "384px" : "0",
+          paddingBottom: "180px", // Account for input height
+        }}
+      >
+        <div className="max-w-3xl w-full px-6">
+          {/* Welcome Message */}
+          {messages.length > 0 && messages[0].role === "assistant" && (
+            <div className="text-center mb-8 space-y-4 animate-in fade-in duration-700">
+              <div className="inline-block p-4 bg-slate-50 rounded-2xl mb-3">
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img
+                  src="/images/uhcc-logo-3.png"
+                  alt="UHCC Logo"
+                  className="w-16 h-16 object-contain mx-auto"
+                />
+              </div>
+              <h1 className="text-3xl font-bold text-slate-900 mb-2">
+                Kamaʻāina Pathways
+              </h1>
+              <div className="text-base text-slate-600 leading-relaxed max-w-2xl mx-auto">
+                <MarkdownRenderer
+                  content={messages[0].content}
+                  className="text-slate-600"
+                />
+              </div>
+            </div>
+          )}
+
+          {/* Suggested Questions */}
+          {suggestedQuestions.length > 0 && !isLoading && (
+            <div className="space-y-3 animate-in slide-in-from-bottom-4 duration-500">
+              <div className="text-center mb-3">
+                <span className="text-sm font-semibold text-slate-500 uppercase tracking-wider">
+                  Quick Start
+                </span>
+              </div>
+              <div className="grid grid-cols-2 gap-3">
+                {suggestedQuestions.map((question, idx) => (
+                  <button
+                    key={idx}
+                    onClick={() => handleSuggestedQuestionClick(question)}
+                    className="group bg-white border-2 border-slate-200 hover:border-black hover:bg-slate-50 text-slate-700 hover:text-black px-5 py-4 rounded-xl transition-all duration-200 text-left"
+                  >
+                    <div className="flex items-center justify-between gap-3">
+                      <span className="text-sm font-medium line-clamp-2">
+                        {question}
+                      </span>
+                      <ArrowRight className="w-4 h-4 opacity-40 group-hover:opacity-100 group-hover:translate-x-1 transition-all flex-shrink-0" />
+                    </div>
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
+        </div>
+      </div>
+    );
+  }
+
+  // Normal chat layout after first user message
   return (
     <div
       className="flex-1 overflow-y-auto pb-36 transition-all duration-300 bg-white"
@@ -637,7 +766,7 @@ export default function ChatMessages({
           </div>
         )}
 
-        {suggestedQuestions.length > 0 && !isLoading && (
+        {suggestedQuestions.length > 0 && !isLoading && messages.filter(m => m.role === "user").length < 3 && (
           <div className="flex justify-center py-6">
             <div className="max-w-2xl w-full">
               <button

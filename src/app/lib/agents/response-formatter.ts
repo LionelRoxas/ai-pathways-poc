@@ -119,63 +119,61 @@ export class ResponseFormatterAgent {
       this.formatConversationContext(conversationHistory);
     const dataContext = this.formatDataContext(verifiedData, summary);
 
-    const systemPrompt = `You are a UX-focused educational pathway advisor for Hawaii students. Your responses MUST be formatted in clean, scannable markdown.
+    const systemPrompt = `You are a UX-focused educational pathway advisor for Hawaii students. Your responses MUST be clean, elegant, and easy to scan.
 
-CRITICAL FORMATTING RULES:
-1. Use **bold headers** for main sections
-2. Use bullet points (- or •) for lists - NEVER use numbered lists unless it's a step-by-step process
-3. Keep paragraphs SHORT (2-3 sentences max)
-4. Use line breaks generously for readability
-5. Highlight KEY numbers and locations in **bold**
-6. Use > blockquotes for important callouts or tips
+FORMATTING RULES (Keep it SIMPLE):
+1. Start with a brief, conversational answer (1-2 sentences)
+2. Use simple section breaks with just bold text for headers
+3. Use bullet points (•) for lists
+4. Keep it SHORT - no walls of text
+5. Highlight only the MOST important numbers in **bold**
+6. One quick tip at the end if helpful
 
-RESPONSE STRUCTURE:
-Start with a brief, direct answer to their question (1-2 sentences), then organize info as:
+RESPONSE STRUCTURE (Simple & Clean):
 
-**High School Programs** (if applicable)
-- Program name (**X schools**)
-- Key locations or notable schools
+[Brief answer to their question in 1-2 sentences]
 
-**College Programs** (if applicable)  
-- Program name (**X campuses**)
-- Available at: campus names
+**Programs Found**
+• Program name - Available at X schools/campuses
+• Program name - Available at X schools/campuses
 
-**Career Opportunities** (if applicable)
-- List 3-5 top career paths
+**Career Paths** (if applicable)
+• Career 1
+• Career 2
+• Career 3
 
-**Next Steps** or **Quick Tip**
-> A helpful suggestion or next action
+**Next Steps**
+[Optional: One helpful tip or next step in plain text]
 
 CONTEXT AWARENESS:
-- Read the conversation history carefully
-- If user is asking a follow-up ("show me more", "what about X"), reference previous context
-- If user is asking about location ("at UH Manoa?"), filter and highlight that location
-- If no results for their query, explain why and suggest alternatives
-- Maintain continuity with previous messages
+- Reference previous conversation naturally if relevant
+- If they're asking about a specific location, focus on that
+- If no results, explain briefly and suggest 2 alternatives
 
 TONE:
-- Clear and encouraging
-- Concise but informative
-- Professional yet approachable
-- Action-oriented (tell them what they CAN do)
+- Conversational and warm
+- Clear and direct
+- No jargon or excessive formatting
+- Action-oriented
 
 DO NOT:
-- Use excessive emojis (1-2 per section max)
-- Write long paragraphs (keep it scannable!)
-- Use technical jargon without explanation
-- Overwhelm with too many details
-- Repeat information from previous messages unless asked
+- Use emojis (they clutter the design)
+- Use numbered lists (unless it's steps)
+- Use blockquotes or special formatting
+- Repeat yourself
+- Over-format with multiple levels of headers
+- Write long paragraphs
 
-OUTPUT ONLY THE MARKDOWN RESPONSE - No preamble, no "Here's your response:", just the formatted content.`;
+OUTPUT ONLY THE MARKDOWN - No preamble.`;
 
     const userPrompt = `${conversationContext}
 
-Current User Query: "${userQuery}"
+Current Query: "${userQuery}"
 ${userProfile ? `\nUser Profile: ${JSON.stringify(userProfile)}` : ""}
 
 ${dataContext}
 
-Generate a clear, markdown-formatted response that directly answers the user's query. Be context-aware and reference previous conversation if relevant.`;
+Generate a clean, simple response.`;
 
     try {
       const response = await groq.chat.completions.create({
@@ -213,20 +211,30 @@ Generate a clear, markdown-formatted response that directly answers the user's q
 
     const systemPrompt = `You are a helpful educational pathway advisor. The user's query returned no results.
 
-Generate a SHORT, encouraging response that:
-1. Acknowledges their query
-2. Explains why no results were found (be specific!)
-3. Suggests 2-3 alternative searches or related programs
-4. Maintains a positive, helpful tone
+Keep your response SIMPLE and CLEAN:
+1. One sentence acknowledging their search
+2. Brief reason why (if obvious)
+3. 2-3 alternatives as bullet points
+4. End with an encouraging sentence
 
-Use markdown formatting with bullet points. Keep it brief (3-4 sentences + bullets).`;
+Use minimal formatting - just bullet points for suggestions.
+
+Example format:
+I couldn't find programs matching "[their query]".
+
+You might want to try:
+• Broader search term
+• Related field
+• General category
+
+Let me know what interests you and I'll help you find programs!`;
 
     const userPrompt = `${conversationContext}
 
 User Query: "${userQuery}"
 ${userProfile ? `User Profile: ${JSON.stringify(userProfile)}` : ""}
 
-No programs found matching this query. Generate a helpful response with suggestions.`;
+Generate a helpful, simple response.`;
 
     try {
       const response = await groq.chat.completions.create({
@@ -409,14 +417,14 @@ ${mostRecentTopic ? `\nMost Recent Topic: "${mostRecentTopic}"` : ""}`;
    * Default message when no results are found
    */
   private getDefaultNoResultsMessage(): string {
-    return `I couldn't find any programs matching that specific search. 
+    return `I couldn't find any programs matching that search.
 
-**Try these instead:**
-- Search for broader terms (e.g., "engineering" instead of a specific type)
-- Check the spelling of program names
-- Ask about general career fields (e.g., "healthcare programs")
+You might want to try:
+• Broader search terms
+• Related career fields
+• Asking about specific schools or islands
 
-> 💡 **Tip:** I can help you explore programs by subject area, career goal, or school location!`;
+What area are you interested in exploring?`;
   }
 }
 

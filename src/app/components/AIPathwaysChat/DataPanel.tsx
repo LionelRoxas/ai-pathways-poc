@@ -4,18 +4,15 @@
 // CLEANED UP VERSION - Only 4 SOC Visualizers, SOC codes passed as prop
 import React from "react";
 import {
-  Briefcase,
+  // Briefcase,
   X,
-  Building2,
-  Sparkles,
-  Target,
 } from "lucide-react";
 
 // Import all 4 SOC Visualizers
-import JobTitlesSkillsVisualizer from "./JobTitlesSkillsVisualizer";
-import JobTitlesCompaniesVisualizer from "./JobTitlesCompaniesVisualizer";
-import CompaniesSkillsVisualizer from "./CompaniesSkillsVisualizer";
-import ActivePostsVisualizer from "./ActivePostsVisualizer";
+import JobTitlesSkillsVisualizer from "./Visualizer/JobTitlesSkillsVisualizer";
+import JobTitlesCompaniesVisualizer from "./Visualizer/JobTitlesCompaniesVisualizer";
+import CompaniesSkillsVisualizer from "./Visualizer/CompaniesSkillsVisualizer";
+// import ActivePostsVisualizer from "./Visualizer/ActivePostsVisualizer";
 
 interface DataPanelProps {
   dataPanelOpen: boolean;
@@ -28,7 +25,6 @@ interface DataPanelProps {
 interface Tab {
   id: string;
   label: string;
-  icon: any;
 }
 
 export default function DataPanel({
@@ -44,15 +40,27 @@ export default function DataPanel({
   );
   console.log(`[DataPanel] 🎯 Active tab:`, activeDataTab);
 
-  // 🎯 Ensure we always have a valid tab selected
+  // 🎯 Only trigger tab validation if socCodes actually change
+  const prevSocCodesRef = React.useRef<string[]>([]);
   React.useEffect(() => {
-    if (socCodes.length > 0) {
-      const validTabs = ["active-posts", "companies", "skills", "company-skills"];
+    const codesChanged =
+      socCodes.length !== prevSocCodesRef.current.length ||
+      socCodes.some((code, idx) => code !== prevSocCodesRef.current[idx]);
+    if (socCodes.length > 0 && codesChanged) {
+      const validTabs = ["companies", "skills", "company-skills"];
       if (!validTabs.includes(activeDataTab)) {
-        setActiveDataTab("active-posts"); // Set default if current tab is invalid
+        setActiveDataTab("companies"); // Set default if current tab is invalid
       }
+      prevSocCodesRef.current = socCodes;
     }
   }, [socCodes, activeDataTab, setActiveDataTab]);
+
+  // 🎯 Always set "companies" tab when panel opens
+  React.useEffect(() => {
+    if (dataPanelOpen && socCodes.length > 0) {
+      setActiveDataTab("companies");
+    }
+  }, [dataPanelOpen]);
 
   // Don't render if panel is closed or no SOC codes
   if (!dataPanelOpen || socCodes.length === 0) return null;
@@ -60,24 +68,16 @@ export default function DataPanel({
   // Only 4 tabs - all SOC-based visualizers
   const tabs: Tab[] = [
     {
-      id: "active-posts",
-      label: "Jobs",
-      icon: Briefcase,
-    },
-    {
       id: "companies",
       label: "Companies",
-      icon: Building2,
     },
     {
       id: "skills",
       label: "Skills",
-      icon: Sparkles,
     },
     {
       id: "company-skills",
       label: "Demand",
-      icon: Target,
     },
   ];
 
@@ -86,108 +86,72 @@ export default function DataPanel({
       <div className="h-full flex flex-col">
         {/* Header */}
         <div className="p-3 border-b border-gray-200">
-          <div className="flex items-center justify-between mb-4">
-            <div className="flex items-center gap-2">
-              <h3 className="font-semibold text-gray-900 text-sm tracking-tight">
-                Career Market Data
-              </h3>
-              <span className="text-xs text-gray-500 bg-gray-100 px-2 py-0.5 rounded">
-                {socCodes.length} SOC {socCodes.length === 1 ? "code" : "codes"}
-              </span>
+          <div className="flex items-center justify-between mb-0">
+            {/* Tabs and X in same row */}
+            <div className="flex items-center gap-2 flex-1">
+              <div
+                className="flex items-center gap-1.5 overflow-x-auto pb-1 bg-gray-50 border border-gray-200 rounded-xl p-1 shadow-sm"
+                role="tablist"
+                aria-label="Market data views"
+              >
+                {tabs.map(tab => (
+                  <button
+                    key={tab.id}
+                    id={`tab-${tab.id}`}
+                    onClick={() => setActiveDataTab(tab.id)}
+                    role="tab"
+                    aria-selected={activeDataTab === tab.id}
+                    aria-controls={`panel-${tab.id}`}
+                    tabIndex={activeDataTab === tab.id ? 0 : -1}
+                    className={`
+                      px-3.5 py-1.5 rounded-lg text-xs font-medium tracking-wide transition-all duration-200 relative whitespace-nowrap
+                      focus:outline-none focus-visible:ring-2 focus-visible:ring-black focus-visible:ring-offset-2 focus-visible:ring-offset-white
+                      ${
+                        activeDataTab === tab.id
+                          ? "bg-white text-gray-900 shadow-sm"
+                          : "text-gray-600 hover:text-gray-900 hover:bg-white"
+                      }
+                    `}
+                  >
+                    {tab.label}
+                    {activeDataTab === tab.id && (
+                      <span className="pointer-events-none absolute left-2 right-2 -bottom-2 h-0.5 rounded bg-black" />
+                    )}
+                  </button>
+                ))}
+              </div>
             </div>
             <button
               onClick={() => setDataPanelOpen(false)}
-              className="p-1 hover:bg-gray-100 rounded transition-colors"
+              className="p-1 hover:bg-gray-100 rounded transition-colors ml-2"
               aria-label="Close panel"
             >
               <X className="w-4 h-4 text-gray-600" />
             </button>
           </div>
-
-          {/* Tabs - Only 4 visualizers */}
-          <div className="flex gap-1 overflow-x-auto pb-1">
-            {tabs.map(tab => (
-              <button
-                key={tab.id}
-                onClick={() => setActiveDataTab(tab.id)}
-                className={`
-                  px-3 py-1.5 rounded-lg text-xs font-medium transition-all whitespace-nowrap flex items-center gap-1.5
-                  ${
-                    activeDataTab === tab.id
-                      ? "bg-black text-white"
-                      : "bg-gray-100 text-gray-700 hover:bg-gray-200"
-                  }
-                `}
-              >
-                <tab.icon className="w-3.5 h-3.5" />
-                {tab.label}
-              </button>
-            ))}
-          </div>
         </div>
 
-        {/* Content - Only visualizers */}
+        {/* Content - All visualizers always mounted, only visible if active tab */}
         <div className="flex-1 overflow-y-auto p-3">
-          {/* Active Job Postings */}
-          {activeDataTab === "active-posts" && (
-            <div className="space-y-3">
-              <div className="bg-blue-50 rounded-lg p-3 border border-blue-100">
-                <h4 className="text-sm font-semibold text-blue-900 mb-1">
-                  Active Job Postings
-                </h4>
-                <p className="text-xs text-blue-700">
-                  Real-time job market data for {socCodes.length} occupation
-                  {socCodes.length > 1 ? "s" : ""}
-                </p>
-              </div>
-              <ActivePostsVisualizer socCodes={socCodes} />
-            </div>
-          )}
-
-          {/* Companies Hiring */}
-          {activeDataTab === "companies" && (
-            <div className="space-y-3">
-              <div className="bg-green-50 rounded-lg p-3 border border-green-100">
-                <h4 className="text-sm font-semibold text-green-900 mb-1">
-                  Top Hiring Companies
-                </h4>
-                <p className="text-xs text-green-700">
-                  Companies actively hiring for these roles
-                </p>
-              </div>
-              <JobTitlesCompaniesVisualizer socCodes={socCodes} />
-            </div>
-          )}
-
-          {/* Skills Analysis */}
-          {activeDataTab === "skills" && (
-            <div className="space-y-3">
-              <div className="bg-purple-50 rounded-lg p-3 border border-purple-100">
-                <h4 className="text-sm font-semibold text-purple-900 mb-1">
-                  In-Demand Skills
-                </h4>
-                <p className="text-xs text-purple-700">
-                  Most requested skills for these careers
-                </p>
-              </div>
-              <JobTitlesSkillsVisualizer socCodes={socCodes} />
-            </div>
-          )}
-
-          {/* Skills Demand by Company */}
-          {activeDataTab === "company-skills" && (
-            <div className="space-y-3">
-              <div className="bg-orange-50 rounded-lg p-3 border border-orange-100">
-                <h4 className="text-sm font-semibold text-orange-900 mb-1">
-                  Skill Demand Analysis
-                </h4>
-                <p className="text-xs text-orange-700">
-                  Skills sought by top employers
-                </p>
-              </div>
-              <CompaniesSkillsVisualizer socCodes={socCodes} />
-            </div>
-          )}
+          <div
+            style={{
+              display: activeDataTab === "companies" ? "block" : "none",
+            }}
+          >
+            <JobTitlesCompaniesVisualizer socCodes={socCodes} />
+          </div>
+          <div
+            style={{ display: activeDataTab === "skills" ? "block" : "none" }}
+          >
+            <JobTitlesSkillsVisualizer socCodes={socCodes} />
+          </div>
+          <div
+            style={{
+              display: activeDataTab === "company-skills" ? "block" : "none",
+            }}
+          >
+            <CompaniesSkillsVisualizer socCodes={socCodes} />
+          </div>
         </div>
       </div>
     </div>

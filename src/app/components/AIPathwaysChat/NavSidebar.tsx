@@ -4,10 +4,17 @@ import {
   PanelLeft,
   MessageSquarePlus,
   User,
-  Globe,
   Briefcase,
+  Trash2,
 } from "lucide-react";
 import { Language } from "../LanguageSelection";
+
+interface ChatSession {
+  id: string;
+  title: string;
+  createdAt: Date;
+  updatedAt: Date;
+}
 
 interface NavSidebarProps {
   isOpen: boolean;
@@ -16,17 +23,26 @@ interface NavSidebarProps {
   onDataPanelToggle?: () => void;
   dataPanelOpen?: boolean;
   hasDataToShow?: boolean;
-  onProfileClick: () => void; // ADD THIS
+  onProfileClick: () => void;
+  onNewChat?: () => void;
+  chatSessions?: ChatSession[];
+  currentChatId?: string;
+  onSwitchChat?: (chatId: string) => void;
+  onDeleteChat?: (chatId: string) => void;
 }
 
 export default function NavSidebar({
   isOpen,
   onToggle,
-  currentLanguage,
   onDataPanelToggle,
   dataPanelOpen,
   hasDataToShow,
-  onProfileClick, // ADD THIS
+  onProfileClick,
+  onNewChat,
+  chatSessions = [],
+  currentChatId,
+  onSwitchChat,
+  onDeleteChat,
 }: NavSidebarProps) {
   return (
     <div
@@ -36,10 +52,10 @@ export default function NavSidebar({
       }}
       className={`fixed top-0 left-0 bottom-0 ${
         isOpen ? "w-64" : "w-14"
-      } bg-white border-r flex flex-col border-slate-200 z-20 overflow-y-auto transition-all duration-300 ease-in-out`}
+      } bg-white border-r flex flex-col border-slate-200 z-20 transition-all duration-300 ease-in-out`}
     >
       {/* Header with Toggle */}
-      <div className="sticky top-0 bg-white border-b border-slate-200 p-3 flex items-center justify-between z-10">
+      <div className="flex-shrink-0 bg-white border-b border-slate-200 p-3 flex items-center justify-between">
         {isOpen && (
           <span className="font-bold text-slate-900 text-sm whitespace-nowrap">
             Kamaʻāina Pathways
@@ -58,10 +74,11 @@ export default function NavSidebar({
         </button>
       </div>
 
-      {/* Navigation Items */}
-      <div className="flex-1 p-2 space-y-1">
+      {/* Navigation Items - Scrollable Area */}
+      <div className="flex-1 overflow-y-auto p-2 space-y-1">
         {/* New Chat Button */}
         <button
+          onClick={onNewChat}
           className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-lg hover:bg-slate-100 transition-colors text-left group ${
             !isOpen ? "justify-center px-0" : ""
           }`}
@@ -76,14 +93,14 @@ export default function NavSidebar({
         </button>
 
         {/* Divider */}
-        {isOpen && (
+        {isOpen && chatSessions.length > 0 && (
           <div className="py-2">
-            <div className="border-slate-200"></div>
+            <div className="border-t border-slate-200"></div>
           </div>
         )}
 
         {/* Chat History Section */}
-        {isOpen && (
+        {isOpen && chatSessions.length > 0 && (
           <div className="px-3 py-2">
             <h3 className="text-xs font-semibold text-slate-500 uppercase tracking-wide whitespace-nowrap">
               Recent Chats
@@ -91,35 +108,52 @@ export default function NavSidebar({
           </div>
         )}
 
-        {/* Placeholder for chat history items */}
-        {isOpen && (
+        {/* Chat history items */}
+        {isOpen && chatSessions.length > 0 && (
           <div className="space-y-1">
-            <button className="w-full flex items-center gap-3 px-3 py-2 rounded-lg hover:bg-slate-100 transition-colors text-left">
-              <div className="w-2 h-2 bg-slate-300 rounded-full flex-shrink-0"></div>
-              <span className="text-sm text-slate-600 truncate whitespace-nowrap">
-                Previous chat placeholder
-              </span>
-            </button>
+            {chatSessions.map(session => (
+              <div
+                key={session.id}
+                className={`group flex items-center gap-2 px-3 py-2 rounded-lg transition-colors ${
+                  currentChatId === session.id
+                    ? "bg-slate-200"
+                    : "hover:bg-slate-100"
+                }`}
+              >
+                <button
+                  onClick={() => onSwitchChat?.(session.id)}
+                  className="flex-1 flex items-center gap-3 text-left min-w-0"
+                >
+                  <div
+                    className={`w-2 h-2 rounded-full flex-shrink-0 ${
+                      currentChatId === session.id
+                        ? "bg-slate-600"
+                        : "bg-slate-300"
+                    }`}
+                  ></div>
+                  <span className="text-sm text-slate-600 truncate whitespace-nowrap">
+                    {session.title}
+                  </span>
+                </button>
+                <button
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    onDeleteChat?.(session.id);
+                  }}
+                  className="opacity-0 group-hover:opacity-100 p-1.5 hover:bg-red-100 rounded transition-all"
+                  aria-label="Delete chat"
+                  title="Delete chat"
+                >
+                  <Trash2 className="w-3.5 h-3.5 text-red-600" />
+                </button>
+              </div>
+            ))}
           </div>
         )}
       </div>
 
       {/* Bottom Section */}
-      <div className="sticky bottom-0 border-slate-200 p-2 space-y-1 bg-white">
-        {/* Language Selector */}
-        <button
-          className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-lg hover:bg-slate-100 transition-colors text-left ${
-            !isOpen ? "justify-center px-0" : ""
-          }`}
-          aria-label="Language settings"
-        >
-          <Globe className="w-5 h-5 text-slate-600 flex-shrink-0" />
-          {isOpen && (
-            <span className="text-sm font-medium text-slate-700 whitespace-nowrap">
-              {currentLanguage.name}
-            </span>
-          )}
-        </button>
+      <div className="flex-shrink-0 border-t border-slate-200 p-2 space-y-1 bg-white">
 
         {/* Data Panel Toggle */}
         {(hasDataToShow || dataPanelOpen) && (

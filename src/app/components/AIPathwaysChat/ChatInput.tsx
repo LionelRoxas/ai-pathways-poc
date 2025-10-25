@@ -13,7 +13,8 @@ interface ChatInputProps {
   messagesLength: number;
   dataPanelOpen: boolean;
   sidebarOpen: boolean;
-  navSidebarOpen: boolean; // Add this
+  navSidebarOpen: boolean;
+  userMessageCount?: number; // Add this to track user messages
 }
 
 export default function ChatInput({
@@ -25,9 +26,13 @@ export default function ChatInput({
   dataPanelOpen,
   sidebarOpen,
   navSidebarOpen,
+  userMessageCount = 0,
 }: ChatInputProps) {
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const [isFocused, setIsFocused] = useState(false);
+  
+  // Check if this is the initial state (no user messages yet)
+  const isInitialState = userMessageCount === 0;
 
   useEffect(() => {
     if (textareaRef.current) {
@@ -67,6 +72,70 @@ export default function ChatInput({
     return navSidebarOpen ? 256 : 56; // NavSidebar width
   };
 
+  // Centered Claude-like input for initial state
+  if (isInitialState) {
+    return (
+      <div
+        className="fixed bottom-0 left-0 right-0 bg-transparent transition-all duration-300 pb-8"
+        style={{
+          fontFamily:
+            '"SF Pro Display", "Inter", -apple-system, BlinkMacSystemFont, sans-serif',
+          marginLeft: `${getLeftOffset()}px`,
+          marginRight: dataPanelOpen ? "384px" : "0",
+        }}
+      >
+        <div className="max-w-3xl mx-auto px-6">
+          <div
+            className={`
+              relative bg-white rounded-2xl transition-all duration-200 shadow-lg
+              ${isFocused ? "ring-2 ring-black shadow-2xl" : "shadow-md"}
+            `}
+          >
+            {/* Input Area */}
+            <div className="relative flex items-end">
+              <textarea
+                ref={textareaRef}
+                value={message}
+                onChange={e => setMessage(e.target.value)}
+                onKeyDown={handleKeyDown}
+                onFocus={() => setIsFocused(true)}
+                onBlur={() => setIsFocused(false)}
+                placeholder="What would you like to explore today?"
+                className="w-full border-0 rounded-2xl px-6 py-5 pr-16 focus:outline-none resize-none min-h-[64px] max-h-[160px] text-black placeholder-gray-400 bg-transparent text-base leading-relaxed"
+                rows={1}
+                disabled={isLoading}
+              />
+
+              {/* Send Button */}
+              <button
+                onClick={handleSendWithFocus}
+                disabled={isLoading || !message.trim()}
+                className={`
+                  absolute right-3 bottom-3 p-3 rounded-xl transition-all duration-200
+                  ${
+                    !isLoading && message.trim()
+                      ? "bg-black text-white hover:bg-gray-800 hover:scale-105"
+                      : "bg-gray-200 text-gray-400 cursor-not-allowed"
+                  }
+                `}
+              >
+                <Send
+                  className={`w-5 h-5 ${isLoading ? "animate-pulse" : ""}`}
+                />
+              </button>
+            </div>
+          </div>
+
+          {/* Bottom hint */}
+          <div className="mt-4 text-center text-xs text-gray-500">
+            Press <kbd className="px-2 py-1 bg-gray-100 rounded text-gray-700 font-mono">Enter</kbd> to send • <kbd className="px-2 py-1 bg-gray-100 rounded text-gray-700 font-mono">Shift + Enter</kbd> for new line
+          </div>
+        </div>
+      </div>
+    );
+  }
+
+  // Normal chat input after first user message
   return (
     <div
       className="fixed bottom-0 bg-transparent border-gray-200 transition-all duration-300"

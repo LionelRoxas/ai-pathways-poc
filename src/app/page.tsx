@@ -4,15 +4,20 @@
 import React, { useState, useEffect } from "react";
 import { ArrowRight } from "lucide-react";
 import UnifiedSleekChat from "./components/AIPathwaysChat/UnifiedSleekChat";
-import LanguageSelection, { Language } from "./components/LanguageSelection";
+// import LanguageSelection, { Language } from "./components/LanguageSelection";
+import { Language } from "./components/LanguageSelection";
 
 export default function MainPage() {
   const [currentView, setCurrentView] = useState<"home" | "language" | "chat">(
     "home"
   );
-  const [selectedLanguage, setSelectedLanguage] = useState<Language | null>(
-    null
-  );
+  const [selectedLanguage] = useState<Language | null>({
+    code: "en",
+    name: "English",
+    nativeName: "English",
+    greeting: "Hello! Let's explore your educational journey.",
+    description: "Standard English conversation",
+  }); // Auto-set to English
   const [isVisible, setIsVisible] = useState(false);
 
   useEffect(() => {
@@ -20,26 +25,29 @@ export default function MainPage() {
   }, []);
 
   const handleStartChat = () => {
-    setCurrentView("language");
-  };
-
-  const handleLanguageSelect = (language: Language) => {
-    setSelectedLanguage(language);
+    // Skip language selection and go directly to chat
     setCurrentView("chat");
+    // setCurrentView("language");
   };
 
-  const handleBackFromLanguage = () => {
-    setCurrentView("home");
-  };
+  // const handleLanguageSelect = (language: Language) => {
+  //   setSelectedLanguage(language);
+  //   setCurrentView("chat");
+  // };
 
-  if (currentView === "language") {
-    return (
-      <LanguageSelection
-        onLanguageSelect={handleLanguageSelect}
-        onBack={handleBackFromLanguage}
-      />
-    );
-  }
+  // const handleBackFromLanguage = () => {
+  //   setCurrentView("home");
+  // };
+
+  // Language selection view - commented out for now
+  // if (currentView === "language") {
+  //   return (
+  //     <LanguageSelection
+  //       onLanguageSelect={handleLanguageSelect}
+  //       onBack={handleBackFromLanguage}
+  //     />
+  //   );
+  // }
 
   if (currentView === "chat") {
     return <UnifiedSleekChat selectedLanguage={selectedLanguage} />;
