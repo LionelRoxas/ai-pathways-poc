@@ -590,7 +590,7 @@ CONVERSATION STATUS:
 - Progress: ${readinessScore}%
 
 RESPONSE FORMAT:
-- Keep responses SHORT (2-3 sentences maximum)
+- Keep responses SHORT (1-2 sentences maximum)
 - Use **bold text** for key terms and important points (surround with double asterisks)
 - Write naturally and conversationally
 - NO bullet points, italics, underlines, or numbered lists
