@@ -73,13 +73,16 @@ export class ResultVerifier {
       verifiedPrograms.push(...batchResults);
     }
 
-    // Sort by relevance score and filter out irrelevant (score < 5)
+    // SMART FILTERING: If we have high-scoring programs (8+), use stricter threshold
+    const hasStrongMatches = verifiedPrograms.some(p => p.relevanceScore >= 8);
+    const threshold = hasStrongMatches ? 7 : 5;
+    
     const filtered = verifiedPrograms
-      .filter(p => p.relevanceScore >= 5)
+      .filter(p => p.relevanceScore >= threshold)
       .sort((a, b) => b.relevanceScore - a.relevanceScore);
 
     console.log(
-      `[ResultVerifier] Filtered ${programs.length} -> ${filtered.length} HS programs`
+      `[ResultVerifier] Filtered ${programs.length} -> ${filtered.length} HS programs (threshold: ${threshold}/10, strong matches: ${hasStrongMatches})`
     );
 
     return filtered;
@@ -119,13 +122,17 @@ export class ResultVerifier {
       verifiedPrograms.push(...batchResults);
     }
 
-    // Sort by relevance score and filter out irrelevant (score < 5)
+    // SMART FILTERING: If we have high-scoring programs (8+), use stricter threshold
+    // This prevents "Information Systems" from showing when user asks for "Computer Science"
+    const hasStrongMatches = verifiedPrograms.some(p => p.relevanceScore >= 8);
+    const threshold = hasStrongMatches ? 7 : 5; // Stricter when we have clear winners
+    
     const filtered = verifiedPrograms
-      .filter(p => p.relevanceScore >= 5)
+      .filter(p => p.relevanceScore >= threshold)
       .sort((a, b) => b.relevanceScore - a.relevanceScore);
 
     console.log(
-      `[ResultVerifier] Filtered ${programs.length} -> ${filtered.length} college programs`
+      `[ResultVerifier] Filtered ${programs.length} -> ${filtered.length} college programs (threshold: ${threshold}/10, strong matches: ${hasStrongMatches})`
     );
 
     return filtered;
@@ -253,15 +260,57 @@ IMPORTANT:
       });
 
       const content = response.choices[0].message.content || "[]";
-
-      // Extract JSON from response
-      const jsonMatch = content.match(/\[[\s\S]*\]/);
-      if (!jsonMatch) {
-        console.warn("[ResultVerifier] No JSON found in response");
-        return this.fallbackRanking(programs);
+      
+      // Debug: Log the raw response for troubleshooting
+      if (process.env.DEBUG_VERIFIER) {
+        console.log("[ResultVerifier] Raw LLM response:", content);
       }
 
-      const scores = JSON.parse(jsonMatch[0]);
+      // Extract JSON from response with better parsing
+      let scores;
+      try {
+        // First, try to find JSON array with non-greedy matching
+        const jsonMatch = content.match(/\[[\s\S]*?\](?=\s*$|\s*[^,\]\}])/);
+        if (!jsonMatch) {
+          console.warn("[ResultVerifier] No JSON found in response");
+          return this.fallbackRanking(programs);
+        }
+
+        // Clean the matched JSON (remove any trailing text)
+        let jsonStr = jsonMatch[0];
+        
+        // If there's a closing bracket, find the actual end of the array
+        const arrayDepth = (jsonStr.match(/\[/g) || []).length;
+        const closingBrackets = (jsonStr.match(/\]/g) || []).length;
+        
+        if (arrayDepth !== closingBrackets) {
+          // Find the proper closing bracket
+          const firstOpen = jsonStr.indexOf('[');
+          let depth = 0;
+          let properEnd = -1;
+          
+          for (let i = firstOpen; i < jsonStr.length; i++) {
+            if (jsonStr[i] === '[') depth++;
+            if (jsonStr[i] === ']') {
+              depth--;
+              if (depth === 0) {
+                properEnd = i + 1;
+                break;
+              }
+            }
+          }
+          
+          if (properEnd > 0) {
+            jsonStr = jsonStr.substring(0, properEnd);
+          }
+        }
+
+        scores = JSON.parse(jsonStr);
+      } catch (parseError) {
+        console.error("[ResultVerifier] JSON parse error:", parseError);
+        console.error("[ResultVerifier] Attempted to parse:", content.substring(0, 500));
+        return this.fallbackRanking(programs);
+      }
 
       // Map scores back to programs
       const rankedPrograms: RankedProgram[] = [];

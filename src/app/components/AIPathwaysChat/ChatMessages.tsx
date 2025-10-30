@@ -3,12 +3,11 @@ import React, { useRef, useEffect, useState } from "react";
 import {
   Database,
   ArrowRight,
-  Zap,
   ChevronDown,
   ChevronUp,
   School,
   GraduationCap,
-  // Briefcase,
+  Briefcase,
   ChevronRight,
 } from "lucide-react";
 import { Message, UserProfile } from "./types";
@@ -77,34 +76,52 @@ const MarkdownRenderer: React.FC<{ content: string; className?: string }> = ({
   const parseMarkdown = (text: string): React.ReactNode => {
     const lines = text.split("\n");
     const elements: React.ReactNode[] = [];
-    let currentList: string[] = [];
-    let inList = false;
+    let currentList: { type: 'ul' | 'ol', items: string[] } | null = null;
+    let lineIndex = 0;
 
     const processInlineMarkdown = (text: string): React.ReactNode => {
       const parts: React.ReactNode[] = [];
+      let lastIndex = 0;
       let key = 0;
 
-      const pattern = /(\*\*[^*]+\*\*)/g;
-      let lastIndex = 0;
+      // Match bold (**text**), italic (*text*), and inline code (`text`)
+      const pattern = /(\*\*[^*]+\*\*)|(\*[^*]+\*)|(`[^`]+`)/g;
       let match;
 
       while ((match = pattern.exec(text)) !== null) {
+        // Add text before match
         if (match.index > lastIndex) {
           parts.push(text.substring(lastIndex, match.index));
         }
 
         const matchedText = match[0];
         if (matchedText.startsWith("**") && matchedText.endsWith("**")) {
+          // Bold
           parts.push(
-            <strong key={`bold-${key++}`} className="font-bold">
+            <strong key={`bold-${key++}`} className="font-semibold text-slate-900">
               {matchedText.slice(2, -2)}
             </strong>
+          );
+        } else if (matchedText.startsWith("*") && matchedText.endsWith("*")) {
+          // Italic
+          parts.push(
+            <em key={`italic-${key++}`} className="italic">
+              {matchedText.slice(1, -1)}
+            </em>
+          );
+        } else if (matchedText.startsWith("`") && matchedText.endsWith("`")) {
+          // Inline code
+          parts.push(
+            <code key={`code-${key++}`} className="bg-slate-100 text-slate-800 px-1.5 py-0.5 rounded text-sm font-mono">
+              {matchedText.slice(1, -1)}
+            </code>
           );
         }
 
         lastIndex = match.index + matchedText.length;
       }
 
+      // Add remaining text
       if (lastIndex < text.length) {
         parts.push(text.substring(lastIndex));
       }
@@ -112,54 +129,112 @@ const MarkdownRenderer: React.FC<{ content: string; className?: string }> = ({
       return parts.length > 0 ? parts : text;
     };
 
-    lines.forEach((line, index) => {
-      if (line.trim().startsWith("- ")) {
-        inList = true;
-        currentList.push(line.trim().substring(2));
-      } else if (/^\d+\.\s/.test(line.trim())) {
-        inList = true;
-        currentList.push(line.trim().replace(/^\d+\.\s/, ""));
-      } else if (line.trim() !== "") {
-        if (inList && currentList.length > 0) {
-          elements.push(
-            <ul
-              key={`list-${elements.length}`}
-              className="ml-4 mt-2 mb-2 space-y-1"
-            >
-              {currentList.map((item, i) => (
-                <li key={i} className="flex items-start">
-                  <span className="mr-2 mt-1 text-xs">•</span>
-                  <span className="flex-1">{processInlineMarkdown(item)}</span>
-                </li>
-              ))}
-            </ul>
-          );
-          currentList = [];
-          inList = false;
-        }
+    const flushList = () => {
+      if (currentList && currentList.items.length > 0) {
+        const ListTag = currentList.type === 'ol' ? 'ol' : 'ul';
+        const listClassName = currentList.type === 'ol' 
+          ? "ml-5 mt-3 mb-3 space-y-2 list-decimal list-outside"
+          : "ml-5 mt-3 mb-3 space-y-2 list-disc list-outside";
+        
         elements.push(
-          <p key={`p-${index}`} className="mb-2 last:mb-0">
-            {processInlineMarkdown(line)}
-          </p>
+          <ListTag
+            key={`list-${elements.length}`}
+            className={listClassName}
+          >
+            {currentList.items.map((item, i) => (
+              <li key={i} className="pl-1.5 text-slate-700 leading-relaxed">
+                {processInlineMarkdown(item)}
+              </li>
+            ))}
+          </ListTag>
         );
+        currentList = null;
       }
-    });
+    };
 
-    if (currentList.length > 0) {
+    while (lineIndex < lines.length) {
+      const line = lines[lineIndex];
+      const trimmed = line.trim();
+
+      // Headers (## Header or ### Header)
+      if (trimmed.match(/^#{1,6}\s+/)) {
+        flushList();
+        const level = trimmed.match(/^#{1,6}/)?.[0].length || 2;
+        const headerText = trimmed.replace(/^#{1,6}\s+/, '');
+        
+        const headerClasses = {
+          1: "text-2xl font-bold text-slate-900 mt-6 mb-4",
+          2: "text-xl font-bold text-slate-900 mt-5 mb-3",
+          3: "text-lg font-semibold text-slate-900 mt-4 mb-2",
+          4: "text-base font-semibold text-slate-800 mt-3 mb-2",
+          5: "text-sm font-semibold text-slate-800 mt-3 mb-2",
+          6: "text-sm font-semibold text-slate-700 mt-2 mb-1",
+        }[level] || "text-lg font-semibold text-slate-900 mt-4 mb-2";
+
+        const headerContent = processInlineMarkdown(headerText);
+
+        // Render appropriate header level
+        if (level === 1) {
+          elements.push(<h1 key={`header-${lineIndex}`} className={headerClasses}>{headerContent}</h1>);
+        } else if (level === 2) {
+          elements.push(<h2 key={`header-${lineIndex}`} className={headerClasses}>{headerContent}</h2>);
+        } else if (level === 3) {
+          elements.push(<h3 key={`header-${lineIndex}`} className={headerClasses}>{headerContent}</h3>);
+        } else if (level === 4) {
+          elements.push(<h4 key={`header-${lineIndex}`} className={headerClasses}>{headerContent}</h4>);
+        } else if (level === 5) {
+          elements.push(<h5 key={`header-${lineIndex}`} className={headerClasses}>{headerContent}</h5>);
+        } else {
+          elements.push(<h6 key={`header-${lineIndex}`} className={headerClasses}>{headerContent}</h6>);
+        }
+        
+        lineIndex++;
+        continue;
+      }
+
+      // Unordered list (- item or * item)
+      if (trimmed.match(/^[-*]\s+/)) {
+        const itemText = trimmed.replace(/^[-*]\s+/, '');
+        if (!currentList || currentList.type !== 'ul') {
+          flushList();
+          currentList = { type: 'ul', items: [] };
+        }
+        currentList.items.push(itemText);
+        lineIndex++;
+        continue;
+      }
+
+      // Ordered list (1. item)
+      if (trimmed.match(/^\d+\.\s+/)) {
+        const itemText = trimmed.replace(/^\d+\.\s+/, '');
+        if (!currentList || currentList.type !== 'ol') {
+          flushList();
+          currentList = { type: 'ol', items: [] };
+        }
+        currentList.items.push(itemText);
+        lineIndex++;
+        continue;
+      }
+
+      // Empty line
+      if (trimmed === '') {
+        flushList();
+        lineIndex++;
+        continue;
+      }
+
+      // Regular paragraph
+      flushList();
       elements.push(
-        <ul
-          key={`list-${elements.length}`}
-          className="ml-4 mt-2 mb-2 space-y-1"
-        >
-          {currentList.map((item, i) => (
-            <li key={i} className="flex items-start">
-              <span className="mr-2 mt-1 text-xs">•</span>
-              <span className="flex-1">{processInlineMarkdown(item)}</span>
-            </li>
-          ))}
-        </ul>
+        <p key={`p-${lineIndex}`} className="mb-3 last:mb-0 text-slate-700 leading-relaxed">
+          {processInlineMarkdown(line)}
+        </p>
       );
+      lineIndex++;
     }
+
+    // Flush any remaining list
+    flushList();
 
     return elements;
   };
@@ -597,18 +672,25 @@ export default function ChatMessages({
         <div className="max-w-3xl w-full px-6">
           {/* Welcome Message */}
           {messages.length > 0 && messages[0].role === "assistant" && (
-            <div className="text-center mb-8 space-y-4 animate-in fade-in duration-700">
-              <div className="inline-block p-4 bg-slate-50 rounded-2xl mb-3">
+            <div className="text-center mb-8 space-y-8 animate-in fade-in duration-700">
+              {/* Logo */}
+              <div className="inline-block">
                 {/* eslint-disable-next-line @next/next/no-img-element */}
                 <img
                   src="/images/uhcc-logo-3.png"
                   alt="UHCC Logo"
-                  className="w-16 h-16 object-contain mx-auto"
+                  className="w-20 h-20 object-contain mx-auto drop-shadow-sm"
                 />
               </div>
-              <h1 className="text-3xl font-bold text-slate-900 mb-2">
-                Kamaʻāina Pathways
-              </h1>
+              
+              {/* Title */}
+              <div className="space-y-2">
+                <h1 className="text-4xl font-bold text-slate-900 tracking-tight" style={{ letterSpacing: "0.04em" }}>
+                  Kamaʻāina Pathways
+                </h1>
+              </div>
+              
+              {/* Greeting Text */}
               <div className="text-base text-slate-600 leading-relaxed max-w-2xl mx-auto">
                 <MarkdownRenderer
                   content={messages[0].content}
@@ -621,11 +703,6 @@ export default function ChatMessages({
           {/* Suggested Questions */}
           {suggestedQuestions.length > 0 && !isLoading && (
             <div className="space-y-3 animate-in slide-in-from-bottom-4 duration-500">
-              <div className="text-center mb-3">
-                <span className="text-sm font-semibold text-slate-500 uppercase tracking-wider">
-                  Quick Start
-                </span>
-              </div>
               <div className="grid grid-cols-2 gap-3">
                 {suggestedQuestions.map((question, idx) => (
                   <button
@@ -773,7 +850,6 @@ export default function ChatMessages({
                 onClick={() => setShowSuggestions(!showSuggestions)}
                 className="flex items-center justify-center gap-2 mb-3 mx-auto hover:opacity-70 transition-opacity cursor-pointer group"
               >
-                <Zap className="w-4 h-4 text-black" />
                 <span className="text-xs font-bold text-black uppercase tracking-wider">
                   {userProfile?.isComplete
                     ? "Explore Options"

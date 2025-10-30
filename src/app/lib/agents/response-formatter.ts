@@ -119,50 +119,94 @@ export class ResponseFormatterAgent {
       this.formatConversationContext(conversationHistory);
     const dataContext = this.formatDataContext(verifiedData, summary);
 
-    const systemPrompt = `You are a UX-focused educational pathway advisor for Hawaii students. Your responses MUST be clean, elegant, and easy to scan.
+    const systemPrompt = `You are a conversational guide for Hawaii educational pathways. Keep responses minimal and focused.
 
-FORMATTING RULES (Keep it SIMPLE):
-1. Start with a brief, conversational answer (1-2 sentences)
-2. Use simple section breaks with just bold text for headers
-3. Use bullet points (•) for lists
-4. Keep it SHORT - no walls of text
-5. Highlight only the MOST important numbers in **bold**
-6. One quick tip at the end if helpful
+CORE PRINCIPLE:
+Brief, conversational, and focused on the programs found. Let the data speak for itself.
 
-RESPONSE STRUCTURE (Simple & Clean):
+FORMATTING RULES:
+- Use simple markdown: ## for headers, **bold** for emphasis, - for bullets
+- NO emojis
+- Keep it SHORT (2-4 sentences intro max)
+- Use headers to organize sections
+- ONLY include sections that have data
 
-[Brief answer to their question in 1-2 sentences]
+CRITICAL RULES:
+1. ONLY list programs that have actual names (not just "Program")
+2. If a section has NO data or programs, DO NOT include that section header at all
+3. If high school programs list is empty → Skip "## High School Programs" entirely
+4. If college programs list is empty → Skip "## College Programs" entirely
+5. If careers list is empty → Skip "## Career Paths" entirely
+6. **FOR CAREER PATHS: Generate relevant occupation names based on the field of study. Be specific and professional.**
+7. **List 3-5 realistic career paths that match the programs discussed**
+8. **Use actual occupation titles, not generic placeholders like "Career opportunity"**
 
-**Programs Found**
-• Program name - Available at X schools/campuses
-• Program name - Available at X schools/campuses
+RESPONSE STRUCTURE (ALWAYS FOLLOW THIS):
 
-**Career Paths** (if applicable)
-• Career 1
-• Career 2
-• Career 3
+[REQUIRED: 1-2 sentence acknowledgment that ANSWERS their question directly while introducing the results]
 
-**Next Steps**
-[Optional: One helpful tip or next step in plain text]
+## High School Programs (ONLY if data exists)
+
+- Program name - X schools
+- Program name - X schools
+
+## College Programs (ONLY if data exists AND has valid names)
+
+- Program name - X campuses
+- Program name - X campuses
+
+## Career Paths (ONLY if there are related careers to mention)
+
+- [Specific occupation name related to the programs]
+- [Another occupation name]
+- [Another occupation name]
+
+Generate realistic, specific occupation titles based on the programs discussed.
+
+[Optional: One sentence next step or tip]
+
+TONE:
+- **ALWAYS start with a 1-2 sentence acknowledgment** of what they asked for
+- **If they asked a question (e.g., "Are there coding programs?"), ANSWER IT DIRECTLY first** (e.g., "Yes, there are several coding programs!")
+- **If they asked about specifics (e.g., location, schools, requirements), ADDRESS THAT in the acknowledgment**
+- Conversational like talking to a friend
+- Direct and confident
+- Action-oriented
+- Minimal explanations
+
+EXAMPLES OF GOOD ACKNOWLEDGMENTS:
+
+For general searches:
+- "Great! I found several engineering pathways for you."
+- "Here are the computer science programs available in Hawaii."
+- "Perfect! There are quite a few culinary arts options to explore."
+
+For clarification questions (ANSWER THE QUESTION):
+- "Yes, there are coding programs! Here are the computer science options available."
+- "Absolutely! These programs have hands-on lab work included."
+- "Yes, several of these programs are available on Oahu - here's what I found."
+- "There are 3 campuses offering this program across the islands."
+- "Most of these programs require 2-3 years to complete."
+
+For follow-up questions:
+- "Yes, many of these programs lead to environmental careers - here are your options."
+- "Definitely! Here are programs that match your interest in conservation."
 
 CONTEXT AWARENESS:
 - Reference previous conversation naturally if relevant
-- If they're asking about a specific location, focus on that
-- If no results, explain briefly and suggest 2 alternatives
-
-TONE:
-- Conversational and warm
-- Clear and direct
-- No jargon or excessive formatting
-- Action-oriented
+- Focus on what they asked for
+- If they asked about a location, emphasize that
 
 DO NOT:
-- Use emojis (they clutter the design)
-- Use numbered lists (unless it's steps)
-- Use blockquotes or special formatting
-- Repeat yourself
-- Over-format with multiple levels of headers
-- Write long paragraphs
+- Use emojis
+- Write long introductions
+- Over-explain
+- Use numbered lists unless it's sequential steps
+- Repeat information
+- Be overly formal
+- Include section headers when there's no data for that section
+- List programs that just say "Program" without a real name
+- **Add, infer, suggest, or make up any career titles not explicitly in the provided data**
 
 OUTPUT ONLY THE MARKDOWN - No preamble.`;
 
@@ -209,25 +253,27 @@ Generate a clean, simple response.`;
     const conversationContext =
       this.formatConversationContext(conversationHistory);
 
-    const systemPrompt = `You are a helpful educational pathway advisor. The user's query returned no results.
+    const systemPrompt = `You are a conversational guide for Hawaii educational pathways. The user's query returned no results.
 
-Keep your response SIMPLE and CLEAN:
+Keep it SIMPLE and conversational:
 1. One sentence acknowledging their search
-2. Brief reason why (if obvious)
-3. 2-3 alternatives as bullet points
-4. End with an encouraging sentence
+2. 2-3 alternatives as bullet points
+3. End with a question to keep the conversation going
 
-Use minimal formatting - just bullet points for suggestions.
+Use minimal formatting - just bullet points for suggestions. NO emojis.
 
 Example format:
+
+## No Results Found
+
 I couldn't find programs matching "[their query]".
 
 You might want to try:
-• Broader search term
-• Related field
-• General category
+- Broader search term
+- Related field
+- General category
 
-Let me know what interests you and I'll help you find programs!`;
+What area interests you most?`;
 
     const userPrompt = `${conversationContext}
 
@@ -316,49 +362,91 @@ ${mostRecentTopic ? `\nMost Recent Topic: "${mostRecentTopic}"` : ""}`;
 
 `;
 
+    let hasHighSchoolData = false;
+    let hasCollegeData = false;
+    let hasCareerData = false;
+
     // Add high school program examples
     if (verifiedData.highSchoolPrograms.length > 0) {
       const hsExamples = verifiedData.highSchoolPrograms
         .slice(0, 5)
         .map(item => {
-          const programName = item.program.PROGRAM_OF_STUDY;
-          const schoolCount = item.schools?.length || 0;
-          const topSchools = item.schools?.slice(0, 3).join(", ") || "";
-          return `  - ${programName} (${schoolCount} schools: ${topSchools}...)`;
+          // Handle both aggregated format (item.name) and raw format (item.program.PROGRAM_OF_STUDY)
+          const programName = item.name || item.program?.PROGRAM_OF_STUDY || "Program";
+          const schools = item.schools || [];
+          const schoolCount = schools.length;
+          const topSchools = schools.slice(0, 3).join(", ");
+          return `  - ${programName} (${schoolCount} schools: ${topSchools}${schoolCount > 3 ? '...' : ''})`;
         })
         .join("\n");
 
-      context += `High School Programs:\n${hsExamples}\n\n`;
+      if (hsExamples.trim()) {
+        hasHighSchoolData = true;
+        context += `High School Programs (INCLUDE THIS SECTION):\n${hsExamples}\n\n`;
+      }
     }
 
     // Add college program examples
     if (verifiedData.collegePrograms.length > 0) {
+      console.log("[ResponseFormatter] College programs received:", JSON.stringify(verifiedData.collegePrograms.slice(0, 3), null, 2));
+      
       const collegeExamples = verifiedData.collegePrograms
-        .slice(0, 5)
+        .slice(0, 10) // Check more programs to find ones with names
         .map(item => {
-          const name = Array.isArray(item.program.PROGRAM_NAME)
-            ? item.program.PROGRAM_NAME[0]
-            : item.program.PROGRAM_NAME;
-          const campusCount = item.campuses?.length || 0;
-          const topCampuses = item.campuses?.slice(0, 3).join(", ") || "";
-          return `  - ${name} (${campusCount} campuses: ${topCampuses})`;
+          // Handle multiple possible name fields from aggregation
+          let name = 
+            item.name ||                    // Standard aggregated format
+            item.programFamily ||           // Aggregated college program format
+            item.program?.PROGRAM_NAME ||   // Raw program format (array)
+            item.program?.PROGRAM_OF_STUDY; // Fallback to any name field
+          
+          // If PROGRAM_NAME is an array, take the first element
+          if (Array.isArray(name)) {
+            name = name[0];
+          }
+          
+          const campuses = item.campuses || [];
+          const campusCount = campuses.length;
+          const topCampuses = campuses.slice(0, 3).join(", ");
+          
+          return {
+            name: name || null,
+            campusCount,
+            topCampuses,
+            formatted: name && name !== 'Program' 
+              ? `  - ${name} (${campusCount} campus${campusCount !== 1 ? 'es' : ''}: ${topCampuses})`
+              : null
+          };
         })
+        .filter(item => item.formatted !== null) // Only include programs with valid names
+        .map(item => item.formatted)
         .join("\n");
 
-      context += `College Programs:\n${collegeExamples}\n\n`;
+      if (collegeExamples.trim()) {
+        hasCollegeData = true;
+        context += `College Programs (INCLUDE THIS SECTION):\n${collegeExamples}\n\n`;
+      } else {
+        console.warn("[ResponseFormatter] No college programs with valid names found");
+        context += `College Programs: ${verifiedData.collegePrograms.length} programs found but names not available (DO NOT INCLUDE THIS SECTION)\n\n`;
+      }
     }
 
     // Add career examples
     if (verifiedData.careers.length > 0) {
-      const careerExamples = verifiedData.careers
-        .slice(0, 8)
-        .map(
-          c => `  - ${c.SOC_TITLE || c.SOC_CODE?.[0] || "Career opportunity"}`
-        )
-        .join("\n");
-
-      context += `Career Paths:\n${careerExamples}`;
+      // Careers are SOC codes - LLM will generate occupation names based on the programs
+      hasCareerData = true;
+      context += `Career Data Available: ${verifiedData.careers.length} career paths exist for these programs.\n\n`;
+      context += `CAREER PATHS INSTRUCTION:\n`;
+      context += `Generate 3-5 specific, realistic occupation titles that students could pursue with these programs.\n`;
+      context += `Base the occupations on the HIGH SCHOOL and COLLEGE programs listed above.\n`;
+      context += `Use professional occupation titles (e.g., "Registered Nurse", "Software Developer", "Culinary Chef").\n\n`;
     }
+
+    // Add summary of what to include
+    context += `\n\n=== SECTION INCLUSION INSTRUCTIONS ===\n`;
+    context += `Include "## High School Programs" section: ${hasHighSchoolData ? 'YES' : 'NO'}\n`;
+    context += `Include "## College Programs" section: ${hasCollegeData ? 'YES' : 'NO'}\n`;
+    context += `Include "## Career Paths" section: ${hasCareerData ? 'YES' : 'NO'}\n`;
 
     return context;
   }
@@ -410,19 +498,25 @@ ${mostRecentTopic ? `\nMost Recent Topic: "${mostRecentTopic}"` : ""}`;
       return this.getDefaultNoResultsMessage();
     }
 
-    return `I found ${parts.join(" and ")} related to your interests. The complete details are shown below!`;
+    return `## Programs Found
+
+I found ${parts.join(" and ")} related to your interests.
+
+Check out the details below!`;
   }
 
   /**
    * Default message when no results are found
    */
   private getDefaultNoResultsMessage(): string {
-    return `I couldn't find any programs matching that search.
+    return `## No Results Found
+
+I couldn't find any programs matching that search.
 
 You might want to try:
-• Broader search terms
-• Related career fields
-• Asking about specific schools or islands
+- Broader search terms
+- Related career fields
+- Asking about specific schools or islands
 
 What area are you interested in exploring?`;
   }

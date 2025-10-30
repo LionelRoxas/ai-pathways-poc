@@ -112,22 +112,128 @@ export async function aggregateHighSchoolPrograms(
 }
 
 /**
- * Extract base program name from a full program name
- * Example: "Agriculture (Bachelor of Science - Agribusiness)" -> "Agriculture"
+ * Intelligently extract base program name from a full program name
+ * Handles multiple formats and edge cases
+ * 
+ * Examples:
+ * - "Agriculture (Bachelor of Science - Agribusiness)" → "Agriculture"
+ * - "Information& Computer Sciences (Associate...)" → "Information & Computer Sciences" (fixes spacing)
+ * - "Computer Science (BS)" → "Computer Science"
  */
 function extractBaseProgramName(fullName: string): string {
-  // Remove everything in parentheses and trim
-  const baseName = fullName.replace(/\s*\([^)]*\)/g, "").trim();
-  return baseName || fullName; // Fallback to full name if extraction fails
+  // STEP 1: Fix common data issues (missing spaces around &)
+  let cleaned = fullName.replace(/(\w)&(\w)/g, '$1 & $2'); // "Information&Computer" → "Information & Computer"
+  
+  // STEP 2: Remove everything in parentheses
+  const baseName = cleaned.replace(/\s*\([^)]*\)/g, "").trim();
+  
+  // STEP 3: Convert & to "and" (with proper spacing)
+  const withAnd = baseName.replace(/\s*&\s*/g, ' and '); // "Information & Computer" → "Information and Computer"
+  
+  // STEP 4: Clean up extra whitespace
+  const normalized = withAnd.replace(/\s+/g, ' ').trim();
+  
+  return normalized || fullName; // Fallback to full name if extraction fails
 }
 
 /**
- * Aggregates college programs by CIP code, properly handling all program name variants
- * This is CRITICAL because each CIP can have 10-20 different program variants
+ * Intelligent program name selector - finds the most representative program name
+ * Uses multi-tier prioritization for maximum accuracy
+ */
+function findRepresentativeProgramName(programNames: string[]): string {
+  if (programNames.length === 0) return "";
+  if (programNames.length === 1) return programNames[0];
+
+  console.log(`[Aggregator] Analyzing ${programNames.length} program variants to find best representative name`);
+
+  // PRIORITY 1: Bachelor's degree WITHOUT specialization (e.g., "Computer Science (Bachelor of Science)")
+  // This is the cleanest, most canonical form
+  const cleanBachelor = programNames.find(name => 
+    /\(Bachelor of (Science|Arts)\)$/i.test(name) // Must end with "(Bachelor of Science)" or "(Bachelor of Arts)"
+  );
+  
+  if (cleanBachelor) {
+    console.log(`[Aggregator] ✓ Found clean Bachelor's degree: "${cleanBachelor}"`);
+    return cleanBachelor;
+  }
+
+  // PRIORITY 2: Bachelor's degree with specialization (e.g., "Computer Science (Bachelor of Science - Data Science)")
+  const bachelorWithSpec = programNames.find(name => 
+    /Bachelor of (Science|Arts)\s*-/i.test(name)
+  );
+  
+  if (bachelorWithSpec) {
+    console.log(`[Aggregator] ✓ Found Bachelor's with specialization: "${bachelorWithSpec}"`);
+    return bachelorWithSpec;
+  }
+
+  // PRIORITY 3: Associate degree (second most common entry point)
+  const associate = programNames.find(name => 
+    /Associate (in|of) (Science|Arts|Applied Science)(?!\s*-)/i.test(name)
+  );
+  
+  if (associate) {
+    console.log(`[Aggregator] ✓ Found Associate degree: "${associate}"`);
+    return associate;
+  }
+
+  // PRIORITY 4: Find the most common base name across all variants
+  // This handles cases where there's no standard degree format
+  const baseNames = programNames.map(name => extractBaseProgramName(name));
+  const nameCounts = new Map<string, number>();
+  
+  baseNames.forEach(base => {
+    nameCounts.set(base, (nameCounts.get(base) || 0) + 1);
+  });
+
+  // Find the base name that appears most frequently
+  let mostCommonBase = baseNames[0];
+  let maxCount = 0;
+  
+  nameCounts.forEach((count, baseName) => {
+    // Prefer longer, more specific base names when counts are equal
+    if (count > maxCount || (count === maxCount && baseName.length > mostCommonBase.length)) {
+      maxCount = count;
+      mostCommonBase = baseName;
+    }
+  });
+
+  console.log(`[Aggregator] ✓ Most common base name: "${mostCommonBase}" (appears ${maxCount}/${programNames.length} times)`);
+
+  // PRIORITY 5: Among programs with the most common base, prefer:
+  // 1. Shortest program name (less specialized)
+  // 2. One without "Certificate" or "Graduate" (undergraduate focus)
+  const matchingPrograms = programNames.filter(name => 
+    extractBaseProgramName(name) === mostCommonBase
+  );
+
+  // Filter out certificates and graduate-only programs if we have other options
+  let preferred = matchingPrograms.filter(name => 
+    !/(Certificate|Graduate Certificate|Subject Certificate)/i.test(name)
+  );
+
+  if (preferred.length === 0) {
+    preferred = matchingPrograms; // Fall back if all are certificates
+  }
+
+  // Sort by length (shorter = more general = better representative)
+  preferred.sort((a, b) => a.length - b.length);
+
+  const selected = preferred[0];
+  console.log(`[Aggregator] ✓ Final selection: "${selected}"`);
+  
+  return selected;
+}
+
+/**
+ * Intelligently aggregates college programs by CIP code
+ * Handles all program name variants and selects the best representative name
  */
 export function aggregateCollegePrograms(
   programs: Array<{ program: any; campuses: string[] }>
 ): AggregatedCollegeProgram[] {
+  console.log(`[Aggregator] Starting aggregation of ${programs.length} college program entries`);
+  
   // Group by CIP code since that's the real identifier
   const cipMap = new Map<
     string,
@@ -148,8 +254,13 @@ export function aggregateCollegePrograms(
       : [program.PROGRAM_NAME];
 
     if (!cipMap.has(cipCode)) {
-      // Extract base name from first program variant
-      const baseName = extractBaseProgramName(programNames[0]);
+      // First time seeing this CIP code - select the best representative name
+      console.log(`[Aggregator] 📚 New CIP ${cipCode}: Analyzing ${programNames.length} variants`);
+      
+      const representativeName = findRepresentativeProgramName(programNames);
+      const baseName = extractBaseProgramName(representativeName);
+
+      console.log(`[Aggregator] → Selected display name: "${baseName}" (from "${representativeName}")`);
 
       cipMap.set(cipCode, {
         cipCode,
@@ -158,16 +269,27 @@ export function aggregateCollegePrograms(
         campuses: new Set(campuses),
       });
     } else {
+      // Already seen this CIP - merge data
       const existing = cipMap.get(cipCode)!;
-      // Add all program name variants
-      programNames.forEach((name: string) => existing.allProgramNames.add(name));
+      
+      // Add any new program name variants
+      const newVariants = programNames.filter((name: string) => !existing.allProgramNames.has(name));
+      if (newVariants.length > 0) {
+        console.log(`[Aggregator] → CIP ${cipCode}: Adding ${newVariants.length} new variants`);
+        programNames.forEach((name: string) => existing.allProgramNames.add(name));
+      }
+      
       // Merge campuses
-      campuses.forEach(c => existing.campuses.add(c));
+      const newCampuses = campuses.filter(c => !existing.campuses.has(c));
+      if (newCampuses.length > 0) {
+        console.log(`[Aggregator] → CIP ${cipCode}: Adding ${newCampuses.length} new campuses`);
+        campuses.forEach(c => existing.campuses.add(c));
+      }
     }
   }
 
   // Convert to final format
-  return Array.from(cipMap.values())
+  const results = Array.from(cipMap.values())
     .map(({ cipCode, programFamily, allProgramNames, campuses }) => ({
       cipCode,
       programFamily,
@@ -177,10 +299,19 @@ export function aggregateCollegePrograms(
       variantCount: allProgramNames.size,
     }))
     .sort((a, b) => a.programFamily.localeCompare(b.programFamily));
+
+  console.log(`[Aggregator] ✅ Aggregated ${programs.length} entries → ${results.length} unique programs`);
+  console.log(`[Aggregator] Program breakdown:`);
+  results.slice(0, 5).forEach(prog => {
+    console.log(`  • ${prog.programFamily} (CIP ${prog.cipCode}): ${prog.variantCount} variants, ${prog.campusCount} campuses`);
+  });
+
+  return results;
 }
 
 /**
- * Format for frontend - simplified version without all variants
+ * Intelligently format programs for frontend display
+ * Selects the most relevant variants to show users
  */
 export function formatCollegeProgramsForFrontend(
   aggregatedPrograms: AggregatedCollegeProgram[]
@@ -189,16 +320,46 @@ export function formatCollegeProgramsForFrontend(
   campuses: string[];
   campusCount: number;
   variants?: string[]; // Optional: include top variants
+  variantCount?: number;
 }> {
   return aggregatedPrograms.map(prog => {
-    // Include top 3 variants as examples
-    const topVariants = prog.programNames.slice(0, 3);
+    // Smart variant selection: Show the most common degree types
+    const variants = prog.programNames;
+    
+    // Prioritize showing these types in order:
+    const priorityOrder = [
+      (name: string) => /\(Bachelor of Science\)$/i.test(name), // Clean BS
+      (name: string) => /\(Bachelor of Arts\)$/i.test(name), // Clean BA
+      (name: string) => /\(Associate in Science\)$/i.test(name), // Clean AS
+      (name: string) => /Bachelor of Science - /i.test(name), // BS with specialization
+      (name: string) => /Bachelor of Arts - /i.test(name), // BA with specialization
+      (name: string) => /Associate/i.test(name), // Any associate
+      (name: string) => /Certificate of Achievement/i.test(name), // Certificates
+      (name: string) => /Master/i.test(name), // Graduate programs
+      (name: string) => /Doctor/i.test(name), // Doctoral programs
+    ];
+
+    // Score each variant based on priority
+    const scoredVariants = variants.map(name => {
+      const priorityIndex = priorityOrder.findIndex(test => test(name));
+      return {
+        name,
+        score: priorityIndex >= 0 ? priorityOrder.length - priorityIndex : 0
+      };
+    });
+
+    // Sort by score (highest first) and take top 3
+    const topVariants = scoredVariants
+      .sort((a, b) => b.score - a.score)
+      .slice(0, 3)
+      .map(v => v.name);
 
     return {
       name: prog.programFamily,
       campuses: prog.campuses,
       campusCount: prog.campusCount,
       variants: prog.variantCount > 1 ? topVariants : undefined,
+      variantCount: prog.variantCount,
     };
   });
 }

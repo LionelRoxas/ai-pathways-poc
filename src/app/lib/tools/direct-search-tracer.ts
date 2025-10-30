@@ -48,11 +48,24 @@ export class DirectSearchTracer {
       `[DirectSearchTracer] Found ${collegeResults.length} college programs by direct name search`
     );
 
+    // CRITICAL FILTER: If we have exact phrase matches (score >= 50), ONLY keep those
+    // This fixes the issue where "computer science" returns "Information Systems", etc.
+    const hasExactPhraseMatches = collegeResults.some(r => r.matchScore >= 50);
+    let filteredCollegeResults = collegeResults;
+    
+    if (hasExactPhraseMatches) {
+      // Keep only exact phrase matches + very high scoring programs
+      filteredCollegeResults = collegeResults.filter(r => r.matchScore >= 40);
+      console.log(
+        `[DirectSearchTracer] Filtered to ${filteredCollegeResults.length} high-scoring programs (phrase match detected)`
+      );
+    }
+
     // STEP 2: Collect CIP codes from found college programs
     const cipCodesFromCollege = new Set<string>();
     const cip2DigitsFromCollege = new Set<string>();
 
-    for (const result of collegeResults) {
+    for (const result of filteredCollegeResults) {
       const cipCode = result.program.CIP_CODE;
       if (cipCode) {
         cipCodesFromCollege.add(cipCode);
@@ -132,7 +145,7 @@ export class DirectSearchTracer {
 
     // STEP 6: Get campuses for college programs
     const collegeWithCampuses = [];
-    for (const result of collegeResults) {
+    for (const result of filteredCollegeResults) {
       const campuses = await this.collegeDataTool.getCampusesByCIP(
         result.program.CIP_CODE
       );
@@ -190,34 +203,46 @@ export class DirectSearchTracer {
         programNames = [program.PROGRAM_OF_STUDY];
       }
 
+      // CRITICAL FIX: Check for multi-word phrase match first!
+      // If user searches "computer science", prioritize programs with that exact phrase
+      const searchPhrase = keywords.join(" ");
+      let hasExactPhrase = false;
+
       // Check each program name variant
       for (const name of programNames) {
         const nameLower = name.toLowerCase();
 
+        // HIGHEST PRIORITY: Exact phrase match (e.g., "computer science" in "Computer Science (BS)")
+        if (nameLower.includes(searchPhrase)) {
+          score += 50; // MUCH higher score for exact phrase
+          hasExactPhrase = true;
+        }
+
+        // Check individual keywords
         for (const keyword of keywords) {
           const keywordLower = keyword.toLowerCase();
 
-          // Exact match
+          // Exact program name match
           if (nameLower === keywordLower) {
             score += 10;
           }
           // Contains keyword
           else if (nameLower.includes(keywordLower)) {
-            score += 5;
+            score += 3; // Reduced from 5 to prioritize phrase matches
           }
           // Word match
           else if (
-            nameLower.split(/[\s\-_(),]+/).some(word => word === keywordLower)
+            nameLower.split(/[\s\-_(),&]+/).some(word => word === keywordLower)
           ) {
-            score += 4;
+            score += 2; // Reduced from 4
           }
           // Word starts with keyword
           else if (
             nameLower
-              .split(/[\s\-_(),]+/)
+              .split(/[\s\-_(),&]+/)
               .some(word => word.startsWith(keywordLower))
           ) {
-            score += 2;
+            score += 1; // Reduced from 2
           }
         }
       }

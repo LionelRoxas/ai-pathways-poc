@@ -113,30 +113,30 @@ const extractDisplayedSocCodes = (
 
 const getInitialGreeting = (language: Language | null): string => {
   if (!language)
-    return "Aloha! I'm your Hawaii Education & Career Advisor. I'll help you explore educational pathways from high school to college, using real data from Hawaii's schools and universities. What's your current situation - are you in high school, college, working, or exploring your options?";
+    return "## Aloha 🌺\n\nI can help you explore educational pathways in Hawaii. What are you interested in?";
 
   switch (language.code) {
     case "haw":
-      return "Aloha! ʻO wau kou kōkua no nā ala hoʻonaʻauao a me nā ʻoihana ma Hawaiʻi. E kōkua ana au iā ʻoe e ʻimi i nā ala hoʻonaʻauao mai ke kula kiʻekiʻe a hiki i ke kulanui. He aha kou kūlana i kēia manawa?";
+      return "## Aloha 🌺\n\nE kōkua ana au iā ʻoe e ʻimi i nā ala hoʻonaʻauao ma Hawaiʻi. He aha kou makemake?";
 
     case "hwp":
-      return "Eh howzit! I stay your Hawaii Education & Career Advisor. I going help you check out all da educational pathways from high school to college, using real data from Hawaii schools and universities yeah. So wat, you stay in high school, college, working, or jus checking out your options?";
+      return "## Eh howzit!\n\nI going help you check out educational pathways in Hawaii. What you like know?";
 
     case "tl":
-      return "Kumusta! Ako ang iyong tagapayo para sa Edukasyon at Karera sa Hawaii. Tutulungan kitang tuklasin ang mga landas ng edukasyon mula high school hanggang kolehiyo, gamit ang tunay na datos mula sa mga paaralan at unibersidad ng Hawaii. Ano ang iyong kasalukuyang sitwasyon - nasa high school ka ba, kolehiyo, nagtatrabaho, o nag-eeksplora ng mga pagpipilian?";
+      return "## Kumusta!\n\nTutulungan kitang tuklasin ang mga landas ng edukasyon sa Hawaii. Ano ang gusto mong malaman?";
 
     default:
-      return "Aloha! I'm your Hawaii Education & Career Advisor. I'll help you explore educational pathways from high school to college, using real data from Hawaii's schools and universities. What's your current situation - are you in high school, college, working, or exploring your options?";
+      return "## Aloha 🌺\n\nI can help you explore educational pathways in Hawaii. What are you interested in?";
   }
 };
 
 const getInitialSuggestions = (language: Language | null): string[] => {
   if (!language || language.code === "en") {
     return [
-      "I'm a high school student",
-      "I'm looking at UH programs",
-      "I want to explore career pathways",
-      "Show me programs on my island",
+      "I'm in high school",
+      "Show me UH programs",
+      "What careers can I explore?",
+      "Programs on my island",
     ];
   }
 
@@ -144,33 +144,33 @@ const getInitialSuggestions = (language: Language | null): string[] => {
     case "haw":
       return [
         "He haumāna kula kiʻekiʻe au",
-        "Ke nānā nei au i nā papahana UH",
-        "Makemake au e ʻimi i nā ala ʻoihana",
-        "E hōʻike mai i nā papahana ma koʻu mokupuni",
+        "E hōʻike mai i nā papahana UH",
+        "He aha nā ʻoihana?",
+        "Nā papahana ma koʻu mokupuni",
       ];
 
     case "hwp":
       return [
-        "I stay one high school student",
-        "I stay looking at UH programs",
-        "I like explore career pathways",
-        "Show me programs on my island",
+        "I stay high school",
+        "Show me UH programs",
+        "What kine careers?",
+        "Programs on my island",
       ];
 
     case "tl":
       return [
-        "Ako ay estudyante ng high school",
-        "Tumitingin ako sa mga programa ng UH",
-        "Gusto kong tuklasin ang mga landas ng karera",
-        "Ipakita ang mga programa sa aking isla",
+        "Nasa high school ako",
+        "Ipakita ang UH programs",
+        "Anong mga karera?",
+        "Mga programa sa aking isla",
       ];
 
     default:
       return [
-        "I'm a high school student",
-        "I'm looking at UH programs",
-        "I want to explore career pathways",
-        "Show me programs on my island",
+        "I'm in high school",
+        "Show me UH programs",
+        "What careers can I explore?",
+        "Programs on my island",
       ];
   }
 };
@@ -885,16 +885,16 @@ export default function UnifiedSleekChat({
   const getErrorMessage = (language: Language): string => {
     switch (language.code) {
       case "haw":
-        return "E kala mai, ua loaʻa kekahi pilikia i ka hoʻokele ʻana i ka ʻikepili. E ʻoluʻolu e hoʻāʻo hou.";
+        return "E kala mai, ua loaʻa kekahi pilikia. E ʻoluʻolu e hoʻāʻo hou.";
 
       case "hwp":
-        return "Ho brah, get one problem wit da database right now. Try ask again yeah?";
+        return "Ho brah, get one problem right now. Try ask again yeah?";
 
       case "tl":
-        return "Pasensya na, nagkaproblema sa pag-access ng database. Pakisubukan ulit ang iyong tanong.";
+        return "Pasensya na, nagkaproblema. Pakisubukan ulit.";
 
       default:
-        return "I'm having trouble accessing the education database right now. Could you try your question again?";
+        return "I'm having trouble right now. Could you try again?";
     }
   };
 

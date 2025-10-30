@@ -3,6 +3,13 @@
 import Groq from "groq-sdk";
 import ResultVerifier from "./result-verifier";
 import ResponseFormatterAgent from "./response-formatter";
+import ReflectionAgent from "./reflection-agent";
+import ConversationalAgent from "./conversational-agent";
+import { classifyQueryWithLLM } from "./llm-classifier";
+import {
+  aggregateHighSchoolPrograms,
+  aggregateCollegePrograms,
+} from "../helpers/pathway-aggregator";
 
 const groq = new Groq({
   apiKey: process.env.GROQ_API_KEY,
@@ -10,6 +17,8 @@ const groq = new Groq({
 
 const resultVerifier = new ResultVerifier();
 const responseFormatter = new ResponseFormatterAgent();
+const reflectionAgent = new ReflectionAgent();
+const conversationalAgent = new ConversationalAgent();
 
 /**
  * Interface definitions for clarity
@@ -329,14 +338,70 @@ function isValidToolName(name: string): boolean {
 }
 
 /**
- * PLANNING AGENT - Decides what tools to call
+ * PLANNING AGENT - Decides what tools to call with search strategy context
  */
 export async function planToolCalls(
   message: string,
   profile: UserProfile,
-  conversationHistory: any[] = []
+  conversationHistory: any[] = [],
+  searchStrategy?: {
+    expandKeywords: boolean;
+    useCIPSearch: boolean;
+    broadenScope: boolean;
+    includeRelatedFields: boolean;
+    additionalKeywords: string[];
+  }
 ): Promise<ToolCall[]> {
-  const keywords = extractKeywords(message);
+  let keywords = extractKeywords(message);
+  
+  // SPECIAL CASE: If message is affirmative and has no keywords, extract from assistant's last message
+  // This happens when user says "yes" to search for programs
+  const isAffirmative = /^(yes|yeah|yep|sure|ok|okay|definitely|absolutely|please|go ahead|sounds good)/i.test(message.toLowerCase().trim());
+  
+  if (isAffirmative && keywords.length === 0) {
+    console.log('[Planner] 🔄 Affirmative response detected - extracting context from conversation');
+    
+    // Get last assistant message
+    const lastAssistantMessage = conversationHistory.length > 0 
+      ? conversationHistory[conversationHistory.length - 1]
+      : null;
+    
+    if (lastAssistantMessage?.role === 'assistant' && lastAssistantMessage.content) {
+      // Extract keywords from what the assistant asked about
+      const assistantKeywords = extractKeywords(lastAssistantMessage.content);
+      console.log('[Planner] � Keywords from assistant message:', assistantKeywords);
+      
+      if (assistantKeywords.length > 0) {
+        keywords = assistantKeywords.slice(0, 3);
+      } else if (profile?.interests?.length > 0) {
+        // Fallback to profile interests
+        console.log('[Planner] 📋 No keywords in assistant message, using profile interests');
+        keywords = profile.interests.slice(0, 3);
+      }
+      
+      console.log('[Planner] ✅ Using keywords:', keywords);
+    } else if (profile?.interests?.length > 0) {
+      // No assistant message, use profile
+      console.log('[Planner] 📋 Using profile interests as keywords');
+      keywords = profile.interests.slice(0, 3);
+    }
+  }
+  
+  // Apply search strategy if provided
+  if (searchStrategy) {
+    // Add additional keywords from strategy
+    if (searchStrategy.additionalKeywords.length > 0) {
+      keywords = [...new Set([...keywords, ...searchStrategy.additionalKeywords])];
+    }
+
+    // If broadening scope, use only the most general keywords
+    if (searchStrategy.broadenScope) {
+      keywords = keywords.slice(0, 3);
+    }
+
+    // Limit to prevent over-expansion
+    keywords = keywords.slice(0, 8);
+  }
 
   const systemPrompt = `You are a tool planning agent for Hawaii's educational pathway system.
 
@@ -347,11 +412,19 @@ ${Object.entries(TOOL_CATALOG)
   )
   .join("\n\n")}
 
+${searchStrategy ? `SEARCH STRATEGY FOR THIS ATTEMPT:
+- Use CIP search: ${searchStrategy.useCIPSearch ? "YES - prioritize expand_cip and get_college_by_cip" : "NO"}
+- Broaden scope: ${searchStrategy.broadenScope ? "YES - use category-level searches" : "NO"}
+- Include related fields: ${searchStrategy.includeRelatedFields ? "YES - search related subjects" : "NO"}
+- Additional keywords to use: ${searchStrategy.additionalKeywords.join(", ")}
+` : ""}
+
 PLANNING STRATEGY:
 1. For general queries: Start with trace_pathway(keywords)
 2. For specific programs: Use get_hs_program_details or trace_from_hs
 3. For "where" questions: Include school/campus lookup tools
 4. Always trace complete pathways (HS → College → Career)
+${searchStrategy?.useCIPSearch ? "\n5. IMPORTANT: Use CIP-based searches for broader results" : ""}
 
 OUTPUT RULES:
 - Output ONLY tool calls, one per line
@@ -724,20 +797,103 @@ async function verifyResults(
 }
 
 /**
+ * AGGREGATION STEP - Aggregate and format data for response generation
+ * This ensures response formatter sees the same counts as the frontend
+ */
+async function aggregateDataForResponse(collectedData: any): Promise<any> {
+  console.log(
+    `[Orchestrator] Aggregating ${collectedData.highSchoolPrograms.length} HS + ${collectedData.collegePrograms.length} college programs before response generation`
+  );
+
+  // Aggregate high school programs (removes duplicates from POS levels)
+  const aggregatedHSPrograms = await aggregateHighSchoolPrograms(
+    collectedData.highSchoolPrograms.map((item: any) => ({
+      program: item.program,
+      schools: item.schools || [],
+    }))
+  );
+
+  // Aggregate college programs by CIP code (handles multiple program name variants)
+  const aggregatedCollegePrograms = aggregateCollegePrograms(
+    collectedData.collegePrograms.map((item: any) => ({
+      program: item.program,
+      campuses: item.campuses || [],
+    }))
+  );
+
+  // Calculate unique schools and campuses from aggregated data
+  const uniqueHighSchools = new Set<string>();
+  aggregatedHSPrograms.forEach((prog: any) =>
+    prog.schools.forEach((s: string) => uniqueHighSchools.add(s))
+  );
+
+  const uniqueCollegeCampuses = new Set<string>();
+  aggregatedCollegePrograms.forEach((prog: any) =>
+    prog.campuses.forEach((c: string) => uniqueCollegeCampuses.add(c))
+  );
+
+  // CAREER FILTERING: Only include careers from VERIFIED college programs
+  // First, get CIP codes from verified college programs
+  const verifiedCIPCodes = new Set<string>();
+  aggregatedCollegePrograms.forEach((prog: any) => {
+    if (prog.cipCode) {
+      verifiedCIPCodes.add(prog.cipCode);
+    }
+  });
+
+  // Then, only include careers that map to those CIP codes
+  const relevantSOCCodes = new Set<string>();
+  collectedData.careers.forEach((careerMapping: any) => {
+    // Only include if this career mapping is for a verified CIP code
+    const cipCode = careerMapping.CIP_CODE;
+    if (cipCode && verifiedCIPCodes.has(cipCode)) {
+      if (careerMapping.SOC_CODE) {
+        const codes = Array.isArray(careerMapping.SOC_CODE) 
+          ? careerMapping.SOC_CODE 
+          : [careerMapping.SOC_CODE];
+        codes.forEach((code: string) => relevantSOCCodes.add(code));
+      }
+    }
+  });
+
+  // Limit to top 10 most relevant careers to avoid overwhelming the user
+  const aggregatedCareers = Array.from(relevantSOCCodes)
+    .slice(0, 10)
+    .map(socCode => ({
+      title: socCode,  // Use SOC code as title for dropdown
+      code: socCode    // Also store as code for data panel
+    }));
+
+  console.log(
+    `[Orchestrator] Aggregation complete: ${aggregatedHSPrograms.length} HS programs at ${uniqueHighSchools.size} schools, ${aggregatedCollegePrograms.length} college programs at ${uniqueCollegeCampuses.size} campuses, ${aggregatedCareers.length} unique careers`
+  );
+
+  return {
+    highSchoolPrograms: aggregatedHSPrograms,
+    collegePrograms: aggregatedCollegePrograms,
+    careers: aggregatedCareers,
+    schools: Array.from(uniqueHighSchools),
+    campuses: Array.from(uniqueCollegeCampuses),
+  };
+}
+
+/**
 /**
  * RESPONSE GENERATION - Uses Response Formatter Agent for markdown formatting
+ * Now accepts pre-aggregated data to avoid duplicate aggregation
  */
 async function generateResponse(
   message: string,
   toolResults: ToolResult[],
-  collectedData: CollectedData,
+  aggregatedData: any, // Changed: Now expects already-aggregated data
   conversationHistory: any[] = [],
   userProfile?: UserProfile
 ): Promise<string> {
+  // Data is already aggregated, no need to aggregate again
   try {
     const formattedResponse = await responseFormatter.formatResponse(
       message,
-      collectedData,
+      aggregatedData, // Use the already-aggregated data
       conversationHistory,
       userProfile
     );
@@ -746,17 +902,13 @@ async function generateResponse(
   } catch (error) {
     console.error("[Orchestrator] Response generation error:", error);
 
-    // Fallback response
+    // Fallback response using aggregated data
     const summary = {
-      highSchoolPrograms: collectedData.highSchoolPrograms.length,
-      totalHighSchools: Array.isArray(collectedData.schools)
-        ? collectedData.schools.length
-        : collectedData.schools.size,
-      collegePrograms: collectedData.collegePrograms.length,
-      totalCollegeCampuses: Array.isArray(collectedData.campuses)
-        ? collectedData.campuses.length
-        : collectedData.campuses.size,
-      careers: collectedData.careers.length,
+      highSchoolPrograms: aggregatedData.highSchoolPrograms?.length || 0,
+      totalHighSchools: aggregatedData.schools?.length || 0,
+      collegePrograms: aggregatedData.collegePrograms?.length || 0,
+      totalCollegeCampuses: aggregatedData.campuses?.length || 0,
+      careers: aggregatedData.careers?.length || 0,
     };
 
     if (summary.highSchoolPrograms === 0 && summary.collegePrograms === 0) {
@@ -818,7 +970,201 @@ Return this exact structure:
 }
 
 /**
- * MAIN ORCHESTRATOR - Coordinates the entire process
+ * QUERY CLASSIFIER - Determines if query needs tool execution or just conversation
+ * COMPLETELY REWRITTEN - Simple, clear logic with affirmative responses prioritized
+ */
+async function classifyQuery(
+  message: string,
+  conversationHistory: any[] = []
+): Promise<{
+  needsTools: boolean;
+  queryType: 'search' | 'followup' | 'clarification' | 'reasoning' | 'greeting';
+  reasoning: string;
+}> {
+  const lowerMessage = message.toLowerCase().trim();
+  
+  // Get last assistant message for context
+  const lastAssistantMessage = conversationHistory.length > 0 
+    ? conversationHistory[conversationHistory.length - 1]
+    : null;
+  
+  const lastAssistantContent = lastAssistantMessage?.role === 'assistant' 
+    ? lastAssistantMessage.content.toLowerCase() 
+    : '';
+
+  console.log('[Classifier] 🔍 Analyzing message:', lowerMessage);
+  console.log('[Classifier] 📝 Last assistant said:', lastAssistantContent.substring(0, 100));
+
+  // ========================================
+  // PRIORITY 1: AFFIRMATIVE RESPONSES
+  // ========================================
+  // If user says yes/sure/okay, ALWAYS trigger tools (they're agreeing to search)
+  const affirmativePattern = /^(yes|yeah|yep|yup|sure|ok|okay|alright|definitely|absolutely|please|go ahead|sounds good|let'?s do it|i'?d love to|that would be great)$/i;
+  
+  if (affirmativePattern.test(lowerMessage)) {
+    console.log('[Classifier] ✅ AFFIRMATIVE DETECTED - Auto-triggering tools');
+    return {
+      needsTools: true,
+      queryType: 'followup',
+      reasoning: 'User gave affirmative response - triggering search'
+    };
+  }
+
+  // ========================================
+  // PRIORITY 2: SIMPLE ACKNOWLEDGMENTS
+  // ========================================
+  // Thanks, got it, cool (no action needed)
+  const acknowledgmentPattern = /^(thanks|thank you|got it|cool|nice|great|awesome|perfect|appreciate it)$/i;
+  
+  if (acknowledgmentPattern.test(lowerMessage)) {
+    console.log('[Classifier] 👍 Acknowledgment - conversational');
+    return {
+      needsTools: false,
+      queryType: 'clarification',
+      reasoning: 'User acknowledgment'
+    };
+  }
+
+  // ========================================
+  // PRIORITY 3: GREETINGS
+  // ========================================
+  const greetingPattern = /^(hi|hello|hey|aloha|good morning|good afternoon|good evening|howdy)$/i;
+  
+  if (greetingPattern.test(lowerMessage)) {
+    console.log('[Classifier] 👋 Greeting - conversational');
+    return {
+      needsTools: false,
+      queryType: 'greeting',
+      reasoning: 'User greeting'
+    };
+  }
+
+  // ========================================
+  // PRIORITY 4: EXPLICIT SEARCH REQUESTS
+  // ========================================
+  // "Show me programs", "Find programs", "What programs", etc.
+  const explicitSearchPattern = /\b(show|find|search|look for|give me|list|tell me about|what are|i want to see|i'?d like to see|looking for)\b.*\b(program|pathway|school|college|career|major|degree|course|option|field|opportunity)\b/i;
+  
+  if (explicitSearchPattern.test(lowerMessage)) {
+    console.log('[Classifier] � Explicit search request - triggering tools');
+    return {
+      needsTools: true,
+      queryType: 'search',
+      reasoning: 'Explicit search request detected'
+    };
+  }
+
+  // ========================================
+  // PRIORITY 5: INTEREST EXPRESSIONS
+  // ========================================
+  // "I'm interested in", "I like", "I want to learn about"
+  const interestPattern = /\b(interested in|interest in|like|love|enjoy|want to|thinking about|considering|curious about|passionate about)\b/i;
+  
+  if (interestPattern.test(lowerMessage)) {
+    console.log('[Classifier] 💡 Interest expression - triggering tools');
+    return {
+      needsTools: true,
+      queryType: 'search',
+      reasoning: 'User expressing interest - triggering search'
+    };
+  }
+
+  // ========================================
+  // PRIORITY 6: CAREER/FIELD EXPLORATION
+  // ========================================
+  // Messages about careers, jobs, opportunities
+  const careerPattern = /\b(career|job|work|employment|profession|occupation|field|industry|opportunities)\b/i;
+  
+  if (careerPattern.test(lowerMessage)) {
+    console.log('[Classifier] 💼 Career exploration - triggering tools');
+    return {
+      needsTools: true,
+      queryType: 'search',
+      reasoning: 'Career exploration query'
+    };
+  }
+
+  // ========================================
+  // PRIORITY 7: SUBJECT AREA MENTIONS
+  // ========================================
+  // If they mention a specific subject/field, trigger search
+  const subjectKeywords = [
+    'engineering', 'science', 'biology', 'chemistry', 'physics', 'math', 'mathematics',
+    'computer', 'technology', 'programming', 'coding', 'software',
+    'business', 'finance', 'accounting', 'management',
+    'health', 'medical', 'nursing', 'healthcare',
+    'art', 'design', 'creative', 'music',
+    'culinary', 'cooking', 'chef', 'food',
+    'environmental', 'conservation', 'sustainability',
+    'automotive', 'construction', 'mechanical',
+    'hospitality', 'tourism', 'travel'
+  ];
+  
+  const mentionsSubject = subjectKeywords.some(keyword => lowerMessage.includes(keyword));
+  
+  if (mentionsSubject && lowerMessage.length > 15) {
+    console.log('[Classifier] 📚 Subject area mentioned - triggering tools');
+    return {
+      needsTools: true,
+      queryType: 'search',
+      reasoning: 'Subject area mentioned - searching for related programs'
+    };
+  }
+
+  // ========================================
+  // PRIORITY 8: CLARIFICATION QUESTIONS
+  // ========================================
+  // Short questions about previous results
+  const clarificationPattern = /^(any|is there|are there|what about|how many|which|where|does it|do they|what|who|when|why|how)\b/i;
+  
+  const hasRecentResults = lastAssistantContent && (
+    lastAssistantContent.includes('program') ||
+    lastAssistantContent.includes('found') ||
+    lastAssistantContent.includes('available')
+  );
+  
+  if (clarificationPattern.test(lowerMessage) && hasRecentResults && lowerMessage.length < 80) {
+    console.log('[Classifier] ❓ Clarification question - conversational');
+    return {
+      needsTools: false,
+      queryType: 'clarification',
+      reasoning: 'Clarification question about previous results'
+    };
+  }
+
+  // ========================================
+  // DEFAULT: TRIGGER TOOLS IF UNSURE
+  // ========================================
+  // When in doubt, search - better to over-search than miss an intent
+  console.log('[Classifier] 🤷 Ambiguous - defaulting to SEARCH');
+  return {
+    needsTools: true,
+    queryType: 'search',
+    reasoning: 'Ambiguous query - defaulting to search to ensure user gets help'
+  };
+}
+
+/**
+ * CONVERSATIONAL RESPONSE - Handles non-search queries using ConversationalAgent
+ */
+async function generateConversationalResponse(
+  message: string,
+  conversationHistory: any[] = [],
+  profile?: UserProfile,
+  queryType?: string
+): Promise<string> {
+  const conversationalResponse = await conversationalAgent.generateResponse(
+    message,
+    conversationHistory,
+    profile,
+    queryType
+  );
+
+  return conversationalResponse.markdown;
+}
+
+/**
+ * MAIN ORCHESTRATOR - Coordinates the entire process with reflection loop
  */
 export async function processUserQuery(
   message: string,
@@ -830,8 +1176,55 @@ export async function processUserQuery(
   data: any;
   profile: UserProfile;
   toolsUsed: string[];
+  reflectionScore?: number;
+  attempts?: number;
 }> {
+  let attemptNumber = 1;
+  let enhancedQuery = message;
+  let searchStrategy: any = undefined;
+  let finalResults: any = null;
+
   try {
+    // 0. CLASSIFY QUERY - Use LLM for intelligent classification
+    const classification = await classifyQueryWithLLM(message, conversationHistory);
+    
+    if (!classification.needsTools) {
+      console.log(`[Orchestrator] Conversational query detected (${classification.queryType}): "${message}"`);
+      console.log(`[Orchestrator] Reason: ${classification.reasoning}`);
+      
+      // Handle conversationally without tools
+      const response = await generateConversationalResponse(
+        message,
+        conversationHistory,
+        profile,
+        classification.queryType
+      );
+      
+      return {
+        response,
+        data: {
+          highSchoolPrograms: [],
+          collegePrograms: [],
+          careers: [],
+          cipMappings: [],
+          schools: [],
+          campuses: [],
+        },
+        profile: profile || {
+          educationLevel: null,
+          interests: [],
+          careerGoals: [],
+          location: null,
+        },
+        toolsUsed: [],
+        reflectionScore: 10, // Perfect score for conversational responses
+        attempts: 1,
+      };
+    }
+    
+    console.log(`[Orchestrator] Search query detected (${classification.queryType}): "${message}"`);
+    console.log(`[Orchestrator] Reason: ${classification.reasoning}`);
+
     // 1. Use the passed profile (no need to extract again)
     // If profile is incomplete, enhance it with additional extraction
     let enhancedProfile = profile;
@@ -856,45 +1249,150 @@ export async function processUserQuery(
       };
     }
 
-    // 2. Plan tool calls
-    const toolCalls = await planToolCalls(
-      message,
-      enhancedProfile,
-      conversationHistory
-    );
+    // REFLECTION LOOP: Try up to 3 times to get good results
+    while (attemptNumber <= 3) {
+      console.log(
+        `[Orchestrator] Attempt ${attemptNumber}: Processing query: "${enhancedQuery}"`
+      );
+      
+      if (searchStrategy) {
+        console.log(
+          `[Orchestrator] Using search strategy: CIP=${searchStrategy.useCIPSearch}, Broaden=${searchStrategy.broadenScope}, Keywords=[${searchStrategy.additionalKeywords.slice(0, 5).join(", ")}]`
+        );
+      }
 
-    // 3. Execute tools
-    const { results, collectedData } = await executeToolCalls(toolCalls, Tools);
+      // 2. Plan tool calls with search strategy
+      const toolCalls = await planToolCalls(
+        enhancedQuery,
+        enhancedProfile,
+        conversationHistory,
+        searchStrategy
+      );
 
-    // 3.5. Extract the search intent from the enhanced profile interests or tool calls
-    // This assumes the first interest or keyword is the intent
-    const extractedIntent =
-      enhancedProfile.interests[0] || extractKeywords(message)[0];
+      // 3. Execute tools
+      const { results, collectedData } = await executeToolCalls(
+        toolCalls,
+        Tools
+      );
 
-    // 3.5. VERIFY RESULTS - Pass extractedIntent
-    const verifiedData = await verifyResults(
-      message,
-      collectedData,
-      conversationHistory, // ADD THIS
-      extractedIntent // ADD THIS
-    );
+      // 3.5. Extract the search intent from the enhanced profile interests or tool calls
+      const extractedIntent =
+        enhancedProfile.interests[0] || extractKeywords(message)[0];
 
-    // 4. Generate response using Response Formatter Agent
-    const response = await generateResponse(
-      message,
-      results,
-      verifiedData,
-      conversationHistory,
-      enhancedProfile
-    );
+      // 4. VERIFY RESULTS
+      const verifiedData = await verifyResults(
+        enhancedQuery,
+        collectedData,
+        conversationHistory,
+        extractedIntent
+      );
 
-    // 5. Return complete results
-    return {
-      response,
-      data: verifiedData,
-      profile: enhancedProfile,
-      toolsUsed: toolCalls.map(tc => tc.name),
-    };
+      // 5. REFLECT ON RESULTS
+      const reflection = await reflectionAgent.reflect(
+        message, // Use original query for reflection context
+        verifiedData,
+        enhancedProfile,
+        conversationHistory,
+        attemptNumber
+      );
+
+      // 6. Check if results are good enough
+      if (reflection.isGoodEnough || !reflectionAgent.shouldRerun(attemptNumber)) {
+        console.log(
+          `[Orchestrator] Results approved after ${attemptNumber} attempt(s) - Quality Score: ${reflection.qualityScore}/10`
+        );
+        
+        // 6.5. AGGREGATE DATA (once, for both response and frontend)
+        const aggregatedData = await aggregateDataForResponse(verifiedData);
+        
+        // 7. Generate response using Response Formatter Agent with aggregated data
+        const response = await generateResponse(
+          message,
+          results,
+          aggregatedData, // Pass aggregated data directly
+          conversationHistory,
+          enhancedProfile
+        );
+
+        finalResults = {
+          response,
+          data: aggregatedData, // Return aggregated data to frontend
+          profile: enhancedProfile,
+          toolsUsed: toolCalls.map(tc => tc.name),
+          reflectionScore: reflection.qualityScore,
+          attempts: attemptNumber,
+        };
+
+        break; // Exit the loop
+      } else {
+        // Results not good enough - prepare for rerun with enhanced strategy
+        console.log(
+          `[Orchestrator] Attempt ${attemptNumber} insufficient (Score: ${reflection.qualityScore}/10) - Retrying with enhanced context...`
+        );
+
+        // Generate enhanced query AND search strategy
+        const rerunContext = reflectionAgent.generateRerunContext(
+          message,
+          reflection,
+          enhancedProfile,
+          attemptNumber + 1
+        );
+        
+        enhancedQuery = rerunContext.enhancedQuery;
+        searchStrategy = rerunContext.searchStrategy;
+
+        attemptNumber++;
+      }
+    }
+
+    // If we exhausted all attempts without success, return the last attempt
+    if (!finalResults) {
+      console.log(
+        `[Orchestrator] Max attempts reached - returning best available results`
+      );
+      
+      // Use the last verified data we have
+      const toolCalls = await planToolCalls(
+        enhancedQuery,
+        enhancedProfile,
+        conversationHistory,
+        searchStrategy
+      );
+      const { results, collectedData } = await executeToolCalls(
+        toolCalls,
+        Tools
+      );
+      const extractedIntent =
+        enhancedProfile.interests[0] || extractKeywords(message)[0];
+      const verifiedData = await verifyResults(
+        enhancedQuery,
+        collectedData,
+        conversationHistory,
+        extractedIntent
+      );
+      
+      // Aggregate data before generating response
+      const aggregatedData = await aggregateDataForResponse(verifiedData);
+      
+      const response = await generateResponse(
+        message,
+        results,
+        aggregatedData, // Pass aggregated data
+        conversationHistory,
+        enhancedProfile
+      );
+
+      finalResults = {
+        response,
+        data: aggregatedData, // Return aggregated data
+        profile: enhancedProfile,
+        toolsUsed: toolCalls.map(tc => tc.name),
+        reflectionScore: 0,
+        attempts: attemptNumber,
+      };
+    }
+
+    return finalResults;
   } catch (error) {
     console.error("Orchestrator error:", error);
 
@@ -917,6 +1415,8 @@ export async function processUserQuery(
         location: null,
       },
       toolsUsed: [],
+      reflectionScore: 0,
+      attempts: attemptNumber,
     };
   }
 }
