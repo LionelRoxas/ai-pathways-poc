@@ -7,7 +7,7 @@ import {
   ChevronUp,
   School,
   GraduationCap,
-  Briefcase,
+  // Briefcase,
   ChevronRight,
 } from "lucide-react";
 import { Message, UserProfile } from "./types";

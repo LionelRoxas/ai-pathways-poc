@@ -1,4 +1,5 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
+/* eslint-disable @typescript-eslint/no-unused-vars */
 // src/app/lib/tools/direct-search-tracer.ts
 // Simple, direct search approach - just filter the actual data!
 

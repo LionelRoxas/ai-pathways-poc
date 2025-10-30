@@ -122,7 +122,7 @@ export async function aggregateHighSchoolPrograms(
  */
 function extractBaseProgramName(fullName: string): string {
   // STEP 1: Fix common data issues (missing spaces around &)
-  let cleaned = fullName.replace(/(\w)&(\w)/g, '$1 & $2'); // "Information&Computer" → "Information & Computer"
+  const cleaned = fullName.replace(/(\w)&(\w)/g, '$1 & $2'); // "Information&Computer" → "Information & Computer"
   
   // STEP 2: Remove everything in parentheses
   const baseName = cleaned.replace(/\s*\([^)]*\)/g, "").trim();
