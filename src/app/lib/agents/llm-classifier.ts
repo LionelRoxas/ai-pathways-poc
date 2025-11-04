@@ -119,7 +119,6 @@ OUTPUT: Return ONLY valid JSON:
       ],
       model: "llama-3.3-70b-versatile",
       temperature: 0.1,
-      max_tokens: 150,
     });
 
     const content = response.choices[0].message.content || '{}';

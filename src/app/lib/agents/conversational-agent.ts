@@ -81,7 +81,6 @@ export class ConversationalAgent {
         ],
         model: "llama-3.3-70b-versatile",
         temperature: 0.6,
-        max_tokens: 500,
       });
 
       const rawResponse = response.choices[0].message.content || this.getFallbackResponse(queryType, hasProfile);
@@ -214,7 +213,6 @@ If nothing to extract, return empty arrays. Be smart about synonyms (e.g., "codi
         ],
         model: "llama-3.3-70b-versatile",
         temperature: 0.1, // Low temperature for consistent extraction
-        max_tokens: 400,
         response_format: { type: "json_object" }, // Force JSON output
       });
 

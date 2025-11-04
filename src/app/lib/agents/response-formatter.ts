@@ -229,7 +229,6 @@ Generate a clean, simple response.`;
         ],
         model: "llama-3.3-70b-versatile",
         temperature: 0.4,
-        max_tokens: 1000,
       });
 
       let markdown = response.choices[0].message.content || "";
@@ -292,7 +291,6 @@ Generate a helpful, simple response.`;
         ],
         model: "llama-3.3-70b-versatile",
         temperature: 0.5,
-        max_tokens: 400,
       });
 
       return this.cleanMarkdown(

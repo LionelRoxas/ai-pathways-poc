@@ -269,7 +269,6 @@ Generate a personalized UHCC career roadmap with realistic, industry-relevant sk
         ],
         model: "llama-3.3-70b-versatile",
         temperature: 0.7, // Higher temperature for creativity
-        max_tokens: 2000,
       });
 
       const markdown = this.cleanMarkdown(response.choices[0].message.content || '');
