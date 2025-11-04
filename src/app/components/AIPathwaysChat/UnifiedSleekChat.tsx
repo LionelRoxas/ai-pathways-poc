@@ -1010,6 +1010,8 @@ export default function UnifiedSleekChat({
         socCodes={displayedSocCodes} // ✅ Pass extracted SOC codes from displayed careers
         activeDataTab={activeDataTab}
         setActiveDataTab={setActiveDataTab}
+        messages={messages} // ✅ Pass conversation context
+        userProfile={userProfile} // ✅ Pass user profile
       />
     </div>
   );

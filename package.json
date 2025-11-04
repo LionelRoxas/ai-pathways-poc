@@ -16,6 +16,7 @@
     "seed": "ts-node --compiler-options {\"module\":\"CommonJS\"} prisma/seed.ts"
   },
   "dependencies": {
+    "@mdx-js/react": "^3.1.1",
     "@neondatabase/serverless": "^1.0.1",
     "@prisma/client": "^6.13.0",
     "@upstash/ratelimit": "^2.0.5",
@@ -28,7 +29,10 @@
     "papaparse": "^5.5.3",
     "prettier": "^3.4.2",
     "react": "^19.0.0",
-    "react-dom": "^19.0.0"
+    "react-dom": "^19.0.0",
+    "react-markdown": "^10.1.0",
+    "rehype-raw": "^7.0.0",
+    "remark-gfm": "^4.0.1"
   },
   "devDependencies": {
     "@types/node": "^20.19.11",

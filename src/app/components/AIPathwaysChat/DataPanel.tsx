@@ -1,18 +1,19 @@
 /* eslint-disable react-hooks/exhaustive-deps */
 /* eslint-disable @typescript-eslint/no-explicit-any */
 // components/AIPathwaysChat/DataPanel.tsx
-// CLEANED UP VERSION - Only 4 SOC Visualizers, SOC codes passed as prop
-import React from "react";
+// Market Intelligence Report with toggle to detailed visualizers
+import React, { useState } from "react";
 import {
-  // Briefcase,
   X,
+  TrendingUp,
+  ChevronDown,
 } from "lucide-react";
 
 // Import all 4 SOC Visualizers
 import JobTitlesSkillsVisualizer from "./Visualizer/JobTitlesSkillsVisualizer";
 import JobTitlesCompaniesVisualizer from "./Visualizer/JobTitlesCompaniesVisualizer";
 import CompaniesSkillsVisualizer from "./Visualizer/CompaniesSkillsVisualizer";
-// import ActivePostsVisualizer from "./Visualizer/ActivePostsVisualizer";
+import MarketIntelligenceReport from "./MarketIntelligenceReport";
 
 interface DataPanelProps {
   dataPanelOpen: boolean;
@@ -20,6 +21,8 @@ interface DataPanelProps {
   socCodes: string[]; // ✅ Now passed directly as prop
   activeDataTab: string;
   setActiveDataTab: (tab: string) => void;
+  messages?: any[]; // Conversation context for personalized insights
+  userProfile?: any; // User profile for personalized insights
 }
 
 interface Tab {
@@ -33,12 +36,17 @@ export default function DataPanel({
   socCodes, // ✅ Use prop directly
   activeDataTab,
   setActiveDataTab,
+  messages,
+  userProfile,
 }: DataPanelProps) {
+  const [showDetails, setShowDetails] = useState(false);
+  
   console.log(
     `[DataPanel] 🎯 Received ${socCodes.length} SOC codes:`,
     socCodes
   );
   console.log(`[DataPanel] 🎯 Active tab:`, activeDataTab);
+  console.log(`[DataPanel] 🎯 Show details:`, showDetails);
 
   // 🎯 Only trigger tab validation if socCodes actually change
   const prevSocCodesRef = React.useRef<string[]>([]);
@@ -76,48 +84,47 @@ export default function DataPanel({
   ];
 
   return (
-    <div className="fixed top-0 right-0 bottom-0 w-96 bg-white border-l border-gray-200 z-40">
+    <div className="fixed top-0 right-0 bottom-0 w-96 bg-white border-l border-slate-200 shadow-xl z-40">
       <div className="h-full flex flex-col">
-        {/* Header */}
-        <div className="p-3 border-b border-gray-200">
-          <div className="flex items-center justify-between mb-0">
-            {/* Tabs and X in same row */}
-            <div className="flex items-center gap-2 flex-1">
-              <div
-                className="flex items-center gap-1.5 overflow-x-auto pb-1 bg-gray-50 border border-gray-200 rounded-xl p-1 shadow-sm"
-                role="tablist"
-                aria-label="Market data views"
-              >
-                {tabs.map(tab => (
-                  <button
-                    key={tab.id}
-                    id={`tab-${tab.id}`}
-                    onClick={() => setActiveDataTab(tab.id)}
-                    role="tab"
-                    aria-selected={activeDataTab === tab.id}
-                    aria-controls={`panel-${tab.id}`}
-                    tabIndex={activeDataTab === tab.id ? 0 : -1}
-                    className={`
-                      px-3.5 py-1.5 rounded-lg text-xs font-medium tracking-wide transition-all duration-200 relative whitespace-nowrap
-                      focus:outline-none focus-visible:ring-2 focus-visible:ring-black focus-visible:ring-offset-2 focus-visible:ring-offset-white
-                      ${
-                        activeDataTab === tab.id
-                          ? "bg-white text-gray-900 shadow-sm"
-                          : "text-gray-600 hover:text-gray-900 hover:bg-white"
-                      }
-                    `}
-                  >
-                    {tab.label}
-                    {activeDataTab === tab.id && (
-                      <span className="pointer-events-none absolute left-2 right-2 -bottom-2 h-0.5 rounded bg-black" />
-                    )}
-                  </button>
-                ))}
+        {/* Toggleable Header */}
+        <div className="px-4 py-3 border-b border-gray-200 bg-white">
+          <div className="flex items-center justify-between gap-3">
+            {/* Sliding Toggle */}
+            <div className="flex-1 bg-gray-100 rounded-lg p-1 relative">
+              <div className="grid grid-cols-2 gap-1 relative">
+                <button
+                  onClick={() => setShowDetails(false)}
+                  className={`relative z-10 px-3 py-2 text-xs font-semibold rounded-md transition-colors ${
+                    !showDetails
+                      ? "text-white"
+                      : "text-gray-600 hover:text-gray-900"
+                  }`}
+                >
+                  Summary
+                </button>
+                <button
+                  onClick={() => setShowDetails(true)}
+                  className={`relative z-10 px-3 py-2 text-xs font-semibold rounded-md transition-colors ${
+                    showDetails
+                      ? "text-white"
+                      : "text-gray-600 hover:text-gray-900"
+                  }`}
+                >
+                  Detailed Data
+                </button>
+                {/* Sliding Background */}
+                <div
+                  className={`absolute top-1 bottom-1 w-[calc(50%-4px)] bg-black rounded-md transition-transform duration-300 ease-out ${
+                    showDetails ? "translate-x-[calc(100%+8px)]" : "translate-x-1"
+                  }`}
+                />
               </div>
             </div>
+            
+            {/* Close Button */}
             <button
               onClick={() => setDataPanelOpen(false)}
-              className="p-1 hover:bg-gray-100 rounded transition-colors ml-2"
+              className="p-2 hover:bg-gray-100 rounded-lg transition-colors flex-shrink-0"
               aria-label="Close panel"
             >
               <X className="w-4 h-4 text-gray-600" />
@@ -125,27 +132,69 @@ export default function DataPanel({
           </div>
         </div>
 
-        {/* Content - All visualizers always mounted, only visible if active tab */}
-        <div className="flex-1 overflow-y-auto p-3">
-          <div
-            style={{
-              display: activeDataTab === "companies" ? "block" : "none",
-            }}
-          >
-            <JobTitlesCompaniesVisualizer socCodes={socCodes} />
-          </div>
-          <div
-            style={{ display: activeDataTab === "skills" ? "block" : "none" }}
-          >
-            <JobTitlesSkillsVisualizer socCodes={socCodes} />
-          </div>
-          <div
-            style={{
-              display: activeDataTab === "company-skills" ? "block" : "none",
-            }}
-          >
-            <CompaniesSkillsVisualizer socCodes={socCodes} />
-          </div>
+        {/* Content */}
+        <div className="flex-1 overflow-y-auto p-4 bg-white">
+          {!showDetails ? (
+            /* Market Intelligence Report (Primary View) */
+            <MarketIntelligenceReport 
+              socCodes={socCodes} 
+              messages={messages}
+              userProfile={userProfile}
+            />
+          ) : (
+            /* Detailed Visualizers (Secondary View) */
+            <>
+              {/* Tabs */}
+              <div className="bg-gray-100 rounded-lg p-1 mb-4 relative">
+                <div className="grid grid-cols-3 gap-1 relative">
+                  {tabs.map(tab => (
+                    <button
+                      key={tab.id}
+                      onClick={() => setActiveDataTab(tab.id)}
+                      className={`relative z-10 px-3 py-2 text-xs font-semibold rounded-md transition-colors ${
+                        activeDataTab === tab.id
+                          ? "text-white"
+                          : "text-gray-600 hover:text-gray-900"
+                      }`}
+                    >
+                      {tab.label}
+                    </button>
+                  ))}
+                  {/* Sliding Background */}
+                  <div
+                    className={`absolute top-1 bottom-1 w-[calc(33.333%-4px)] bg-black rounded-md transition-transform duration-300 ease-out ${
+                      activeDataTab === "companies" 
+                        ? "translate-x-1" 
+                        : activeDataTab === "skills"
+                        ? "translate-x-[calc(100%+8px)]"
+                        : "translate-x-[calc(200%+16px)]"
+                    }`}
+                  />
+                </div>
+              </div>
+
+              {/* Visualizer Content */}
+              <div
+                style={{
+                  display: activeDataTab === "companies" ? "block" : "none",
+                }}
+              >
+                <JobTitlesCompaniesVisualizer socCodes={socCodes} />
+              </div>
+              <div
+                style={{ display: activeDataTab === "skills" ? "block" : "none" }}
+              >
+                <JobTitlesSkillsVisualizer socCodes={socCodes} />
+              </div>
+              <div
+                style={{
+                  display: activeDataTab === "company-skills" ? "block" : "none",
+                }}
+              >
+                <CompaniesSkillsVisualizer socCodes={socCodes} />
+              </div>
+            </>
+          )}
         </div>
       </div>
     </div>
