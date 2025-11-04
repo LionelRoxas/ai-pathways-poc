@@ -836,12 +836,6 @@ The project is optimized for Vercel deployment:
 
 ---
 
-## 📄 License
-
-[Add your license here]
-
----
-
 ## 🙏 Acknowledgments
 
 - **University of Hawaii Community Colleges** for educational data
@@ -855,7 +849,7 @@ The project is optimized for Vercel deployment:
 
 For questions or issues:
 - Open an issue on GitHub
-- Contact: [Your contact information]
+- Contact: ldroxas@hawaiii.edu
 
 ---
 
