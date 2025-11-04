@@ -34,37 +34,51 @@ interface MarketReport {
 export class MarketIntelligenceAgent {
   /**
    * Fetch all market data from SOC APIs
+   * NOTE: This runs SERVER-SIDE ONLY, so we call external API directly
    */
   async fetchMarketData(socCodes: string[]): Promise<MarketIntelligenceData> {
     console.log('[MarketIntelligence] 📊 Fetching data for SOC codes:', socCodes);
-
-    const baseUrl = process.env.NEXT_PUBLIC_BASE_URL || 'http://localhost:3000';
     
     // Join SOC codes with commas for query parameter
     const socCodesParam = socCodes.join(',');
 
+    // Call external API directly (server-side only, not through Next.js proxy)
+    const externalBaseUrl = 'https://careerexplorer.hawaii.edu/api_pathways';
+
     try {
       // Fetch all 4 SOC endpoints in parallel (all use GET with query params)
-      console.log('[MarketIntelligence] 🔄 Calling SOC APIs...');
+      console.log('[MarketIntelligence] 🔄 Calling external SOC APIs...');
       const [jobTitlesSkills, jobTitlesCompanies, companiesSkills, activePosts] = await Promise.all([
-        fetch(`${baseUrl}/api/soc/jobtitles-skills?soc5=${socCodesParam}`)
+        fetch(`${externalBaseUrl}/soc5_to_jobtitles_skills.php?soc5=${socCodesParam}`, {
+          headers: { Accept: 'application/json' },
+        })
           .then(res => {
             console.log('[MarketIntelligence] jobtitles-skills status:', res.status);
+            if (!res.ok) throw new Error(`jobtitles-skills API error: ${res.status}`);
             return res.json();
           }),
-        fetch(`${baseUrl}/api/soc/jobtitles-companies?soc5=${socCodesParam}`)
+        fetch(`${externalBaseUrl}/soc5_to_jobtitles_companies.php?soc5=${socCodesParam}`, {
+          headers: { Accept: 'application/json' },
+        })
           .then(res => {
             console.log('[MarketIntelligence] jobtitles-companies status:', res.status);
+            if (!res.ok) throw new Error(`jobtitles-companies API error: ${res.status}`);
             return res.json();
           }),
-        fetch(`${baseUrl}/api/soc/companies-skills?soc5=${socCodesParam}`)
+        fetch(`${externalBaseUrl}/soc5_to_companies_skills.php?soc5=${socCodesParam}`, {
+          headers: { Accept: 'application/json' },
+        })
           .then(res => {
             console.log('[MarketIntelligence] companies-skills status:', res.status);
+            if (!res.ok) throw new Error(`companies-skills API error: ${res.status}`);
             return res.json();
           }),
-        fetch(`${baseUrl}/api/soc/active-posts?soc5=${socCodesParam}`)
+        fetch(`${externalBaseUrl}/soc5_to_active_posts.php?soc5=${socCodesParam}`, {
+          headers: { Accept: 'application/json' },
+        })
           .then(res => {
             console.log('[MarketIntelligence] active-posts status:', res.status);
+            if (!res.ok) throw new Error(`active-posts API error: ${res.status}`);
             return res.json();
           }),
       ]);
