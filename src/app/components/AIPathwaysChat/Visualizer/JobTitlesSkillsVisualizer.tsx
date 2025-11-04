@@ -133,8 +133,7 @@ const JobTitlesSkillsVisualizer: React.FC<JobTitlesSkillsVisualizerProps> = ({
   }
 
   const jobTitles = data.data.ranking.buckets;
-  const totals = data.data.totals;
-
+  
   return (
     <div className="space-y-4">
 

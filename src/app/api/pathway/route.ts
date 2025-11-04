@@ -2,11 +2,15 @@
 // src/app/api/pathway/route.ts
 import { NextRequest, NextResponse } from "next/server";
 import { processUserQuery } from "@/app/lib/agents/orchestrator-agents";
+import { processUserQueryWithLangGraphStyle } from "@/app/lib/agents/langgraph-style-orchestrator";
 import Tools from "@/app/lib/tools/jsonl-tools";
 import {
   formatCollegeProgramsForFrontend,
 } from "@/app/lib/helpers/pathway-aggregator";
 import { CacheService } from "@/app/lib/cache/cache-service";
+
+// Feature flag for LangGraph-style orchestrator
+const USE_LANGGRAPH_STYLE = process.env.USE_LANGGRAPH_STYLE === "true";
 
 // Enable streaming if needed
 export const runtime = "nodejs";
@@ -115,12 +119,26 @@ export async function POST(request: NextRequest) {
 
     // Process the query using the orchestrator (includes verification AND aggregation)
     // Pass the TRANSFORMED profile (not the raw frontend profile)
-    const result = await processUserQuery(
-      message,
-      Tools,
-      conversationHistory,
-      transformedProfile
-    );
+    
+    // FEATURE FLAG: Choose orchestrator version
+    let result;
+    if (USE_LANGGRAPH_STYLE) {
+      console.log(`[Pathway API] 🚀 Using LangGraph-Style Orchestrator`);
+      result = await processUserQueryWithLangGraphStyle(
+        message,
+        Tools,
+        conversationHistory,
+        transformedProfile
+      );
+    } else {
+      console.log(`[Pathway API] 📊 Using Original Orchestrator`);
+      result = await processUserQuery(
+        message,
+        Tools,
+        conversationHistory,
+        transformedProfile
+      );
+    }
 
     // ============================================
     // DATA IS ALREADY AGGREGATED FROM ORCHESTRATOR
@@ -195,6 +213,9 @@ export async function POST(request: NextRequest) {
     );
     console.log(
       `[Pathway API] Found: ${formattedResponse.data.summary.totalHighSchoolPrograms} HS programs, ${formattedResponse.data.summary.totalCollegePrograms} college program families`
+    );
+    console.log(
+      `[Pathway API] Orchestrator: ${USE_LANGGRAPH_STYLE ? "LangGraph-Style" : "Original"} | Quality: ${result.reflectionScore}/10 | Attempts: ${result.attempts}`
     );
 
     // Cache the result

@@ -152,8 +152,10 @@ RESPONSE STRUCTURE (ALWAYS FOLLOW THIS):
 
 ## College Programs (ONLY if data exists AND has valid names)
 
-- Program name - X campuses
-- Program name - X campuses
+- Program name - Available at: Campus Name, Campus Name (list all campuses)
+- Program name - Available at: Campus Name, Campus Name, Campus Name
+
+Important: List the actual campus names, not just the count!
 
 ## Career Paths (ONLY if there are related careers to mention)
 
@@ -407,14 +409,14 @@ ${mostRecentTopic ? `\nMost Recent Topic: "${mostRecentTopic}"` : ""}`;
           
           const campuses = item.campuses || [];
           const campusCount = campuses.length;
-          const topCampuses = campuses.slice(0, 3).join(", ");
+          const campusList = campuses.join(", ");
           
           return {
             name: name || null,
             campusCount,
-            topCampuses,
+            campusList,
             formatted: name && name !== 'Program' 
-              ? `  - ${name} (${campusCount} campus${campusCount !== 1 ? 'es' : ''}: ${topCampuses})`
+              ? `  - ${name} - Available at: ${campusList}`
               : null
           };
         })
@@ -424,7 +426,7 @@ ${mostRecentTopic ? `\nMost Recent Topic: "${mostRecentTopic}"` : ""}`;
 
       if (collegeExamples.trim()) {
         hasCollegeData = true;
-        context += `College Programs (INCLUDE THIS SECTION):\n${collegeExamples}\n\n`;
+        context += `College Programs (INCLUDE THIS SECTION - List campus names!):\n${collegeExamples}\n\n`;
       } else {
         console.warn("[ResponseFormatter] No college programs with valid names found");
         context += `College Programs: ${verifiedData.collegePrograms.length} programs found but names not available (DO NOT INCLUDE THIS SECTION)\n\n`;

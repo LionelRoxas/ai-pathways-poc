@@ -5,8 +5,6 @@
 import React, { useState } from "react";
 import {
   X,
-  TrendingUp,
-  ChevronDown,
 } from "lucide-react";
 
 // Import all 4 SOC Visualizers
@@ -41,10 +39,16 @@ export default function DataPanel({
 }: DataPanelProps) {
   const [showDetails, setShowDetails] = useState(false);
   
+  // Create stable references for comparison
+  const socCodesKey = socCodes.sort().join(',');
+  const messagesCount = messages?.length || 0;
+  
   console.log(
     `[DataPanel] 🎯 Received ${socCodes.length} SOC codes:`,
     socCodes
   );
+  console.log(`[DataPanel] 🎯 SOC codes key:`, socCodesKey);
+  console.log(`[DataPanel] 🎯 Messages count:`, messagesCount);
   console.log(`[DataPanel] 🎯 Active tab:`, activeDataTab);
   console.log(`[DataPanel] 🎯 Show details:`, showDetails);
 
@@ -56,8 +60,10 @@ export default function DataPanel({
       socCodes.length !== prevSocCodesRef.current.length ||
       socCodes.some((code, idx) => code !== prevSocCodesRef.current[idx]);
     if (socCodes.length > 0 && codesChanged) {
+      console.log('[DataPanel] 🔄 SOC codes changed - validating active tab');
       const validTabs = ["companies", "skills", "company-skills"];
       if (!validTabs.includes(activeDataTab)) {
+        console.log('[DataPanel] ⚠️  Invalid tab - resetting to companies');
         setActiveDataTab("companies"); // Set default if current tab is invalid
       }
       prevSocCodesRef.current = socCodes;
@@ -134,67 +140,58 @@ export default function DataPanel({
 
         {/* Content */}
         <div className="flex-1 overflow-y-auto p-4 bg-white">
-          {!showDetails ? (
-            /* Market Intelligence Report (Primary View) */
+          {/* ✅ Keep MarketIntelligenceReport ALWAYS mounted - just hide with CSS */}
+          <div style={{ display: !showDetails ? 'block' : 'none' }}>
             <MarketIntelligenceReport 
-              socCodes={socCodes} 
+              socCodes={socCodes}
               messages={messages}
               userProfile={userProfile}
+              key={socCodesKey}
             />
-          ) : (
-            /* Detailed Visualizers (Secondary View) */
-            <>
-              {/* Tabs */}
-              <div className="bg-gray-100 rounded-lg p-1 mb-4 relative">
-                <div className="grid grid-cols-3 gap-1 relative">
-                  {tabs.map(tab => (
-                    <button
-                      key={tab.id}
-                      onClick={() => setActiveDataTab(tab.id)}
-                      className={`relative z-10 px-3 py-2 text-xs font-semibold rounded-md transition-colors ${
-                        activeDataTab === tab.id
-                          ? "text-white"
-                          : "text-gray-600 hover:text-gray-900"
-                      }`}
-                    >
-                      {tab.label}
-                    </button>
-                  ))}
-                  {/* Sliding Background */}
-                  <div
-                    className={`absolute top-1 bottom-1 w-[calc(33.333%-4px)] bg-black rounded-md transition-transform duration-300 ease-out ${
-                      activeDataTab === "companies" 
-                        ? "translate-x-1" 
-                        : activeDataTab === "skills"
-                        ? "translate-x-[calc(100%+8px)]"
-                        : "translate-x-[calc(200%+16px)]"
+          </div>
+          
+          {/* ✅ Detailed Visualizers - keep ALL mounted, hide with CSS */}
+          <div style={{ display: showDetails ? 'block' : 'none' }}>
+            {/* Tabs */}
+            <div className="bg-gray-100 rounded-lg p-1 mb-4 relative">
+              <div className="grid grid-cols-3 gap-1 relative">
+                {tabs.map(tab => (
+                  <button
+                    key={tab.id}
+                    onClick={() => setActiveDataTab(tab.id)}
+                    className={`relative z-10 px-3 py-2 text-xs font-semibold rounded-md transition-colors ${
+                      activeDataTab === tab.id
+                        ? "text-white"
+                        : "text-gray-600 hover:text-gray-900"
                     }`}
-                  />
-                </div>
+                  >
+                    {tab.label}
+                  </button>
+                ))}
+                {/* Sliding Background */}
+                <div
+                  className={`absolute top-1 bottom-1 w-[calc(33.333%-4px)] bg-black rounded-md transition-transform duration-300 ease-out ${
+                    activeDataTab === "companies" 
+                      ? "translate-x-1" 
+                      : activeDataTab === "skills"
+                      ? "translate-x-[calc(100%+8px)]"
+                      : "translate-x-[calc(200%+16px)]"
+                  }`}
+                />
               </div>
+            </div>
 
-              {/* Visualizer Content */}
-              <div
-                style={{
-                  display: activeDataTab === "companies" ? "block" : "none",
-                }}
-              >
-                <JobTitlesCompaniesVisualizer socCodes={socCodes} />
-              </div>
-              <div
-                style={{ display: activeDataTab === "skills" ? "block" : "none" }}
-              >
-                <JobTitlesSkillsVisualizer socCodes={socCodes} />
-              </div>
-              <div
-                style={{
-                  display: activeDataTab === "company-skills" ? "block" : "none",
-                }}
-              >
-                <CompaniesSkillsVisualizer socCodes={socCodes} />
-              </div>
-            </>
-          )}
+            {/* ✅ All Visualizers ALWAYS mounted - just hide with CSS */}
+            <div style={{ display: activeDataTab === "companies" ? "block" : "none" }}>
+              <JobTitlesCompaniesVisualizer socCodes={socCodes} />
+            </div>
+            <div style={{ display: activeDataTab === "skills" ? "block" : "none" }}>
+              <JobTitlesSkillsVisualizer socCodes={socCodes} />
+            </div>
+            <div style={{ display: activeDataTab === "company-skills" ? "block" : "none" }}>
+              <CompaniesSkillsVisualizer socCodes={socCodes} />
+            </div>
+          </div>
         </div>
       </div>
     </div>

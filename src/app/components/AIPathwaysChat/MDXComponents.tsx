@@ -1,4 +1,5 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
+/* eslint-disable @typescript-eslint/no-unused-vars */
 // src/app/components/AIPathwaysChat/MDXComponents.tsx
 'use client';
 
@@ -81,7 +82,7 @@ export const StatCard = ({
 );
 
 /**
- * SkillBar - Visualize skill demand with progress bar (enterprise version)
+ * SkillBar - Simple skill list (no percentages or bars)
  */
 export const SkillBar = ({ 
   skill, 
@@ -92,26 +93,11 @@ export const SkillBar = ({
   percentage: number; 
   level: string;
 }) => {
-  const getColorClass = () => {
-    if (percentage >= 80) return 'bg-black';
-    if (percentage >= 60) return 'bg-gray-800';
-    if (percentage >= 40) return 'bg-gray-600';
-    return 'bg-gray-400';
-  };
-
   return (
     <div className="group bg-white border border-gray-200 rounded-lg p-3 hover:border-black hover:shadow-sm transition-all">
-      <div className="flex items-center justify-between mb-2">
+      <div className="flex items-center gap-2">
+        <div className="w-1.5 h-1.5 bg-black rounded-full flex-shrink-0"></div>
         <span className="text-sm font-semibold text-black">{skill}</span>
-        <span className="text-xs font-medium text-gray-700 bg-gray-100 px-2 py-1 rounded">
-          {percentage}%
-        </span>
-      </div>
-      <div className="w-full bg-gray-100 rounded-full h-2 overflow-hidden">
-        <div 
-          className={`h-full ${getColorClass()} transition-all duration-700 ease-out`}
-          style={{ width: `${percentage}%` }}
-        />
       </div>
     </div>
   );

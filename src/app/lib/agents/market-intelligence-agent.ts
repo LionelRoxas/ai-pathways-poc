@@ -21,6 +21,7 @@ interface MarketReport {
     topCompanies: string[];
     topSkills: string[];
     activePosts: number;
+    skillDemandData?: Array<[string, number]>; // [skillName, postingCount]
   };
 }
 
@@ -109,14 +110,28 @@ export class MarketIntelligenceAgent {
 
 YOUR TASK:
 Create a visual career pathway guide that shows students:
-1. Top 5 most in-demand skills (as a progression)
-2. Top 5 companies hiring (simplified list)
+1. Top 5 most in-demand skills (BE CREATIVE - infer from SOC codes and career field)
+2. Top 5 companies hiring (use provided data when valid, otherwise infer typical employers)
 3. 3-4 PERSONALIZED actionable insights based on their interests and conversation
+
+CRITICAL APPROACH TO SKILLS:
+- **BE CREATIVE AND SMART**: The provided skill data may be inaccurate or incomplete
+- **Use your knowledge** of the career field associated with the SOC codes
+- **Infer essential skills** based on the career path, not just the raw data
+- Think: "What skills would someone ACTUALLY need for this career?"
+- Prioritize TECHNICAL skills, certifications, tools, and methodologies
+- Use the provided data as a REFERENCE, not gospel
+- If provided skills seem irrelevant, IGNORE them and use your domain knowledge
+
+EXAMPLE - For Electrical Engineering (SOC 17-2071):
+- Instead of generic "Communication", list "Circuit Design", "AutoCAD", "MATLAB", "Power Systems", "Electrical Code Standards"
+- Instead of relying on messy data, think: "What do electrical engineers actually use?"
 
 FORMATTING RULES - USE THESE COMPONENTS:
 
-1. SKILL BAR (simplified - no level labels):
-<div data-component="skill-bar" data-skill="Python" data-percentage="85" data-level=""></div>
+1. SKILL BAR (NO percentages shown - just visual ranking):
+<div data-component="skill-bar" data-skill="Python Programming" data-percentage="95" data-level=""></div>
+Note: Use percentage 95, 85, 75, 65, 55 for top 5 skills (for visual ranking only)
 
 2. COMPANY CARD (minimal):
 <div data-component="company-card" data-company="Google" data-jobs="0" data-badge="Top Employer"></div>
@@ -130,14 +145,14 @@ Types: "success" (positive), "info" (neutral action), "warning" (important note)
 
 REPORT STRUCTURE (SIDEBAR OPTIMIZED):
 
-## In-Demand Skills
+## Key Skills Required
 
-<div class="space-y-3 my-3">
-<div data-component="skill-bar" data-skill="Skill 1" data-percentage="95" data-level=""></div>
-<div data-component="skill-bar" data-skill="Skill 2" data-percentage="85" data-level=""></div>
-<div data-component="skill-bar" data-skill="Skill 3" data-percentage="75" data-level=""></div>
-<div data-component="skill-bar" data-skill="Skill 4" data-percentage="65" data-level=""></div>
-<div data-component="skill-bar" data-skill="Skill 5" data-percentage="55" data-level=""></div>
+<div class="space-y-2 my-3">
+<div data-component="skill-bar" data-skill="[Most Important Skill]" data-percentage="95" data-level=""></div>
+<div data-component="skill-bar" data-skill="[Second Priority Skill]" data-percentage="85" data-level=""></div>
+<div data-component="skill-bar" data-skill="[Third Priority Skill]" data-percentage="75" data-level=""></div>
+<div data-component="skill-bar" data-skill="[Fourth Priority Skill]" data-percentage="65" data-level=""></div>
+<div data-component="skill-bar" data-skill="[Fifth Priority Skill]" data-percentage="55" data-level=""></div>
 </div>
 
 ## Hiring Companies
@@ -204,23 +219,33 @@ OUTPUT ONLY THE MARKDOWN - No explanation.`;
 STUDENT CONTEXT:
 ${contextInsights}
 
-LABOR MARKET DATA:
-- Top 5 Companies: ${summary.topCompanies.slice(0, 5).join(', ')}
-- Top 5 Skills: ${summary.topSkills.slice(0, 5).join(', ')}
-- Total Companies: ${summary.totalCompanies}
-- Total Skills: ${summary.totalSkills}
+REFERENCE DATA (Use as inspiration, NOT strict requirements):
+- Sample Companies: ${summary.topCompanies.slice(0, 10).join(', ')}
+- Sample Skills Found: ${summary.topSkills.slice(0, 15).join(', ')}
+- Total Companies in Dataset: ${summary.totalCompanies}
+- Total Skills in Dataset: ${summary.totalSkills}
 
-IMPORTANT:
-1. Create action steps that CONNECT the student's interests to Hawaii labor market data
-2. Reference specific UHCC programs, campuses, or courses they mentioned in conversation
-3. Link top skills to UHCC program pathways and local Hawaii careers
-4. Suggest Hawaii-based companies, internships, and networking through UHCC career centers
-5. Make recommendations appropriate for their grade level using UHCC resources
-6. Be specific with UHCC program names, campus locations, and Hawaii certifications
-7. **NO external platforms** - focus on University of Hawaii system resources
-8. Reference Hawaii workforce needs and local industry partnerships
+YOUR CREATIVE TASK:
+1. **SKILLS**: Based on the SOC codes and career field, what are the TOP 5 most important skills?
+   - Use your domain knowledge of this profession
+   - Think: "What would make someone successful in this career?"
+   - Reference the sample skills IF they make sense, otherwise create your own
+   - Prioritize: Technical skills, software/tools, certifications, methodologies
+   - Be specific (e.g., "AutoCAD for Electrical Design" not "CAD")
 
-Generate a personalized UHCC career roadmap with Hawaii-focused opportunities.`;
+2. **COMPANIES**: Who typically hires for these roles?
+   - Use provided companies if they're legitimate and relevant
+   - Add well-known companies in this industry (especially Hawaii-based)
+   - Think: Major employers, government agencies, local Hawaii companies
+   - Prioritize Hawaii employers when possible
+
+3. **ACTIONS**: Connect skills to UHCC programs
+   - Which UHCC programs teach these skills?
+   - What certifications can students earn?
+   - How can students build a portfolio using UHCC resources?
+   - Where can they network in Hawaii's job market?
+
+Generate a personalized UHCC career roadmap with realistic, industry-relevant skills and Hawaii-focused opportunities.`;
 
     try {
       const response = await groq.chat.completions.create({
@@ -229,7 +254,7 @@ Generate a personalized UHCC career roadmap with Hawaii-focused opportunities.`;
           { role: "user", content: userPrompt },
         ],
         model: "llama-3.3-70b-versatile",
-        temperature: 0.3,
+        temperature: 0.7, // Higher temperature for creativity
         max_tokens: 2000,
       });
 
@@ -315,42 +340,86 @@ Generate a personalized UHCC career roadmap with Hawaii-focused opportunities.`;
   }
 
   /**
-   * Extract summary statistics from market data
+   * Validate if a skill name is meaningful (not junk data)
+   */
+  private isValidSkill(skill: string): boolean {
+    if (!skill || skill.length < 2) return false;
+    
+    // Filter out common junk patterns
+    const junkPatterns = [
+      /^\d+$/,                    // Pure numbers
+      /^[^a-zA-Z]+$/,             // No letters at all
+      /^(na|n\/a|null|undefined|none)$/i,  // Placeholder values
+      /^.{1,2}$/,                 // Too short (1-2 chars)
+      /^(test|demo|sample)/i,     // Test data
+    ];
+    
+    return !junkPatterns.some(pattern => pattern.test(skill.trim()));
+  }
+
+  /**
+   * Validate if a company name is meaningful (not junk data)
+   */
+  private isValidCompany(company: string): boolean {
+    if (!company || company.length < 2) return false;
+    
+    // Filter out common junk patterns
+    const junkPatterns = [
+      /^\d+$/,                    // Pure numbers
+      /^[^a-zA-Z]+$/,             // No letters at all
+      /^(na|n\/a|null|undefined|none|unknown|confidential)$/i,
+      /^.{1,2}$/,                 // Too short
+      /^(test|demo|sample)/i,
+    ];
+    
+    return !junkPatterns.some(pattern => pattern.test(company.trim()));
+  }
+
+  /**
+   * Extract summary statistics from market data with validation
    */
   private extractSummary(data: MarketIntelligenceData): MarketReport['summary'] {
-    // Extract unique companies
+    console.log('[MarketIntelligence] 🔍 Extracting and validating market data...');
+    
+    // Extract unique companies with validation
     const companies = new Set<string>();
     const jobTitlesBuckets = data.jobTitlesCompanies?.data?.ranking?.buckets;
     if (jobTitlesBuckets && Array.isArray(jobTitlesBuckets)) {
       jobTitlesBuckets.forEach((jobTitle: any) => {
         if (jobTitle.ranking?.buckets) {
           jobTitle.ranking.buckets.forEach((company: any) => {
-            if (company.name) companies.add(company.name);
+            if (company.name && this.isValidCompany(company.name)) {
+              companies.add(company.name);
+            }
           });
         }
       });
     }
+    console.log(`[MarketIntelligence] 📊 Found ${companies.size} valid companies (after filtering)`);
 
-    // Extract unique skills
+    // Extract unique skills with validation
     const skills = new Set<string>();
     const jobTitlesSkillsBuckets = data.jobTitlesSkills?.data?.ranking?.buckets;
     if (jobTitlesSkillsBuckets && Array.isArray(jobTitlesSkillsBuckets)) {
       jobTitlesSkillsBuckets.forEach((jobTitle: any) => {
         if (jobTitle.ranking?.buckets) {
           jobTitle.ranking.buckets.forEach((skill: any) => {
-            if (skill.name) skills.add(skill.name);
+            if (skill.name && this.isValidSkill(skill.name)) {
+              skills.add(skill.name);
+            }
           });
         }
       });
     }
+    console.log(`[MarketIntelligence] 📊 Found ${skills.size} valid skills (after filtering)`);
 
-    // Get top companies by post count
+    // Get top companies by post count (with validation)
     const companyPostCounts: { [key: string]: number } = {};
     if (jobTitlesBuckets && Array.isArray(jobTitlesBuckets)) {
       jobTitlesBuckets.forEach((jobTitle: any) => {
         if (jobTitle.ranking?.buckets) {
           jobTitle.ranking.buckets.forEach((company: any) => {
-            if (company.name) {
+            if (company.name && this.isValidCompany(company.name)) {
               companyPostCounts[company.name] = (companyPostCounts[company.name] || 0) + (company.unique_postings || 0);
             }
           });
@@ -359,18 +428,34 @@ Generate a personalized UHCC career roadmap with Hawaii-focused opportunities.`;
     }
 
     const topCompanies = Object.entries(companyPostCounts)
+      .filter(([name]) => this.isValidCompany(name))
       .sort((a, b) => b[1] - a[1])
       .slice(0, 10)
       .map(([name]) => name);
 
-    // Get top skills by demand
+    // Get top skills by demand - aggregate from BOTH endpoints with validation
     const skillDemand: { [key: string]: number } = {};
+    
+    // Add skills from jobTitlesSkills endpoint
+    if (jobTitlesSkillsBuckets && Array.isArray(jobTitlesSkillsBuckets)) {
+      jobTitlesSkillsBuckets.forEach((jobTitle: any) => {
+        if (jobTitle.ranking?.buckets) {
+          jobTitle.ranking.buckets.forEach((skill: any) => {
+            if (skill.name && this.isValidSkill(skill.name)) {
+              skillDemand[skill.name] = (skillDemand[skill.name] || 0) + (skill.unique_postings || 0);
+            }
+          });
+        }
+      });
+    }
+    
+    // Add skills from companiesSkills endpoint
     const companiesSkillsBuckets = data.companiesSkills?.data?.ranking?.buckets;
     if (companiesSkillsBuckets && Array.isArray(companiesSkillsBuckets)) {
       companiesSkillsBuckets.forEach((company: any) => {
         if (company.ranking?.buckets) {
           company.ranking.buckets.forEach((skill: any) => {
-            if (skill.name) {
+            if (skill.name && this.isValidSkill(skill.name)) {
               skillDemand[skill.name] = (skillDemand[skill.name] || 0) + (skill.unique_postings || 0);
             }
           });
@@ -378,13 +463,23 @@ Generate a personalized UHCC career roadmap with Hawaii-focused opportunities.`;
       });
     }
 
-    const topSkills = Object.entries(skillDemand)
+    const topSkillsWithCounts = Object.entries(skillDemand)
+      .filter(([name]) => this.isValidSkill(name))
       .sort((a, b) => b[1] - a[1])
-      .slice(0, 10)
-      .map(([name]) => name);
+      .slice(0, 10);
+    
+    const topSkills = topSkillsWithCounts.map(([name]) => name);
 
     // Count active posts
     const activePosts = data.activePosts?.data?.totals?.unique_postings || 0;
+
+    console.log('[MarketIntelligence] 📊 Extracted summary:', {
+      totalCompanies: companies.size,
+      totalSkills: skills.size,
+      topSkills: topSkills.slice(0, 5),
+      topCompanies: topCompanies.slice(0, 5),
+      skillDemandData: topSkillsWithCounts.slice(0, 5).map(([name, count]) => `${name}: ${count}`),
+    });
 
     return {
       totalCompanies: companies.size,
@@ -392,6 +487,7 @@ Generate a personalized UHCC career roadmap with Hawaii-focused opportunities.`;
       topCompanies,
       topSkills,
       activePosts,
+      skillDemandData: topSkillsWithCounts, // Include counts for LLM
     };
   }
 

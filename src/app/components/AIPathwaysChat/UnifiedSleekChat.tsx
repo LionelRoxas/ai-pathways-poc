@@ -11,7 +11,9 @@ import NavSidebar from "./NavSidebar";
 import DataPanel from "./DataPanel";
 import { Message, UserProfile, CurrentData } from "./types";
 
-const PROFILE_UPDATE_INTERVALS = [15, 25, 35, 50];
+// TIER 3: Deep profile refresh intervals (reduced from [15, 25, 35, 50])
+// TIER 1 micro-updates keep profile current between these deep refreshes
+const PROFILE_UPDATE_INTERVALS = [20, 40, 60];
 
 interface UnifiedSleekChatProps {
   selectedLanguage: Language | null;
@@ -29,58 +31,40 @@ const extractDisplayedSocCodes = (
     "\n[SOC Extraction] ==================== Starting Extraction ===================="
   );
 
-  // Find the most recent assistant message with career data
-  const messageWithCareers = [...messages]
-    .reverse()
-    .find(
-      msg =>
-        msg.role === "assistant" &&
-        msg.data?.careers &&
-        Array.isArray(msg.data.careers) &&
-        msg.data.careers.length > 0
-    );
-
-  if (!messageWithCareers?.data?.careers) {
-    console.log("[SOC Extraction] ❌ No careers found in messages");
-    return [];
-  }
-
-  const displayedCareers = messageWithCareers.data.careers;
-  console.log(
-    `[SOC Extraction] 📋 Found ${displayedCareers.length} displayed careers in message:`
-  );
-  displayedCareers.forEach((career: any, idx: number) => {
-    console.log(
-      `[SOC Extraction]    ${idx + 1}. "${career.title}" (CIP: ${career.cipCode || "N/A"})`
-    );
-  });
-
+  // Use currentData.careers ONLY (it's always the most recent data)
+  // Don't use messages.data.careers which accumulates old data
   if (!currentData?.careers || !Array.isArray(currentData.careers)) {
     console.log("[SOC Extraction] ❌ No currentData.careers available");
     return [];
   }
 
+  const displayedCareers = currentData.careers;
   console.log(
-    `[SOC Extraction] 🗄️  Total careers in currentData: ${currentData.careers.length}`
+    `[SOC Extraction] 📋 Found ${displayedCareers.length} careers in currentData:`
   );
+  displayedCareers.forEach((career: any, idx: number) => {
+    console.log(
+      `[SOC Extraction]    ${idx + 1}. "${career.title}" (Code: ${career.code || career.title})`
+    );
+  });
 
-  // Extract SOC codes by matching displayed careers with currentData
+  // Extract SOC codes from careers
   const socCodes: string[] = [];
   let matchedCount = 0;
 
-  displayedCareers.forEach((displayedCareer: any, idx: number) => {
+  displayedCareers.forEach((career: any, idx: number) => {
     console.log(
-      `\n[SOC Extraction] 🔍 Career ${idx + 1}: "${displayedCareer.title}"`
+      `\n[SOC Extraction] 🔍 Career ${idx + 1}: "${career.title}"`
     );
 
-    // The displayed career title is actually the SOC code itself
-    // Just use the title directly as the SOC code
-    const displayedSocCode = displayedCareer.title;
+    // Career objects have both 'title' (SOC code) and 'code' (also SOC code)
+    // Use code first, then fallback to title
+    const displayedSocCode = career.code || career.title;
     
     // Validate it looks like a SOC code (XX-XXXX format)
     if (displayedSocCode && /^\d{2}-\d{4}$/.test(displayedSocCode)) {
       matchedCount++;
-      console.log(`[SOC Extraction]    ✅ Using displayed SOC code directly: ${displayedSocCode}`);
+      console.log(`[SOC Extraction]    ✅ Valid SOC code: ${displayedSocCode}`);
       socCodes.push(displayedSocCode);
     } else {
       console.log(`[SOC Extraction]    ❌ Invalid SOC code format: "${displayedSocCode}"`);
@@ -92,12 +76,9 @@ const extractDisplayedSocCodes = (
 
   console.log(`\n[SOC Extraction] ✅ EXTRACTION COMPLETE:`);
   console.log(
-    `[SOC Extraction]    - Displayed careers: ${displayedCareers.length}`
+    `[SOC Extraction]    - Careers in currentData: ${displayedCareers.length}`
   );
   console.log(`[SOC Extraction]    - Valid SOC codes extracted: ${matchedCount}`);
-  console.log(
-    `[SOC Extraction]    - Total SOC codes (with duplicates): ${socCodes.length}`
-  );
   console.log(
     `[SOC Extraction]    - Unique SOC codes: ${uniqueSocCodes.length}`
   );
@@ -465,12 +446,21 @@ export default function UnifiedSleekChat({
 
   // ✅ NEW: Extract SOC codes from displayed careers when messages or data changes
     const prevSocCodesRef = useRef<string[]>([]);
+    const prevCurrentDataRef = useRef<CurrentData | null>(null);
+    
     useEffect(() => {
+      // Skip if currentData hasn't actually changed (reference check)
+      if (currentData === prevCurrentDataRef.current) {
+        console.log("[Parent] ⏭️  Skipping extraction - currentData unchanged");
+        return;
+      }
+      
       console.log(
         "\n[Parent] 🔄 Messages or currentData changed, triggering SOC extraction"
       );
       console.log(`[Parent]    - Total messages: ${messages.length}`);
       console.log(`[Parent]    - CurrentData available: ${!!currentData}`);
+      console.log(`[Parent]    - CurrentData careers: ${currentData?.careers?.length || 0}`);
 
       const extractedSocCodes = extractDisplayedSocCodes(messages, currentData);
 
@@ -485,6 +475,7 @@ export default function UnifiedSleekChat({
         );
         setDisplayedSocCodes(extractedSocCodes);
         prevSocCodesRef.current = extractedSocCodes;
+        prevCurrentDataRef.current = currentData;
 
         // Auto-open DataPanel when SOC codes are available
         if (extractedSocCodes.length > 0 && !dataPanelOpen) {
@@ -492,8 +483,17 @@ export default function UnifiedSleekChat({
           setDataPanelOpen(true);
           setActiveDataTab("companies");
         }
+        
+        // Auto-close DataPanel when no SOC codes (prevent empty gap)
+        if (extractedSocCodes.length === 0 && dataPanelOpen) {
+          console.log("[Parent] 🚫 Closing DataPanel - no SOC codes available");
+          setDataPanelOpen(false);
+        }
+      } else {
+        console.log("[Parent] ⏭️  SOC codes unchanged - skipping update");
+        prevCurrentDataRef.current = currentData;
       }
-    }, [messages, currentData]);
+    }, [messages, currentData, dataPanelOpen]);
 
   const getUserMessageCount = () => {
     return messages.filter(msg => msg.role === "user").length;
@@ -693,6 +693,20 @@ export default function UnifiedSleekChat({
             if (pathwayResponse.ok) {
               const pathwayData = await pathwayResponse.json();
 
+              // ✨ NEW: Capture updated profile from pathway API (after profile generation)
+              if (pathwayData.profile) {
+                console.log("[Frontend] 🔄 Updating newly generated profile with micro-updates");
+                setUserProfile(prev => ({
+                  profileSummary: pathwayData.profile.profileSummary || prev?.profileSummary,
+                  extracted: {
+                    ...(prev?.extracted || {}),
+                    ...(pathwayData.profile.extracted || {}),
+                  },
+                  isComplete: true,
+                  confidence: pathwayData.profile.confidence || prev?.confidence,
+                }));
+              }
+
               if (pathwayData.data && Object.keys(pathwayData.data).length > 0) {
                 setCurrentData(pathwayData.data);
 
@@ -829,6 +843,36 @@ export default function UnifiedSleekChat({
         await generateProfile(transcript, currentUserCount, newMessages);
         setIsLoading(false);
         return;
+      }
+
+      // ✨ NEW: Capture updated profile from pathway API (TIER 1 micro-updates)
+      if (data.profile && userProfile?.isComplete) {
+        console.log("[Frontend] 🔄 Updating profile with micro-updates from server");
+        const oldInterests = userProfile.extracted?.interests?.length || 0;
+        const newInterests = data.profile.extracted?.interests?.length || 0;
+        const oldGoals = userProfile.extracted?.careerGoals?.length || 0;
+        const newGoals = data.profile.extracted?.careerGoals?.length || 0;
+        
+        // Log what changed
+        if (newInterests > oldInterests || newGoals > oldGoals) {
+          const updates = [];
+          if (newInterests > oldInterests) updates.push(`+${newInterests - oldInterests} interest(s)`);
+          if (newGoals > oldGoals) updates.push(`+${newGoals - oldGoals} goal(s)`);
+          console.log(`✨ [Frontend] Profile enriched: ${updates.join(", ")}`);
+        }
+        
+        setUserProfile(prev => ({
+          profileSummary: data.profile.profileSummary || prev?.profileSummary,
+          extracted: {
+            ...(prev?.extracted || {}),
+            ...(data.profile.extracted || {}),
+            // Ensure arrays are properly merged (server should have already merged, but be safe)
+            interests: data.profile.extracted?.interests || prev?.extracted?.interests || [],
+            careerGoals: data.profile.extracted?.careerGoals || prev?.extracted?.careerGoals || [],
+          },
+          isComplete: true,
+          confidence: data.profile.confidence || prev?.confidence,
+        }));
       }
 
       if (data.data && Object.keys(data.data).length > 0) {

@@ -1,4 +1,5 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
+/* eslint-disable @typescript-eslint/no-unused-vars */
 // src/app/components/AIPathwaysChat/MarketIntelligenceReport.tsx
 'use client';
 
@@ -7,7 +8,7 @@ import { TrendingUp, Loader2 } from 'lucide-react';
 import ReactMarkdown from 'react-markdown';
 import remarkGfm from 'remark-gfm';
 import rehypeRaw from 'rehype-raw';
-import { mdxComponents, StatCard, SkillBar, CompanyCard, InsightBox, ProgressIndicator, Highlight, PathwayStep } from './MDXComponents';
+import { mdxComponents, StatCard, SkillBar, CompanyCard, InsightBox, ProgressIndicator, PathwayStep } from './MDXComponents';
 
 interface MarketIntelligenceReportProps {
   socCodes: string[];
@@ -19,14 +20,42 @@ export default function MarketIntelligenceReport({ socCodes, messages, userProfi
   const [report, setReport] = useState<string>('');
   const [loading, setLoading] = useState<boolean>(true);
   const [error, setError] = useState<string | null>(null);
+  const [lastGeneratedKey, setLastGeneratedKey] = useState<string>('');
+  
+  // Create stable string representation for comparison
+  const socCodesKey = socCodes.sort().join(',');
+  // ✅ DON'T use messages.length - it changes on every message!
+  // Market intelligence should ONLY regenerate when SOC codes change, not on every chat message
+  
+  // Create stable key for userProfile (avoid object reference changes triggering re-renders)
+  const userProfileKey = userProfile ? JSON.stringify({
+    interests: userProfile.extracted?.interests?.length || 0,
+    careerGoals: userProfile.extracted?.careerGoals?.length || 0,
+    educationLevel: userProfile.extracted?.educationLevel,
+  }) : '';
+  const currentKey = `${socCodesKey}-${userProfileKey}`; // ✅ Removed messagesKey!
 
   useEffect(() => {
     if (socCodes.length === 0) {
       setLoading(false);
+      setReport('');
+      setLastGeneratedKey('');
       return;
     }
+    
+    // Skip if we already generated for this exact combination
+    if (currentKey === lastGeneratedKey) {
+      console.log('[MarketReport] ⏭️  Skipping - already generated for this key');
+      return;
+    }
+    
+    console.log('[MarketReport] 🔄 Regenerating report due to dependency change');
+    console.log('[MarketReport] 📊 SOC codes:', socCodes);
+    console.log('[MarketReport] 👤 Profile key:', userProfileKey);
 
     async function generateReport() {
+      // ✅ CRITICAL: Clear old report IMMEDIATELY when SOC codes change
+      setReport('');
       setLoading(true);
       setError(null);
 
@@ -59,6 +88,7 @@ export default function MarketIntelligenceReport({ socCodes, messages, userProfi
         }
 
         setReport(data.markdown);
+        setLastGeneratedKey(currentKey); // Mark this combination as generated
         console.log('[MarketReport] ✅ Report received successfully');
       } catch (err: any) {
         console.error('[MarketReport] ❌ Error:', err);
@@ -70,7 +100,7 @@ export default function MarketIntelligenceReport({ socCodes, messages, userProfi
     }
 
     generateReport();
-  }, [socCodes]);
+  }, [socCodesKey, userProfileKey, currentKey, lastGeneratedKey]); // ✅ Only SOC codes and profile - NOT messages!
 
   if (loading) {
     return (

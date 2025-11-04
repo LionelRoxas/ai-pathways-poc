@@ -24,6 +24,20 @@ interface ConversationalResponse {
   plainText: string;
   hasProfile: boolean;
   queryType: string;
+  // NEW: Enhanced context for next search
+  extractedContext?: {
+    interests?: string[];
+    careerGoals?: string[];
+    educationLevel?: string;
+    location?: string;
+    keywords?: string[];
+    suggestedProfileUpdates?: {
+      interests?: string[];
+      careerGoals?: string[];
+      educationLevel?: string;
+      location?: string;
+    };
+  };
 }
 
 /**
@@ -33,6 +47,7 @@ interface ConversationalResponse {
 export class ConversationalAgent {
   /**
    * Generate a conversational response with markdown formatting
+   * NOW WITH INTELLIGENCE EXTRACTION
    */
   async generateResponse(
     message: string,
@@ -53,6 +68,11 @@ export class ConversationalAgent {
     const systemPrompt = this.buildSystemPrompt(queryType, profileContext, hasProfile);
 
     try {
+      // STEP 1: Extract intelligence from user message
+      const extractedContext = await this.extractIntelligence(message, profile, conversationHistory);
+      console.log("[ConversationalAgent] 🧠 Extracted context:", extractedContext);
+
+      // STEP 2: Generate conversational response
       const response = await groq.chat.completions.create({
         messages: [
           { role: "system", content: systemPrompt },
@@ -75,6 +95,7 @@ export class ConversationalAgent {
         plainText,
         hasProfile,
         queryType: queryType || 'general',
+        extractedContext, // RETURN EXTRACTED INTELLIGENCE
       };
     } catch (error) {
       console.error("[ConversationalAgent] Error generating response:", error);
@@ -128,68 +149,229 @@ export class ConversationalAgent {
   }
 
   /**
+   * INTELLIGENCE EXTRACTION
+   * Extract structured information from user messages using LLM
+   */
+  private async extractIntelligence(
+    message: string,
+    profile?: UserProfile,
+    conversationHistory: ConversationMessage[] = []
+  ): Promise<{
+    interests?: string[];
+    careerGoals?: string[];
+    educationLevel?: string;
+    location?: string;
+    keywords?: string[];
+    suggestedProfileUpdates?: {
+      interests?: string[];
+      careerGoals?: string[];
+      educationLevel?: string;
+      location?: string;
+    };
+  }> {
+    try {
+      const extractionPrompt = `Extract structured information from this user message.
+
+User message: "${message}"
+
+${profile ? `Current profile:
+- Interests: ${profile.interests?.join(", ") || "none"}
+- Career goals: ${profile.careerGoals?.join(", ") || "none"}
+- Education level: ${profile.educationLevel || "unknown"}
+- Location: ${profile.location || "unknown"}` : "No existing profile."}
+
+${conversationHistory.length > 0 ? `Recent conversation context:
+${conversationHistory.slice(-4).map(m => `${m.role}: ${m.content}`).join("\n")}` : ""}
+
+Extract:
+1. NEW interests mentioned (not already in profile)
+2. NEW career goals mentioned
+3. Education level if mentioned (high_school, college, graduate)
+4. Location preferences (Hawaii campuses: Honolulu, Kapiolani, Leeward, Windward, etc.)
+5. Important keywords for search
+
+Respond with JSON ONLY:
+{
+  "interests": ["array", "of", "interests"],
+  "careerGoals": ["array", "of", "career", "goals"],
+  "educationLevel": "high_school|college|graduate|null",
+  "location": "campus name or null",
+  "keywords": ["search", "keywords"],
+  "suggestedProfileUpdates": {
+    "interests": ["new interests to add"],
+    "careerGoals": ["new goals to add"],
+    "educationLevel": "level or null",
+    "location": "location or null"
+  }
+}
+
+If nothing to extract, return empty arrays. Be smart about synonyms (e.g., "coding" = "programming").`;
+
+      const response = await groq.chat.completions.create({
+        messages: [
+          { role: "system", content: "You are an information extraction expert. Extract structured data from user messages. Respond with valid JSON only." },
+          { role: "user", content: extractionPrompt }
+        ],
+        model: "llama-3.3-70b-versatile",
+        temperature: 0.1, // Low temperature for consistent extraction
+        max_tokens: 400,
+        response_format: { type: "json_object" }, // Force JSON output
+      });
+
+      const extracted = JSON.parse(response.choices[0].message.content || "{}");
+      
+      // Clean up and normalize
+      return {
+        interests: this.normalizeArray(extracted.interests),
+        careerGoals: this.normalizeArray(extracted.careerGoals),
+        educationLevel: extracted.educationLevel || undefined,
+        location: extracted.location || undefined,
+        keywords: this.normalizeArray(extracted.keywords),
+        suggestedProfileUpdates: {
+          interests: this.normalizeArray(extracted.suggestedProfileUpdates?.interests),
+          careerGoals: this.normalizeArray(extracted.suggestedProfileUpdates?.careerGoals),
+          educationLevel: extracted.suggestedProfileUpdates?.educationLevel || undefined,
+          location: extracted.suggestedProfileUpdates?.location || undefined,
+        },
+      };
+    } catch (error) {
+      console.error("[ConversationalAgent] Intelligence extraction failed:", error);
+      // Fallback to simple keyword extraction
+      return this.fallbackExtraction(message);
+    }
+  }
+
+  /**
+   * Fallback extraction using simple heuristics if LLM fails
+   */
+  private fallbackExtraction(message: string): {
+    keywords?: string[];
+  } {
+    const keywords = message
+      .toLowerCase()
+      .replace(/[^\w\s]/g, " ")
+      .split(/\s+/)
+      .filter(word => word.length > 3)
+      .filter(word => !this.isStopWord(word))
+      .slice(0, 5);
+
+    return { keywords };
+  }
+
+  /**
+   * Check if word is a stop word
+   */
+  private isStopWord(word: string): boolean {
+    const stopWords = new Set([
+      "the", "a", "an", "and", "or", "but", "in", "on", "at", "to", "for",
+      "of", "with", "by", "from", "about", "what", "which", "where", "how",
+      "is", "are", "was", "were", "been", "be", "have", "has", "had", "do",
+      "does", "did", "will", "would", "could", "should", "may", "might",
+      "want", "need", "like", "think", "know"
+    ]);
+    return stopWords.has(word);
+  }
+
+  /**
+   * Normalize array - remove duplicates, empty strings, trim
+   */
+  private normalizeArray(arr: any): string[] | undefined {
+    if (!Array.isArray(arr) || arr.length === 0) return undefined;
+    
+    const normalized = arr
+      .filter(item => item && typeof item === "string")
+      .map(item => item.trim().toLowerCase())
+      .filter(item => item.length > 0);
+    
+    return normalized.length > 0 ? [...new Set(normalized)] : undefined;
+  }
+
+  /**
    * Build system prompt for the LLM
    */
   private buildSystemPrompt(queryType: string | undefined, profileContext: string, hasProfile: boolean): string {
-    return `You are a conversational guide for Hawaii educational pathways. Your role is to have natural, brief conversations and prompt users to explore programs.${profileContext}
+    return `You are a conversational guide for Hawaii educational pathways. Your role is to have natural, brief conversations, GATHER INFORMATION, and prompt users to explore programs.${profileContext}
 
 CORE PRINCIPLE:
-This is CONVERSATIONAL, not informational. Keep it natural, brief, and focused on guiding users to take action.
+This is CONVERSATIONAL and INTELLIGENCE-GATHERING. Keep it natural, brief, ask smart questions, and guide users to take action.
+
+YOUR TWO MAIN JOBS:
+1. **Gather Intelligence** - Ask questions to understand interests, goals, education level
+2. **Guide Action** - Prompt users to explore programs once you have enough context
 
 RESPONSE FORMAT:
 - Use simple markdown: headers (##), **bold**, and bullet points (-)
 - Keep responses SHORT (1-3 sentences typically)
 - NO emojis
-- NO detailed explanations unless asked
-- ALWAYS guide users toward exploring programs
-- ALWAYS use headers for key sections
+- When you need more info, ASK A SPECIFIC QUESTION
+- When you have enough info, PROMPT ACTION
 
 TONE & STYLE:
 - Friendly and warm, like talking to a friend
 - Confident but not overwhelming
 - Action-oriented - prompt them to explore
-- Keep it conversational, not informational
+- Curious - ask questions to gather context
+
+SMART QUESTION STRATEGIES:
+
+${!hasProfile ? `**When NO profile exists:**
+- "What are you interested in?" (gather interests)
+- "What career are you aiming for?" (gather goals)
+- "Are you in high school or college?" (gather education level)
+- "Which island are you on?" (gather location)` : `**When profile EXISTS but incomplete:**
+- If no career goal: "What kind of career are you thinking about?"
+- If vague interest: "What specific area of [interest] interests you most?"
+- If no location: "Are you looking for programs on a specific island?"`}
 
 RESPONSE EXAMPLES:
 
-For greetings:
+For greetings (NO PROFILE):
 ## Aloha!
 
-I can help you explore educational pathways in Hawaii. What interests you?
+What are you interested in studying?
 
-For profile questions:
-## Your Profile
+For greetings (HAS PROFILE):
+## Welcome back!
 
-${hasProfile ? `I see you're interested in **computer science** and aiming for a **software engineering** career. Want me to search for programs that match?` : `I don't have your profile yet. Want to tell me about your interests so I can help you find relevant programs?`}
+I see you're interested in **computer science**. Want me to search for programs?
 
-For clarifications ("are you sure", "why", etc.):
-Yes, I'm confident about that. Want me to search for programs?
+For vague responses ("I'm not sure", "maybe", "I don't know"):
+## Let me help narrow it down
 
-For follow-ups when user shows interest:
-Great! Let me search for programs that match your interests.
+What subjects do you enjoy most? Or what kind of work sounds exciting to you?
+
+For specific interests:
+## Great choice!
+
+Let me search for **programming** programs in Hawaii.
 
 KEY GUIDELINES:
-- Keep responses brief and conversational
-- When prompting users to take action, use phrases like:
-  * "Want me to search for programs?"
-  * "Let me search for programs"
-  * "Would you like me to search for programs?"
-  * "Want to explore these programs?"
-- Reference their profile naturally if available
-${hasProfile ? `- The user is interested in: ${profileContext.replace(/User Profile Context:\n/g, '')}` : ``}
-- Don't explain how the system works unless asked
-- Focus on next steps, not background information
-- Use questions to keep the conversation flowing
+- **ASK ONE QUESTION AT A TIME** - don't overwhelm
+- **BE SPECIFIC** - "What area of technology?" not "Tell me more"
+- **USE PROFILE DATA** - Reference what you already know
+- When user provides NEW info, acknowledge it briefly then take action
+- Guide toward searching: "Let me search for programs" or "Want me to find programs?"
+
+INFORMATION GATHERING PRIORITY:
+1. **Interests** (most important for search)
+2. **Career goals** (helps refine results)
+3. **Education level** (determines high school vs college programs)
+4. **Location** (campus preferences)
+
+WHEN TO SEARCH:
+- User provides specific interest/goal → SEARCH
+- User says "yes" after you ask if they want to search → SEARCH
+- User asks direct question about programs → SEARCH
+- You have enough context (at least interests) → PROMPT SEARCH
 
 WHAT TO AVOID:
+- Asking multiple questions at once
 - Long explanations
-- Detailed system descriptions
-- Lists of features or capabilities
-- Repeating information unnecessarily
+- Repeating information
 - Being overly formal
-- Giving program details (let the search do that)
+- Asking questions you already know the answer to (check profile!)
 
-Remember: Your job is to have a natural conversation and guide them to explore programs. Keep it simple!`;
+Remember: You're gathering intelligence to make the NEXT search better. Ask smart questions, then guide them to explore!`;
   }
 
   /**

@@ -485,6 +485,8 @@ export async function executeToolCalls(
     campuses: new Set(),
   };
 
+  console.log(`[ToolExecutor] 🔧 Executing ${toolCalls.length} tool calls:`, toolCalls.map(tc => tc.name).join(', '));
+
   // Initialize tool instances
   const hsDataTool = new Tools.HS();
   const collegeDataTool = new Tools.College();

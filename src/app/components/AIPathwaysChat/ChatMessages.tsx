@@ -511,11 +511,11 @@ const PathwayVisualization: React.FC<{ data: PathwayData }> = ({ data }) => {
       )}
 
       {data.collegePrograms && data.collegePrograms.length > 0 && (
-        <details className="group bg-gradient-to-br from-purple-50 to-purple-100 rounded-xl border border-purple-200 overflow-hidden transition-all hover:shadow-md">
+        <details className="group bg-gradient-to-br from-red-50 to-orange-50 rounded-xl border border-red-200 overflow-hidden transition-all hover:shadow-md">
           <summary className="cursor-pointer px-4 py-3 flex items-center justify-between text-sm font-medium text-slate-900 hover:bg-white/50 transition-colors">
             <div className="flex items-center gap-2.5">
-              <div className="w-8 h-8 rounded-lg bg-purple-100 flex items-center justify-center">
-                <GraduationCap className="w-4 h-4 text-purple-700" />
+              <div className="w-8 h-8 rounded-lg bg-red-100 flex items-center justify-center">
+                <GraduationCap className="w-4 h-4 text-red-700" />
               </div>
               <div>
                 <div className="font-semibold text-slate-900">College Programs</div>
@@ -528,7 +528,7 @@ const PathwayVisualization: React.FC<{ data: PathwayData }> = ({ data }) => {
             {data.collegePrograms.map((prog, idx) => (
               <div
                 key={idx}
-                className="bg-white rounded-lg p-4 border border-slate-200 hover:border-purple-300 hover:shadow-sm transition-all"
+                className="bg-white rounded-lg p-4 border border-slate-200 hover:border-red-300 hover:shadow-sm transition-all"
               >
                 <div className="font-semibold text-slate-900 mb-2">{prog.name}</div>
                 <div className="mb-2">
@@ -541,7 +541,7 @@ const PathwayVisualization: React.FC<{ data: PathwayData }> = ({ data }) => {
                     {prog.campuses.map((campus, cIdx) => (
                       <span
                         key={cIdx}
-                        className="inline-flex items-center px-2.5 py-1 bg-purple-50 text-purple-700 text-xs rounded-md border border-purple-100"
+                        className="inline-flex items-center px-2.5 py-1 bg-red-50 text-red-700 text-xs rounded-md border border-red-100"
                       >
                         {campus}
                       </span>
@@ -553,7 +553,7 @@ const PathwayVisualization: React.FC<{ data: PathwayData }> = ({ data }) => {
                   <div className="mt-3 pt-3 border-t border-slate-100">
                     <button
                       onClick={() => toggleCollegeVariants(prog.name)}
-                      className="flex items-center gap-2 text-xs font-medium text-purple-700 hover:text-purple-900 transition-colors"
+                      className="flex items-center gap-2 text-xs font-medium text-red-700 hover:text-red-900 transition-colors"
                     >
                       {expandedCollegeVariants.has(prog.name) ? (
                         <ChevronDown className="w-3.5 h-3.5" />
@@ -571,9 +571,9 @@ const PathwayVisualization: React.FC<{ data: PathwayData }> = ({ data }) => {
                         {prog.variants.map((variant, vIdx) => (
                           <div
                             key={vIdx}
-                            className="text-xs text-slate-700 bg-purple-50 border border-purple-100 rounded-md px-3 py-2 flex items-start gap-2"
+                            className="text-xs text-slate-700 bg-red-50 border border-red-100 rounded-md px-3 py-2 flex items-start gap-2"
                           >
-                            <span className="text-purple-400 mt-0.5">•</span>
+                            <span className="text-red-400 mt-0.5">•</span>
                             <span className="flex-1">{variant}</span>
                           </div>
                         ))}

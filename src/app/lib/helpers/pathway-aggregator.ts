@@ -348,10 +348,9 @@ export function formatCollegeProgramsForFrontend(
       };
     });
 
-    // Sort by score (highest first) and take top 3
+    // Sort by score (highest first) - show all variants
     const topVariants = scoredVariants
       .sort((a, b) => b.score - a.score)
-      .slice(0, 3)
       .map(v => v.name);
 
     return {

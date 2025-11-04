@@ -129,7 +129,6 @@ const JobTitlesCompaniesVisualizer: React.FC<
   }
 
   const jobTitles = data.data.ranking.buckets;
-  const totals = data.data.totals;
 
   // Filter job titles if a filter is selected
   const filteredJobTitles =

@@ -133,7 +133,6 @@ const CompaniesSkillsVisualizer: React.FC<CompaniesSkillsVisualizerProps> = ({
   }
 
   const companies = data.data.ranking.buckets;
-  const totals = data.data.totals;
 
   // Filter companies based on search term
   const filteredCompanies = searchTerm
