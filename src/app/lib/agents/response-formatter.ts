@@ -97,8 +97,14 @@ export class ResponseFormatterAgent {
       
       // Helper function for smarter institution name matching
       const matchesInstitution = (campusName: string, searchTerm: string): boolean => {
-        const campus = campusName.toLowerCase();
-        const search = searchTerm.toLowerCase();
+        // Normalize macrons and other diacritics for matching
+        const normalize = (str: string) => str
+          .toLowerCase()
+          .normalize('NFD')
+          .replace(/[\u0300-\u036f]/g, ''); // Remove diacritics
+        
+        const campus = normalize(campusName);
+        const search = normalize(searchTerm);
         
         // Direct substring match
         if (campus.includes(search) || search.includes(campus)) {

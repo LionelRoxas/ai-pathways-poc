@@ -614,6 +614,7 @@ const PathwayVisualization: React.FC<{ data: PathwayData }> = ({ data }) => {
 export default function ChatMessages({
   messages,
   isLoading,
+  isAnalyzing,
   suggestedQuestions,
   setSuggestedQuestions,
   setMessage,
@@ -834,7 +835,7 @@ export default function ChatMessages({
                       ></span>
                     </div>
                     <span className="text-xs text-gray-400">
-                      Thinking... {loadingSeconds}s
+                      {isAnalyzing ? "Searching" : "Thinking"}... {loadingSeconds}s
                     </span>
                   </div>
                 </span>

@@ -80,7 +80,7 @@ export class ConversationalAgent {
           { role: "user", content: message },
         ],
         model: "llama-3.3-70b-versatile",
-        temperature: 0.6,
+        temperature: 0.8,
       });
 
       const rawResponse = response.choices[0].message.content || this.getFallbackResponse(queryType, hasProfile);
