@@ -99,7 +99,7 @@ export default function PathwayOverlay({ isLoading, onAccept }: PathwayOverlayPr
             Your Pathway Is Ready
           </h2>
           <p className="text-gray-600 mb-8 leading-relaxed">
-            We've mapped out your educational journey based on your goals and background.
+            We&apos;ve mapped out your educational journey based on your goals and background.
           </p>
           
           <button

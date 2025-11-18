@@ -326,6 +326,20 @@ export class EnhancedProgramTool {
       'nursing': ['healthcare', 'registered nurse', 'rn', 'nursing practice'],
       'business': ['business administration', 'management', 'entrepreneurship'],
       'engineering': ['engineer'],
+      // AI and Data Science related expansions
+      'artificial intelligence': ['computer science', 'data science', 'machine learning', 'information and computer sciences', 'computing'],
+      'ai': ['artificial intelligence', 'computer science', 'data science', 'machine learning'],
+      'machine learning': ['artificial intelligence', 'computer science', 'data science', 'computing'],
+      'data science': ['computer science', 'information and computer sciences', 'data analytics', 'statistics'],
+      // Art-related expansions
+      'graphic design': ['art', 'digital media', 'design', 'visual arts', 'creative media'],
+      'fashion design': ['art', 'design', 'fashion', 'visual arts'],
+      'digital design': ['art', 'digital media', 'graphic design', 'creative media'],
+      'web design': ['digital media', 'information technology', 'creative media'],
+      'music production': ['music', 'audio', 'creative media'],
+      'audio engineering': ['music', 'audio', 'creative media'],
+      'film production': ['cinematic arts', 'digital cinema', 'creative media'],
+      'multimedia art': ['art', 'digital media', 'creative media'],
     };
     
     // Expand keywords with synonyms

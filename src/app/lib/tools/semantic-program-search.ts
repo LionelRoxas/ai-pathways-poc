@@ -1,3 +1,5 @@
+/* eslint-disable @typescript-eslint/no-explicit-any */
+
 /**
  * Semantic Program Search Tool
  * 
@@ -435,9 +437,10 @@ REMEMBER: More related fields = better coverage! Include 5-8 minimum.`;
     intent: any,
     conversationContext: string
   ): Promise<SemanticSearchResult[]> {
-    const programList = programs.map((p, idx) => 
-      `${idx + 1}. ${p.program_desc} (${p.degree_level}, CIP: ${p.cip_code})`
-    ).join('\n');
+    const programList = programs.map((p, idx) => {
+      const campus = this.islandTool.mapInstitutionToCampus(p.iro_institution);
+      return `${idx + 1}. ${p.program_desc} (${p.degree_level}) - ${campus}, CIP: ${p.cip_code}`;
+    }).join('\n');
 
     const prompt = `You are an expert at matching educational programs to student needs.
 

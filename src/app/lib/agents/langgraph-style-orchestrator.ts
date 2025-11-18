@@ -386,13 +386,8 @@ RESPOND WITH ONLY VALID JSON (no markdown):
   ]
 }`;
 
-  // CRITICAL FIX: Don't include profile interests for affirmative responses
-  // When user says "yes" after "Computer Science at UH Manoa", we want ONLY Computer Science,
-  // not diluted with Hawaiian language, music, etc.
-  const isAffirmative = /^(yes|yeah|yep|sure|ok|okay)/i.test(state.userQuery.toLowerCase());
-  
-  // ALSO: Don't include profile interests in tool planner prompt at all!
-  // Profile interests should only be used by the VERIFIER for scoring relevance.
+  // NOTE: Profile interests are NOT included in tool planning prompts.
+  // They should only be used by the VERIFIER for scoring relevance.
   // Including them here causes the LLM to add ALL interests to search keywords,
   // which dilutes search results (e.g., searching for "Computer Science" + "Hawaiian language" + "music" + 13 other topics!)
   

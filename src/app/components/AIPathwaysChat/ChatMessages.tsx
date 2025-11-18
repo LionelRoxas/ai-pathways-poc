@@ -614,7 +614,6 @@ const PathwayVisualization: React.FC<{ data: PathwayData }> = ({ data }) => {
 export default function ChatMessages({
   messages,
   isLoading,
-  isAnalyzing,
   suggestedQuestions,
   setSuggestedQuestions,
   setMessage,

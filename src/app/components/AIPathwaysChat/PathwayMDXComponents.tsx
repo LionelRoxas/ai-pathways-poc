@@ -87,8 +87,6 @@ export const pathwayMDXComponents = {
   ),
 
   li: ({ children }: { children: React.ReactNode }) => {
-    const text = String(cleanText(children));
-    
     // Regular list item
     return (
       <li className="flex items-start gap-2 text-sm text-gray-700">

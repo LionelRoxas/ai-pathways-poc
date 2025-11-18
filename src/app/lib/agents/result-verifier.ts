@@ -76,8 +76,8 @@ export class ResultVerifier {
 
     // SMART FILTERING: If we have high-scoring programs (8+), use stricter threshold
     const hasStrongMatches = verifiedPrograms.some(p => p.relevanceScore >= 8);
-    // RELAXED THRESHOLD: Use 6/5 instead of 7/5 for broader results
-    const threshold = hasStrongMatches ? 6 : 4;
+    // RELAXED THRESHOLD: Use 5/3 for more inclusive results
+    const threshold = hasStrongMatches ? 5 : 3;
     
     const filtered = verifiedPrograms
       .filter(p => p.relevanceScore >= threshold)
@@ -128,8 +128,8 @@ export class ResultVerifier {
     // SMART FILTERING: If we have high-scoring programs (8+), use stricter threshold
     // This prevents "Information Systems" from showing when user asks for "Computer Science"
     const hasStrongMatches = verifiedPrograms.some(p => p.relevanceScore >= 8);
-    // RELAXED THRESHOLD: Use 6/4 instead of 7/5 for broader results
-    const threshold = hasStrongMatches ? 6 : 4; // Stricter when we have clear winners
+    // RELAXED THRESHOLD: Use 5/3 for more inclusive results
+    const threshold = hasStrongMatches ? 5 : 3; // More lenient to show related programs
     
     const filtered = verifiedPrograms
       .filter(p => p.relevanceScore >= threshold)
