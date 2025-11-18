@@ -17,6 +17,15 @@ export async function classifyQueryWithLLM(
   needsTools: boolean;
   queryType: 'search' | 'followup' | 'clarification' | 'reasoning' | 'greeting';
   reasoning: string;
+  searchScope?: {
+    type: 'island' | 'school' | 'general';
+    location?: string;
+  };
+  degreePreference?: 'Non-Credit' | '2-Year' | '4-Year';
+  institutionFilter?: {
+    type: 'school' | 'college';
+    name: string;
+  };
 }> {
   const lowerMessage = message.toLowerCase().trim();
   
@@ -53,7 +62,7 @@ export async function classifyQueryWithLLM(
     })
     .join('\n\n');
 
-  const systemPrompt = `You are a query classifier for an educational pathways system. Analyze the user's message and determine their intent.
+  const systemPrompt = `You are a query classifier for an educational pathways system in Hawaii. Analyze the user's message and determine their intent AND search scope.
 
 CONVERSATION CONTEXT (Recent Messages):
 ${historyContext || 'No previous conversation'}
@@ -95,21 +104,88 @@ CLASSIFICATION OPTIONS:
    - "What would be best for me?"
    - Sharing background information without requesting specific programs
 
-DECISION RULES:
-- Look at ASSISTANT's last message to understand context
-- If ASSISTANT offered to search/find/explore programs AND user agrees → SEARCH
-- If user mentions ANY subject, field, career, or program → SEARCH
-- If user expresses interest, goals, or aspirations → SEARCH
-- If user asks about specifics of RECENTLY SHOWN results → CLARIFICATION
-- If user is explaining their situation without asking for programs → REASONING
-- If unsure → REASONING (let conversation handle it)
+SEARCH SCOPE (if queryType is "search"):
+
+Determine if the search is:
+
+A. **ISLAND-BASED** - User wants programs on a specific island
+   - Mentions: Oahu, Maui, Kauai, Hawaii, Big Island
+   - Mentions cities: Honolulu, Hilo, Kahului, Lihue, Waipahu, Mililani, Pearl City, etc.
+   - Extract the island/city name as "location"
+
+B. **SCHOOL-BASED** - User wants programs at a specific high school
+   - Mentions: "high school", "school"
+   - Specific schools: Pearl City High, Waipahu High, Campbell, Mililani, Farrington, etc.
+   - Extract the school name as "location" (just the main name, e.g., "Pearl City" not "Pearl City High School")
+
+C. **GENERAL** - Broad search across all locations
+   - No specific location mentioned
+   - General interest queries
+
+HAWAII HIGH SCHOOLS TO RECOGNIZE:
+Oahu: Aiea, Campbell, Castle, Farrington, Kahuku, Kailua, Kaimuki, Kaiser, Kalaheo, Kalani, Kapolei, Leilehua, McKinley, Mililani, Moanalua, Nanakuli, Pearl City, Radford, Roosevelt, Waialua, Waianae, Waipahu
+Maui: Baldwin, Hana, King Kekaulike, Lahainaluna, Lanai, Maui, Molokai
+Kauai: Kapaa, Kauai, Waimea
+Hawaii: Hilo, Honokaa, Kau, Keaau, Kealakehe, Kohala, Konawaena, Pahoa, Waiakea
+
+DEGREE LEVEL PREFERENCE (if queryType is "search"):
+
+Detect if user wants a specific degree level:
+
+A. **Non-Credit** (certificates, training, workshops, no college required):
+   - "without college", "no college", "without going to college"
+   - "certificate", "certification", "training", "workshop"
+   - "non-credit", "noncredit", "continuing education"
+   - Return: "Non-Credit"
+
+B. **2-Year** (associate degrees, community college):
+   - "associate", "associate degree", "associate's"
+   - "community college", "2-year", "two year"
+   - Return: "2-Year"
+
+C. **4-Year** (bachelor's degrees, university):
+   - "bachelor", "bachelor's", "bachelor's degree"
+   - "university", "4-year", "four year"
+   - Return: "4-Year"
+
+D. **No Preference** (show all levels):
+   - No specific degree level mentioned
+   - Return: null
+
+INSTITUTION FILTER (if user specifies a particular school or college):
+
+Detect if user wants programs from a SPECIFIC institution:
+
+A. **High School Filter**:
+   - Mentions specific high school name: "Pearl City High School", "at Campbell", "Waipahu High"
+   - Format: Return institutionFilter: { type: "school", name: "Pearl City" } (just the main name)
+
+B. **College Filter**:
+   - Mentions specific college/university: "at UH Manoa", "Honolulu Community College", "Hawaii Pacific University"
+   - Common colleges: UH (University of Hawaii), KCC (Kapiolani Community College), LCC (Leeward), WCC (Windward), HonCC (Honolulu CC), HPU (Hawaii Pacific), Chaminade, BYU-Hawaii
+   - Format: Return institutionFilter: { type: "college", name: "extracted college name" }
+
+C. **No Institution Filter**:
+   - General search across all institutions
+   - Return: null
 
 OUTPUT: Return ONLY valid JSON:
 {
   "needsTools": true/false,
   "queryType": "search" | "clarification" | "greeting" | "reasoning",
-  "reasoning": "brief explanation including what assistant said if relevant"
-}`;
+  "reasoning": "brief explanation",
+  "searchScope": {
+    "type": "island" | "school" | "general",
+    "location": "extracted location name or null"
+  },
+  "degreePreference": "Non-Credit" | "2-Year" | "4-Year" | null,
+  "institutionFilter": {
+    "type": "school" | "college",
+    "name": "institution name"
+  } | null
+}
+
+If queryType is NOT "search", omit searchScope or set it to null.`;
 
   try {
     const response = await groq.chat.completions.create({
@@ -117,7 +193,7 @@ OUTPUT: Return ONLY valid JSON:
         { role: "system", content: systemPrompt },
         { role: "user", content: `Classify this query: "${message}"` }
       ],
-      model: "llama-3.3-70b-versatile",
+      model: "llama-3.1-8b-instant",
       temperature: 0.1,
     });
 
@@ -133,7 +209,10 @@ OUTPUT: Return ONLY valid JSON:
       return {
         needsTools: classification.needsTools,
         queryType: classification.queryType,
-        reasoning: classification.reasoning
+        reasoning: classification.reasoning,
+        searchScope: classification.searchScope || undefined,
+        degreePreference: classification.degreePreference || undefined,
+        institutionFilter: classification.institutionFilter || undefined
       };
     }
   } catch (error) {

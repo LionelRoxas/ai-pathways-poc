@@ -60,7 +60,8 @@ export class ResultVerifier {
 
     // Process in batches of 5 to avoid overwhelming the LLM
     const batchSize = 5;
-    for (let i = 0; i < Math.min(programs.length, 20); i += batchSize) {
+    // INCREASED LIMIT: Process up to 50 HS programs for broader search
+    for (let i = 0; i < Math.min(programs.length, 50); i += batchSize) {
       const batch = programs.slice(i, i + batchSize);
       const batchResults = await this.verifyProgramBatch(
         userQuery,
@@ -75,7 +76,8 @@ export class ResultVerifier {
 
     // SMART FILTERING: If we have high-scoring programs (8+), use stricter threshold
     const hasStrongMatches = verifiedPrograms.some(p => p.relevanceScore >= 8);
-    const threshold = hasStrongMatches ? 7 : 5;
+    // RELAXED THRESHOLD: Use 6/5 instead of 7/5 for broader results
+    const threshold = hasStrongMatches ? 6 : 4;
     
     const filtered = verifiedPrograms
       .filter(p => p.relevanceScore >= threshold)
@@ -109,7 +111,8 @@ export class ResultVerifier {
 
     // Process in batches of 5
     const batchSize = 5;
-    for (let i = 0; i < Math.min(programs.length, 30); i += batchSize) {
+    // INCREASED LIMIT: Process up to 100 college programs for broader search
+    for (let i = 0; i < Math.min(programs.length, 100); i += batchSize) {
       const batch = programs.slice(i, i + batchSize);
       const batchResults = await this.verifyProgramBatch(
         userQuery,
@@ -125,7 +128,8 @@ export class ResultVerifier {
     // SMART FILTERING: If we have high-scoring programs (8+), use stricter threshold
     // This prevents "Information Systems" from showing when user asks for "Computer Science"
     const hasStrongMatches = verifiedPrograms.some(p => p.relevanceScore >= 8);
-    const threshold = hasStrongMatches ? 7 : 5; // Stricter when we have clear winners
+    // RELAXED THRESHOLD: Use 6/4 instead of 7/5 for broader results
+    const threshold = hasStrongMatches ? 6 : 4; // Stricter when we have clear winners
     
     const filtered = verifiedPrograms
       .filter(p => p.relevanceScore >= threshold)
@@ -134,6 +138,36 @@ export class ResultVerifier {
     console.log(
       `[ResultVerifier] Filtered ${programs.length} -> ${filtered.length} college programs (threshold: ${threshold}/10, strong matches: ${hasStrongMatches})`
     );
+    
+    // DEBUG: Log what got filtered out
+    const removed = verifiedPrograms.filter(p => p.relevanceScore < threshold);
+    if (removed.length > 0) {
+      console.log(`[ResultVerifier] ❌ Removed ${removed.length} programs below threshold ${threshold}:`);
+      removed.slice(0, 5).forEach(p => {
+        const name = p.program?.PROGRAM_NAME?.[0] || 'Unknown';
+        const campuses = p.campuses?.join(', ') || 'No campuses';
+        console.log(`[ResultVerifier]    - "${name}" (${campuses}), score: ${p.relevanceScore}`);
+      });
+    }
+    
+    // DEBUG: Show what passed through, grouped by program name
+    const passedGroups = new Map<string, any[]>();
+    filtered.forEach(p => {
+      const name = p.program?.PROGRAM_NAME?.[0] || 'Unknown';
+      if (!passedGroups.has(name)) {
+        passedGroups.set(name, []);
+      }
+      passedGroups.get(name)!.push(p);
+    });
+    
+    for (const [name, items] of passedGroups.entries()) {
+      if (items.length > 1) {
+        console.log(`[ResultVerifier] ✅ "${name}" passed with ${items.length} entries:`);
+        items.forEach((item: any) => {
+          console.log(`[ResultVerifier]    - Campuses: ${item.campuses?.join(', ') || 'None'}, score: ${item.relevanceScore}`);
+        });
+      }
+    }
 
     return filtered;
   }
@@ -255,7 +289,7 @@ IMPORTANT:
           { role: "system", content: systemPrompt },
           { role: "user", content: userPrompt },
         ],
-        model: "llama-3.3-70b-versatile",
+        model: "openai/gpt-oss-120b", // Scoring needs powerful reasoning: 500 tps, 74% cheaper
         temperature: 0.1,
       });
 
@@ -497,7 +531,7 @@ Is this program relevant to the user's true search intent and profile? Respond w
           { role: "system", content: systemPrompt },
           { role: "user", content: userPrompt },
         ],
-        model: "llama-3.3-70b-versatile",
+        model: "openai/gpt-oss-120b", // Quick verification needs powerful reasoning: 500 tps, 74% cheaper
         temperature: 0.1,
       });
 

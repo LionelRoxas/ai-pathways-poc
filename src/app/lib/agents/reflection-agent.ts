@@ -31,8 +31,8 @@ interface UserProfile {
  * No LLM calls - pure logic for speed
  */
 export class ReflectionAgent {
-  private maxRetries: number = 2; // Maximum number of reruns allowed
-  private minQualityScore: number = 6; // Minimum acceptable score
+  private maxRetries: number = 1; // Maximum number of reruns allowed (reduced from 2 to 1)
+  private minQualityScore: number = 5; // Minimum acceptable score (reduced from 6 to 5)
 
   /**
    * Fast heuristic-based reflection - NO LLM CALLS for speed

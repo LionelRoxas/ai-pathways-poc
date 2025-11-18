@@ -267,7 +267,7 @@ Generate a personalized UHCC career roadmap with realistic, industry-relevant sk
           { role: "system", content: systemPrompt },
           { role: "user", content: userPrompt },
         ],
-        model: "llama-3.3-70b-versatile",
+        model: "openai/gpt-oss-120b", // Complex reports need powerful reasoning: 500 tps, 74% cheaper
         temperature: 0.7, // Higher temperature for creativity
       });
 

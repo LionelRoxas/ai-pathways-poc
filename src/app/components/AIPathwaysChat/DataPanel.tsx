@@ -90,7 +90,7 @@ export default function DataPanel({
   ];
 
   return (
-    <div className="fixed top-0 right-0 bottom-0 w-96 bg-white border-l border-slate-200 shadow-xl z-40">
+    <div className="fixed top-0 right-0 bottom-0 w-96 bg-white border-l border-slate-200 z-40">
       <div className="h-full flex flex-col">
         {/* Toggleable Header */}
         <div className="px-4 py-3 border-b border-gray-200 bg-white">

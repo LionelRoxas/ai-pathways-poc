@@ -198,7 +198,7 @@ IMPORTANT GUIDELINES:
 
   try {
     const response = await groq.chat.completions.create({
-      model: "llama-3.3-70b-versatile",
+      model: "openai/gpt-oss-20b", // Fast profile extraction: 1000 tps, 87% cheaper
       messages: [
         { role: "system", content: systemPrompt },
         {
@@ -278,7 +278,7 @@ Return JSON with summary in ENGLISH as plain text:
 }`;
 
       const fallbackResponse = await groq.chat.completions.create({
-        model: "llama-3.3-70b-versatile",
+        model: "openai/gpt-oss-20b", // Fast profile extraction: 1000 tps, 87% cheaper
         messages: [
           { role: "system", content: fallbackPrompt },
           { role: "user", content: transcript },

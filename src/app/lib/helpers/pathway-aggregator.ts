@@ -31,6 +31,8 @@ interface AggregatedCollegeProgram {
   campuses: string[];
   campusCount: number;
   variantCount: number; // How many specializations
+  degreeLevel?: string; // NEW: 2-Year, 4-Year, or Non-Credit
+  degreeLevels?: Set<string>; // NEW: Track all degree levels if program has multiple
 }
 
 /**
@@ -242,11 +244,25 @@ export function aggregateCollegePrograms(
       programFamily: string;
       allProgramNames: Set<string>;
       campuses: Set<string>;
+      degreeLevels: Set<string>; // NEW: Track all degree levels
     }
   >();
 
   for (const { program, campuses } of programs) {
     const cipCode = program.CIP_CODE;
+    
+    // NEW: Extract degree level from program
+    let degreeLevel = program.DEGREE_LEVEL || program.degree_level || '2-Year';
+    
+    // NORMALIZE degree level to consistent format
+    const degreeLevelLower = degreeLevel.toLowerCase();
+    if (degreeLevelLower === 'non-credit' || degreeLevelLower === 'noncredit') {
+      degreeLevel = 'Non-Credit';
+    } else if (degreeLevelLower === '2-year' || degreeLevelLower === 'two-year') {
+      degreeLevel = '2-Year';
+    } else if (degreeLevelLower === '4-year' || degreeLevelLower === 'four-year') {
+      degreeLevel = '4-Year';
+    }
 
     // Handle both single strings and arrays of program names
     const programNames = Array.isArray(program.PROGRAM_NAME)
@@ -255,7 +271,7 @@ export function aggregateCollegePrograms(
 
     if (!cipMap.has(cipCode)) {
       // First time seeing this CIP code - select the best representative name
-      console.log(`[Aggregator] 📚 New CIP ${cipCode}: Analyzing ${programNames.length} variants`);
+      console.log(`[Aggregator] 📚 New CIP ${cipCode}: Analyzing ${programNames.length} variants (Degree: ${degreeLevel})`);
       
       const representativeName = findRepresentativeProgramName(programNames);
       const baseName = extractBaseProgramName(representativeName);
@@ -267,6 +283,7 @@ export function aggregateCollegePrograms(
         programFamily: baseName,
         allProgramNames: new Set(programNames),
         campuses: new Set(campuses),
+        degreeLevels: new Set([degreeLevel]), // NEW: Initialize with first degree level
       });
     } else {
       // Already seen this CIP - merge data
@@ -285,25 +302,39 @@ export function aggregateCollegePrograms(
         console.log(`[Aggregator] → CIP ${cipCode}: Adding ${newCampuses.length} new campuses`);
         campuses.forEach(c => existing.campuses.add(c));
       }
+      
+      // NEW: Track degree level
+      existing.degreeLevels.add(degreeLevel);
     }
   }
 
   // Convert to final format
   const results = Array.from(cipMap.values())
-    .map(({ cipCode, programFamily, allProgramNames, campuses }) => ({
-      cipCode,
-      programFamily,
-      programNames: Array.from(allProgramNames).sort(),
-      campuses: Array.from(campuses).sort(),
-      campusCount: campuses.size,
-      variantCount: allProgramNames.size,
-    }))
+    .map(({ cipCode, programFamily, allProgramNames, campuses, degreeLevels }) => {
+      // NEW: Determine primary degree level (most common, or highest if tied)
+      const degreeLevelArray = Array.from(degreeLevels);
+      const primaryDegreeLevel = degreeLevelArray.length === 1 
+        ? degreeLevelArray[0]
+        : (degreeLevelArray.includes('4-Year') ? '4-Year' : 
+           degreeLevelArray.includes('2-Year') ? '2-Year' : 'Non-Credit');
+      
+      return {
+        cipCode,
+        programFamily,
+        programNames: Array.from(allProgramNames).sort(),
+        campuses: Array.from(campuses).sort(),
+        campusCount: campuses.size,
+        variantCount: allProgramNames.size,
+        degreeLevel: primaryDegreeLevel, // NEW: Primary degree level
+        degreeLevels: degreeLevelArray.length > 1 ? degreeLevels : undefined, // NEW: Multiple levels if applicable
+      };
+    })
     .sort((a, b) => a.programFamily.localeCompare(b.programFamily));
 
   console.log(`[Aggregator] ✅ Aggregated ${programs.length} entries → ${results.length} unique programs`);
   console.log(`[Aggregator] Program breakdown:`);
   results.slice(0, 5).forEach(prog => {
-    console.log(`  • ${prog.programFamily} (CIP ${prog.cipCode}): ${prog.variantCount} variants, ${prog.campusCount} campuses`);
+    console.log(`  • ${prog.programFamily} (CIP ${prog.cipCode}): ${prog.variantCount} variants, ${prog.campusCount} campuses, ${prog.degreeLevel}`);
   });
 
   return results;

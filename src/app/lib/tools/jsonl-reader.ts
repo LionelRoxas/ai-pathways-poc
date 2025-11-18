@@ -47,21 +47,38 @@ export class JSONLReader {
 
     try {
       const fileContent = fs.readFileSync(filePath, "utf-8");
-      const lines = fileContent.split("\n");
-      const results: any[] = [];
+      const fileExtension = path.extname(filename).toLowerCase();
+      let results: any[] = [];
 
-      for (const line of lines) {
-        if (line.trim()) {
-          try {
-            results.push(JSON.parse(line));
-          } catch (error) {
-            console.error(`Error parsing line in ${filename}`);
+      if (fileExtension === '.json') {
+        // Handle standard JSON file
+        try {
+          const parsed = JSON.parse(fileContent);
+          // If it's already an array, use it directly
+          // If it's an object, wrap it in an array
+          results = Array.isArray(parsed) ? parsed : [parsed];
+          console.log(`Loaded ${results.length} items from JSON file ${filename}`);
+        } catch (error) {
+          console.error(`Error parsing JSON file ${filename}:`, error);
+          return [];
+        }
+      } else {
+        // Handle JSONL file (default behavior)
+        const lines = fileContent.split("\n");
+
+        for (const line of lines) {
+          if (line.trim()) {
+            try {
+              results.push(JSON.parse(line));
+            } catch (error) {
+              console.error(`Error parsing line in ${filename}`);
+            }
           }
         }
+        console.log(`Loaded ${results.length} items from JSONL file ${filename}`);
       }
 
       this.cache.set(filename, results);
-      console.log(`Loaded ${results.length} items from ${filename}`);
       return results;
     } catch (error) {
       console.error(`Error reading file ${filename}:`, error);

@@ -47,10 +47,9 @@ const ToolCallSchema = z.object({
     "get_hs_program_details",
     "get_hs_program_schools",
     "get_hs_courses",
-    "search_college_programs",
-    "get_college_by_cip",
-    "get_college_campuses",
-    "expand_cip",
+    // REMOVED OLD TOOLS: search_college_programs, get_college_by_cip, get_college_campuses, expand_cip
+    // These used the old cip_to_program_mapping.jsonl without degree_level data
+    // Now using trace_pathway with EnhancedProgramTool which has degree_level
     "get_cip_category",
     "get_careers",
   ]),
@@ -77,12 +76,25 @@ class StateManager {
   // Classification
   needsTools: boolean = true;
   queryType: string = "search";
+  searchScope?: {
+    type: 'island' | 'school' | 'general';
+    location?: string;
+  };
+  degreePreference?: 'Non-Credit' | '2-Year' | '4-Year';
+  institutionFilter?: {
+    type: 'school' | 'college';
+    name: string;
+  };
   
   // Keywords & Planning
   keywords: string[] = [];
   extractedKeywords: string[] = []; // From conversational intelligence extraction
   toolCalls: ToolCall[] = [];
   toolResults: any[] = [];
+  
+  // Island Filtering (NEW)
+  islandFilter: string | null = null;
+  isIslandSpecific: boolean = false;
   
   // Data Collection
   collectedData: any = {
@@ -146,8 +158,23 @@ async function classifierNode(state: StateManager): Promise<void> {
   
   state.queryType = classification.queryType;
   state.needsTools = classification.needsTools;
+  state.searchScope = classification.searchScope;
+  state.degreePreference = classification.degreePreference;
+  state.institutionFilter = classification.institutionFilter;
   
   state.log(`Classification: ${state.queryType} (needsTools: ${state.needsTools})`);
+  
+  if (state.searchScope) {
+    console.log(`[Classifier] 🎯 Search Scope: ${state.searchScope.type}${state.searchScope.location ? ` - ${state.searchScope.location}` : ''}`);
+  }
+  
+  if (state.degreePreference) {
+    console.log(`[Classifier] 🎓 Degree Preference: ${state.degreePreference}`);
+  }
+  
+  if (state.institutionFilter) {
+    console.log(`[Classifier] 🏫 Institution Filter: ${state.institutionFilter.type} - ${state.institutionFilter.name}`);
+  }
 }
 
 async function profileExtractorNode(state: StateManager): Promise<void> {
@@ -169,34 +196,98 @@ async function profileExtractorNode(state: StateManager): Promise<void> {
     console.log(`[ProfileExtractor] 🔄 Topic pivot detected! Using fresh keywords only.`);
     state.keywords = [...new Set(enhancedKeywords)].slice(0, 5);
   } else if (isAffirmative && state.conversationHistory.length > 0) {
-    // AFFIRMATIVE: Pull context from conversation, use profile as SMART FALLBACK
-    console.log(`[ProfileExtractor] ✅ Affirmative response - prioritizing conversation context.`);
+    // AFFIRMATIVE: Pull context from conversation using LLM intelligence
+    console.log(`[ProfileExtractor] ✅ Affirmative response - extracting conversation context with LLM.`);
     
-    // Find the last assistant message
-    const lastAssistant = state.conversationHistory[state.conversationHistory.length - 1];
-    if (lastAssistant?.role === "assistant") {
-      const contextKeywords = extractKeywords(lastAssistant.content);
-      console.log(`[ProfileExtractor] 📝 Context keywords from assistant: ${contextKeywords.join(", ")}`);
+    // Use LLM to intelligently extract the topic/program being discussed
+    const recentMessages = state.conversationHistory.slice(-3);
+    const conversationContext = recentMessages
+      .map(m => `${m.role}: ${m.content}`)
+      .join('\n');
+    
+    try {
+      const extractionPrompt = `The user just said "${state.userQuery}" (an affirmative response).
+
+Recent conversation:
+${conversationContext}
+
+Extract the main educational programs, fields of study, or topics being discussed AND any specific institutions mentioned. Return a JSON object with:
+1. keywords: Array of educational programs/fields
+2. institution: Object with type ('school' | 'college') and name, or null if no specific institution mentioned
+
+Focus on:
+- Program names (e.g., "computer science", "nursing", "engineering")
+- Fields of study (e.g., "marine biology", "culinary arts")
+- Academic areas (e.g., "business", "education", "healthcare")
+- Specific institutions (e.g., "UH Manoa", "University of Hawaii at Manoa", "Honolulu Community College", "Pearl City High School")
+
+Return format: {
+  "keywords": ["keyword1", "keyword2"],
+  "institution": {
+    "type": "college",
+    "name": "UH Manoa"
+  } OR null
+}`;
+
+      const response = await groq.chat.completions.create({
+        messages: [
+          { role: "user", content: extractionPrompt }
+        ],
+        model: "openai/gpt-oss-120b", // Powerful extraction: 500 tps, better quality, 74% cheaper
+        temperature: 0.1,
+        response_format: { type: "json_object" },
+      });
       
-      // STRATEGY: Use conversation context as PRIMARY source
-      enhancedKeywords = [...contextKeywords];
+      const content = response.choices[0].message.content || "{}";
+      const parsed = JSON.parse(content);
+      const contextKeywords = parsed.keywords || [];
+      const contextInstitution = parsed.institution || null;
       
-      // SMART ENRICHMENT: Only add relevant profile interests
-      if (contextKeywords.length < 3 && state.userProfile.interests?.length > 0) {
-        // Find profile interests that relate to conversation context
-        const relevantProfileInterests = state.userProfile.interests.filter((interest: string) =>
-          contextKeywords.some(keyword => 
-            interest.toLowerCase().includes(keyword.toLowerCase()) ||
-            keyword.toLowerCase().includes(interest.toLowerCase())
-          )
-        );
-        
-        if (relevantProfileInterests.length > 0) {
-          console.log(`[ProfileExtractor] 💡 Adding relevant profile interests: ${relevantProfileInterests.join(", ")}`);
-          enhancedKeywords.push(...relevantProfileInterests.slice(0, 2));
-        } else {
-          console.log(`[ProfileExtractor] ⏭️  Profile interests not relevant to current topic - skipping`);
+      if (contextKeywords.length > 0) {
+        console.log(`[ProfileExtractor] 🎓 LLM extracted context: ${contextKeywords.join(", ")}`);
+        enhancedKeywords = contextKeywords;
+      } else {
+        // Fallback: Extract keywords from last assistant message
+        const lastAssistant = state.conversationHistory[state.conversationHistory.length - 1];
+        if (lastAssistant?.role === "assistant") {
+          enhancedKeywords = extractKeywords(lastAssistant.content);
+          console.log(`[ProfileExtractor] 📝 Fallback keywords from assistant: ${enhancedKeywords.join(", ")}`);
         }
+      }
+      
+      // Also extract institution filter from conversation context if present
+      if (contextInstitution && contextInstitution.name) {
+        state.institutionFilter = {
+          type: contextInstitution.type as 'school' | 'college',
+          name: contextInstitution.name
+        };
+        console.log(`[ProfileExtractor] 🏫 Extracted institution from context: ${contextInstitution.type} - ${contextInstitution.name}`);
+      }
+    } catch (error: any) {
+      console.error(`[ProfileExtractor] LLM extraction failed: ${error.message}`);
+      // Fallback: Extract keywords from last assistant message
+      const lastAssistant = state.conversationHistory[state.conversationHistory.length - 1];
+      if (lastAssistant?.role === "assistant") {
+        enhancedKeywords = extractKeywords(lastAssistant.content);
+        console.log(`[ProfileExtractor] 📝 Fallback keywords from assistant: ${enhancedKeywords.join(", ")}`);
+      }
+    }
+    
+    // SMART ENRICHMENT: Only add relevant profile interests if we have few keywords
+    if (enhancedKeywords.length < 3 && state.userProfile.interests?.length > 0) {
+      // Find profile interests that relate to conversation context
+      const relevantProfileInterests = state.userProfile.interests.filter((interest: string) =>
+        enhancedKeywords.some(keyword => 
+          interest.toLowerCase().includes(keyword.toLowerCase()) ||
+          keyword.toLowerCase().includes(interest.toLowerCase())
+        )
+      );
+      
+      if (relevantProfileInterests.length > 0) {
+        console.log(`[ProfileExtractor] 💡 Adding relevant profile interests: ${relevantProfileInterests.join(", ")}`);
+        enhancedKeywords.push(...relevantProfileInterests.slice(0, 2));
+      } else {
+        console.log(`[ProfileExtractor] ⏭️  Profile interests not relevant to current topic - skipping`);
       }
     }
     
@@ -210,7 +301,48 @@ async function profileExtractorNode(state: StateManager): Promise<void> {
     console.log(`[ProfileExtractor] 🎯 Final keywords: ${state.keywords.join(", ")}`);
   }
   
-  state.log(`Keywords: ${state.keywords.join(", ")} ${isTopicPivot ? "(FRESH)" : isAffirmative ? "(CONTEXT)" : ""}`);
+  // NEW: Use classifier's search scope determination
+  if (state.searchScope) {
+    console.log(`[ProfileExtractor] � Search scope from classifier: ${state.searchScope.type}`);
+    
+    // Map the location to island if needed
+    if (state.searchScope.location) {
+      const detectedIsland = detectIslandFromQuery(state.searchScope.location);
+      if (detectedIsland) {
+        state.islandFilter = detectedIsland;
+        state.isIslandSpecific = true;
+        console.log(`[ProfileExtractor] 🏝️  Island from search scope: ${detectedIsland} (${state.searchScope.location})`);
+      }
+    }
+    
+    // For school or island queries without specific program keywords, use broad search
+    if ((state.searchScope.type === 'school' || state.searchScope.type === 'island') && 
+        (state.keywords.length === 0 || 
+         state.keywords.some(kw => ['pearl', 'city', 'high', 'school', 'programs', 'available', 'show', 'waipahu', 'mililani'].includes(kw.toLowerCase())))) {
+      
+      console.log(`[ProfileExtractor] 📍 ${state.searchScope.type} query detected by classifier - using broad search`);
+      
+      // Use profile interests if available
+      if (state.userProfile.interests && state.userProfile.interests.length > 0) {
+        state.keywords = state.userProfile.interests.slice(0, 3);
+        console.log(`[ProfileExtractor] 🎯 Using profile interests for ${state.searchScope.type} query: ${state.keywords.join(", ")}`);
+      } else {
+        // Use broad keywords
+        state.keywords = ["all", "available", "programs"];
+        console.log(`[ProfileExtractor] 🎯 Using broad search for ${state.searchScope.type} query`);
+      }
+    }
+  } else {
+    // Fallback: Try to detect island from query directly (backward compatibility)
+    const island = detectIslandFromQuery(state.userQuery);
+    if (island) {
+      state.islandFilter = island;
+      state.isIslandSpecific = true;
+      console.log(`[ProfileExtractor] 🏝️  Island detected (fallback): ${island}`);
+    }
+  }
+  
+  state.log(`Keywords: ${state.keywords.join(", ")} ${isTopicPivot ? "(FRESH)" : isAffirmative ? "(CONTEXT)" : ""}${state.islandFilter ? ` | Island: ${state.islandFilter}` : ""}`);
 }
 
 async function toolPlannerNode(state: StateManager): Promise<void> {
@@ -219,15 +351,28 @@ async function toolPlannerNode(state: StateManager): Promise<void> {
   const systemPrompt = `You are a tool planning agent for Hawaii's educational pathway system.
 
 AVAILABLE TOOLS:
-- trace_pathway(keywords: string[]) - Comprehensive pathway search (HS → College → Career)
+- trace_pathway(keywords: string[]) - Comprehensive pathway search (HS → College → Career) - INCLUDES DEGREE LEVELS
 - search_hs_programs(keywords: string[]) - Search high school programs
-- search_college_programs(keywords: string[]) - Search college programs
 - get_careers(cipCodes: string[]) - Get careers from CIP codes
-- expand_cip(cip2Digits: string[]) - Expand 2-digit CIP codes
+
+CRITICAL RULE FOR trace_pathway ARGUMENTS:
+- Use ONLY the keywords provided in the user prompt below
+- DO NOT add profile interests unless the query is extremely vague (like "help me" or "what can I do?")
+- If keywords are provided, use THOSE EXACT keywords even if they seem incomplete
+- Profile interests are for context only - do NOT automatically add them to tool arguments
+
+NOTE: trace_pathway now uses the comprehensive program dataset with degree level information (2-Year, 4-Year, Non-Credit).
+OLD TOOLS REMOVED: search_college_programs, get_college_by_cip, expand_cip (used outdated data without degree levels)
+
+${state.islandFilter ? `
+🏝️ ISLAND FILTER ACTIVE: ${state.islandFilter}
+- Results will be automatically filtered to programs/schools available on ${state.islandFilter}
+- No need to include island name in keywords
+- Available campuses will be limited to ${state.islandFilter} only
+` : ""}
 
 ${state.searchStrategy ? `
 RETRY STRATEGY (Attempt ${state.attemptNumber}):
-- Use CIP search: ${state.searchStrategy.useCIPSearch}
 - Broaden scope: ${state.searchStrategy.broadenScope}
 - Include related fields: ${state.searchStrategy.includeRelatedFields}
 - Additional keywords: ${state.searchStrategy.additionalKeywords.join(", ")}
@@ -241,12 +386,24 @@ RESPOND WITH ONLY VALID JSON (no markdown):
   ]
 }`;
 
+  // CRITICAL FIX: Don't include profile interests for affirmative responses
+  // When user says "yes" after "Computer Science at UH Manoa", we want ONLY Computer Science,
+  // not diluted with Hawaiian language, music, etc.
+  const isAffirmative = /^(yes|yeah|yep|sure|ok|okay)/i.test(state.userQuery.toLowerCase());
+  
+  // ALSO: Don't include profile interests in tool planner prompt at all!
+  // Profile interests should only be used by the VERIFIER for scoring relevance.
+  // Including them here causes the LLM to add ALL interests to search keywords,
+  // which dilutes search results (e.g., searching for "Computer Science" + "Hawaiian language" + "music" + 13 other topics!)
+  
   const userPrompt = `Plan tools for:
 Query: "${state.userQuery}"
-Keywords: ${state.keywords.join(", ")}
-Profile interests: ${state.userProfile.interests.join(", ")}
+Keywords: ${state.keywords.join(", ")}${state.islandFilter ? `\nIsland: ${state.islandFilter}` : ""}
+
+IMPORTANT: Use ONLY the keywords listed above for trace_pathway arguments. Do NOT add any other topics.
 
 Return JSON with tool array:`;
+
 
   try {
     const response = await groq.chat.completions.create({
@@ -254,7 +411,7 @@ Return JSON with tool array:`;
         { role: "system", content: systemPrompt },
         { role: "user", content: userPrompt },
       ],
-      model: "llama-3.3-70b-versatile",
+      model: "openai/gpt-oss-120b", // Tool planning needs powerful reasoning: 500 tps, 74% cheaper
       temperature: 0.1,
       response_format: { type: "json_object" }, // JSON-FORCED - No regex parsing needed!
     });
@@ -314,7 +471,9 @@ async function toolExecutorNode(state: StateManager): Promise<void> {
   
   const { results, collectedData } = await executeToolCalls(
     state.toolCalls,
-    state.Tools
+    state.Tools,
+    state.islandFilter,  // Pass island filter through to tools
+    state.conversationHistory  // Pass conversation context for semantic search
   );
   
   state.toolResults = results;
@@ -470,12 +629,37 @@ async function aggregatorNode(state: StateManager): Promise<void> {
     }))
   );
   
-  const aggregatedCollegePrograms = aggregateCollegePrograms(
-    state.verifiedData.collegePrograms.map((item: any) => ({
-      program: item.program,
-      campuses: item.campuses || [],
-    }))
-  );
+  // DEBUG: Log what we're sending to aggregator
+  console.log(`[Aggregator] 📦 Programs going into aggregator:`);
+  const programsForAggregation = state.verifiedData.collegePrograms.map((item: any) => ({
+    program: item.program,
+    campuses: item.campuses || [],
+  }));
+  
+  // Group by program name to see duplicates
+  const nameGroups = new Map<string, any[]>();
+  programsForAggregation.forEach((item: any) => {
+    const names = Array.isArray(item.program.PROGRAM_NAME) 
+      ? item.program.PROGRAM_NAME 
+      : [item.program.PROGRAM_NAME];
+    const name = names[0] || 'Unknown';
+    if (!nameGroups.has(name)) {
+      nameGroups.set(name, []);
+    }
+    nameGroups.get(name)!.push(item);
+  });
+  
+  // Log programs that appear multiple times (different campuses)
+  for (const [name, items] of nameGroups.entries()) {
+    if (items.length > 1) {
+      console.log(`[Aggregator] 🔄 "${name}" appears ${items.length} times:`);
+      items.forEach((item: any, idx: number) => {
+        console.log(`[Aggregator]    ${idx + 1}. Campuses: ${item.campuses.join(', ')}`);
+      });
+    }
+  }
+  
+  const aggregatedCollegePrograms = aggregateCollegePrograms(programsForAggregation);
   
   const uniqueSchools = new Set<string>();
   aggregatedHSPrograms.forEach((prog: any) =>
@@ -576,12 +760,20 @@ async function aggregatorNode(state: StateManager): Promise<void> {
 async function formatterNode(state: StateManager): Promise<void> {
   state.log("NODE: Formatter");
   
+  // Log what we're passing to formatter
+  console.log(`[FormatterNode] 📤 Passing to formatter:`, {
+    degreePreference: state.degreePreference,
+    institutionFilter: state.institutionFilter
+  });
+  
   // YOUR ORIGINAL FORMATTING LOGIC!
   const formatted = await responseFormatter.formatResponse(
     state.userQuery,
     state.aggregatedData,
     state.conversationHistory,
-    state.userProfile
+    state.userProfile,
+    state.degreePreference,
+    state.institutionFilter
   );
   
   state.finalResponse = formatted.markdown;
@@ -721,8 +913,8 @@ const ROUTING_TABLE: Record<string, string | RouterFunc> = {
   verifier: "reflector",
   
   reflector: (state) => {
-    const isGoodEnough = state.reflectionScore >= 6;
-    const maxAttempts = state.attemptNumber >= 3;
+    const isGoodEnough = state.reflectionScore >= 5; // Reduced from 6 to 5
+    const maxAttempts = state.attemptNumber >= 2; // Reduced from 3 to 2
     
     if (isGoodEnough || maxAttempts) {
       return "aggregator";
@@ -832,15 +1024,14 @@ export async function processUserQueryWithLangGraphStyle(
  * HELPER FUNCTIONS
  */
 function extractKeywords(message: string): string[] {
+  // Stop words - generic words that don't help identify programs
   const stopWords = new Set([
     "the", "a", "an", "and", "or", "but", "in", "on", "at", "to", "for",
     "of", "with", "by", "from", "about", "what", "which", "where", "how",
     "is", "are", "was", "were", "been", "be", "have", "has", "had", "do",
     "does", "did", "will", "would", "could", "should", "may", "might",
-    "must", "can", "programs", "program", "course", "courses", "want",
-    "need", "like", "find", "show", "tell", "give", "list",
-    // Additional generic action words
-    "just", "see", "job", "jobs", "career", "careers", "data", "me", "my",
+    "must", "can", "want", "need", "like", "find", "show", "tell", "give", "list",
+    "just", "see", "job", "jobs", "career", "careers", "me", "my",
     "more", "that", "this", "these", "those", "some", "any", "all",
   ]);
   
@@ -850,5 +1041,81 @@ function extractKeywords(message: string): string[] {
     .split(/\s+/)
     .filter(word => word.length > 2 && !stopWords.has(word));
   
-  return words.slice(0, 3);
+  // Return up to 5 keywords for better matching
+  return words.slice(0, 5);
+}
+
+/**
+ * Detect island mention in query
+ * Returns normalized island name or null
+ */
+function detectIslandFromQuery(query: string): string | null {
+  const queryLower = query.toLowerCase();
+  
+  // Island name mappings with common variations
+  const islandMappings: Record<string, string> = {
+    'oahu': 'Oahu',
+    "o'ahu": 'Oahu',
+    'honolulu': 'Oahu',
+    'pearl city': 'Oahu',
+    'kaneohe': 'Oahu',
+    'waipahu': 'Oahu',
+    'aiea': 'Oahu',
+    'mililani': 'Oahu',
+    'campbell': 'Oahu',
+    'farrington': 'Oahu',
+    'kahuku': 'Oahu',
+    'kailua': 'Oahu',
+    'kaimuki': 'Oahu',
+    'kaiser': 'Oahu',
+    'kalaheo': 'Oahu',
+    'kalani': 'Oahu',
+    'kapolei': 'Oahu',
+    'leilehua': 'Oahu',
+    'mckinley': 'Oahu',
+    'moanalua': 'Oahu',
+    'nanakuli': 'Oahu',
+    'radford': 'Oahu',
+    'roosevelt': 'Oahu',
+    'waialua': 'Oahu',
+    'waianae': 'Oahu',
+    
+    'maui': 'Maui',
+    'kahului': 'Maui',
+    'wailuku': 'Maui',
+    'baldwin': 'Maui',
+    'lahainaluna': 'Maui',
+    'king kekaulike': 'Maui',
+    'molokai': 'Maui',  // Served by Maui College
+    'moloka\'i': 'Maui',
+    'lanai': 'Maui',     // Served by Maui College
+    'lana\'i': 'Maui',
+    
+    'kauai': 'Kauai',
+    'kaua\'i': 'Kauai',
+    'lihue': 'Kauai',
+    'kapaa': 'Kauai',
+    'waimea': 'Kauai',
+    
+    'hawaii': 'Hawaii',
+    'hawai\'i': 'Hawaii',
+    'big island': 'Hawaii',
+    'hilo': 'Hawaii',
+    'kona': 'Hawaii',
+    'waiakea': 'Hawaii',
+    'honokaa': 'Hawaii',
+    'keaau': 'Hawaii',
+    'kealakehe': 'Hawaii',
+    'kohala': 'Hawaii',
+    'konawaena': 'Hawaii',
+    'pahoa': 'Hawaii'
+  };
+  
+  for (const [keyword, island] of Object.entries(islandMappings)) {
+    if (queryLower.includes(keyword)) {
+      return island;
+    }
+  }
+  
+  return null;
 }

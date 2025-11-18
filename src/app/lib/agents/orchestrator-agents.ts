@@ -445,7 +445,7 @@ Plan the tool calls needed:`;
         ...conversationHistory.slice(-4), // Include last 4 messages for context
         { role: "user", content: userPrompt },
       ],
-      model: "llama-3.3-70b-versatile",
+      model: "openai/gpt-oss-120b", // Tool planning needs powerful reasoning: 500 tps, 74% cheaper
       temperature: 0.1,
     });
 
@@ -473,7 +473,9 @@ Plan the tool calls needed:`;
  */
 export async function executeToolCalls(
   toolCalls: ToolCall[],
-  Tools: any
+  Tools: any,
+  islandFilter?: string | null,
+  conversationHistory?: any[]
 ): Promise<{ results: ToolResult[]; collectedData: CollectedData }> {
   const results: ToolResult[] = [];
   const collectedData: CollectedData = {
@@ -486,7 +488,9 @@ export async function executeToolCalls(
   };
 
   console.log(`[ToolExecutor] 🔧 Executing ${toolCalls.length} tool calls:`, toolCalls.map(tc => tc.name).join(', '));
-
+  if (islandFilter) {
+    console.log(`[ToolExecutor] 🏝️  Island filter active: ${islandFilter}`);
+  }
   // Initialize tool instances
   const hsDataTool = new Tools.HS();
   const collegeDataTool = new Tools.College();
@@ -645,7 +649,21 @@ export async function executeToolCalls(
         case "trace_pathway": {
           if (pathwayTracer) {
             const keywords = Array.isArray(args) ? args : [args];
-            const pathway = await pathwayTracer.traceFromKeywords(keywords);
+            
+            // Build conversation context from last 3 messages for better understanding
+            let conversationContext = '';
+            if (conversationHistory && conversationHistory.length > 0) {
+              const recentMessages = conversationHistory.slice(-3);
+              conversationContext = recentMessages
+                .map((msg: any) => `${msg.role}: ${msg.content}`)
+                .join('\n');
+            }
+            
+            const pathway = await pathwayTracer.traceFromKeywords(
+              keywords, 
+              islandFilter,
+              conversationContext
+            );
 
             if (pathway) {
               collectedData.highSchoolPrograms.push(
@@ -897,7 +915,9 @@ async function generateResponse(
       message,
       aggregatedData, // Use the already-aggregated data
       conversationHistory,
-      userProfile
+      userProfile,
+      undefined, // No degree preference in old orchestrator
+      undefined  // No institution filter in old orchestrator
     );
 
     return formattedResponse.markdown;
@@ -942,7 +962,7 @@ Return this exact structure:
         { role: "system", content: systemPrompt },
         { role: "user", content: userPrompt },
       ],
-      model: "llama-3.3-70b-versatile",
+      model: "openai/gpt-oss-120b", // Profile extraction needs powerful reasoning: 500 tps, 74% cheaper
       temperature: 0.1,
     });
 
@@ -1076,8 +1096,8 @@ export async function processUserQuery(
       };
     }
 
-    // REFLECTION LOOP: Try up to 3 times to get good results
-    while (attemptNumber <= 3) {
+    // REFLECTION LOOP: Try up to 2 times to get good results (reduced from 3)
+    while (attemptNumber <= 2) {
       console.log(
         `[Orchestrator] Attempt ${attemptNumber}: Processing query: "${enhancedQuery}"`
       );
@@ -1099,7 +1119,9 @@ export async function processUserQuery(
       // 3. Execute tools
       const { results, collectedData } = await executeToolCalls(
         toolCalls,
-        Tools
+        Tools,
+        enhancedProfile.location,
+        conversationHistory
       );
 
       // 3.5. Extract the search intent from the enhanced profile interests or tool calls
@@ -1187,7 +1209,9 @@ export async function processUserQuery(
       );
       const { results, collectedData } = await executeToolCalls(
         toolCalls,
-        Tools
+        Tools,
+        enhancedProfile.location,
+        conversationHistory
       );
       const extractedIntent =
         enhancedProfile.interests[0] || extractKeywords(message)[0];

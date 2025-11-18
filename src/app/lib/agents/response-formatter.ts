@@ -45,8 +45,161 @@ export class ResponseFormatterAgent {
     userQuery: string,
     verifiedData: VerifiedData,
     conversationHistory: ConversationMessage[] = [],
-    userProfile?: any
+    userProfile?: any,
+    degreePreference?: 'Non-Credit' | '2-Year' | '4-Year',
+    institutionFilter?: {
+      type: 'school' | 'college';
+      name: string;
+    }
   ): Promise<FormattedResponse> {
+    // Log what filters we received
+    console.log(`[ResponseFormatter] 🔍 Filters received:`, {
+      degreePreference,
+      institutionFilter
+    });
+    
+    // Apply degree level filtering if specified
+    if (degreePreference) {
+      console.log(`[ResponseFormatter] 🎓 Filtering programs by degree preference: ${degreePreference}`);
+      
+      const beforeCount = verifiedData.collegePrograms.length;
+      
+      verifiedData.collegePrograms = verifiedData.collegePrograms.filter(item => {
+        // Get degree level from multiple possible sources
+        let degreeLevel = 
+          item.degreeLevel ||             // From aggregator
+          item.program?.DEGREE_LEVEL ||   // From DirectSearchTracer
+          item.program?.degree_level ||   // From original data
+          item.DEGREE_LEVEL ||            // Direct field
+          item.degree_level ||            // Lowercase direct field
+          '2-Year'; // Default
+        
+        // Normalize to match our standard format
+        const degreeLevelLower = degreeLevel.toLowerCase();
+        if (degreeLevelLower === 'non-credit' || degreeLevelLower === 'noncredit') {
+          degreeLevel = 'Non-Credit';
+        } else if (degreeLevelLower === '2-year') {
+          degreeLevel = '2-Year';
+        } else if (degreeLevelLower === '4-year') {
+          degreeLevel = '4-Year';
+        }
+        
+        return degreeLevel === degreePreference;
+      });
+      
+      const afterCount = verifiedData.collegePrograms.length;
+      console.log(`[ResponseFormatter] Filtered ${beforeCount} programs → ${afterCount} programs (${beforeCount - afterCount} removed)`);
+    }
+
+    // Apply institution filtering if specified
+    if (institutionFilter) {
+      const filterName = institutionFilter.name.toLowerCase();
+      
+      // Helper function for smarter institution name matching
+      const matchesInstitution = (campusName: string, searchTerm: string): boolean => {
+        const campus = campusName.toLowerCase();
+        const search = searchTerm.toLowerCase();
+        
+        // Direct substring match
+        if (campus.includes(search) || search.includes(campus)) {
+          return true;
+        }
+        
+        // Handle common abbreviations and variations
+        // "UH Manoa" should match "University of Hawaii at Manoa"
+        if (search.includes('uh') && search.includes('manoa') && campus.includes('manoa')) {
+          return true;
+        }
+        if (search.includes('uh') && search.includes('hilo') && campus.includes('hilo')) {
+          return true;
+        }
+        // "Honolulu CC" should match "Honolulu Community College"
+        if (search.includes('cc') && campus.includes('community college')) {
+          const searchWords = search.split(/\s+/);
+          const campusWords = campus.split(/\s+/);
+          // Check if key location words match
+          return searchWords.some(word => word.length > 2 && campusWords.includes(word));
+        }
+        // "KCC" should match "Kapiolani Community College"
+        if (search === 'kcc' && campus.includes('kapiolani')) {
+          return true;
+        }
+        if (search === 'honcc' && campus.includes('honolulu community')) {
+          return true;
+        }
+        if (search === 'lcc' && campus.includes('leeward')) {
+          return true;
+        }
+        if (search === 'wcc' && campus.includes('windward')) {
+          return true;
+        }
+        if (search === 'hpu' && campus.includes('hawaii pacific')) {
+          return true;
+        }
+        
+        // Word-by-word matching for multi-word searches
+        const searchWords = search.split(/\s+/).filter(w => w.length > 2);
+        const campusWords = campus.split(/\s+/);
+        const matchedWords = searchWords.filter(word => 
+          campusWords.some(campusWord => campusWord.includes(word) || word.includes(campusWord))
+        );
+        
+        // Match if most search words are found
+        return matchedWords.length >= Math.ceil(searchWords.length * 0.6);
+      };
+      
+      if (institutionFilter.type === 'school') {
+        // Filter high school programs
+        console.log(`[ResponseFormatter] 🏫 Filtering high school programs by school: ${institutionFilter.name}`);
+        const beforeCount = verifiedData.highSchoolPrograms.length;
+        
+        verifiedData.highSchoolPrograms = verifiedData.highSchoolPrograms.filter(item => {
+          const schools = item.schools || [];
+          return schools.some((school: string) => matchesInstitution(school, filterName));
+        }).map(item => {
+          // ALSO filter the schools array to only show the requested school
+          const filteredSchools = (item.schools || []).filter((school: string) => 
+            matchesInstitution(school, filterName)
+          );
+          
+          return {
+            ...item,
+            schools: filteredSchools
+          };
+        });
+        
+        const afterCount = verifiedData.highSchoolPrograms.length;
+        console.log(`[ResponseFormatter] Filtered ${beforeCount} HS programs → ${afterCount} programs (${beforeCount - afterCount} removed)`);
+        
+      } else if (institutionFilter.type === 'college') {
+        // Filter college programs
+        console.log(`[ResponseFormatter] 🎓 Filtering college programs by institution: ${institutionFilter.name}`);
+        const beforeCount = verifiedData.collegePrograms.length;
+        
+        verifiedData.collegePrograms = verifiedData.collegePrograms.filter(item => {
+          const campuses = item.campuses || [];
+          // Also check the institution field if available
+          const institution = item.program?.iro_institution || item.program?.IRO_INSTITUTION || '';
+          
+          return campuses.some((campus: string) => matchesInstitution(campus, filterName)) || 
+                 (institution && matchesInstitution(institution, filterName));
+        }).map(item => {
+          // ALSO filter the campuses array to only show the requested institution
+          const filteredCampuses = (item.campuses || []).filter((campus: string) => 
+            matchesInstitution(campus, filterName)
+          );
+          
+          return {
+            ...item,
+            campuses: filteredCampuses
+          };
+        });
+        
+        const afterCount = verifiedData.collegePrograms.length;
+        console.log(`[ResponseFormatter] Filtered ${beforeCount} college programs → ${afterCount} programs (${beforeCount - afterCount} removed)`);
+      }
+    }
+    
     // Prepare data summary
     const summary = this.calculateSummary(verifiedData);
 
@@ -152,10 +305,18 @@ RESPONSE STRUCTURE (ALWAYS FOLLOW THIS):
 
 ## College Programs (ONLY if data exists AND has valid names)
 
-- Program name - Available at: Campus Name, Campus Name (list all campuses)
-- Program name - Available at: Campus Name, Campus Name, Campus Name
+Organize by degree level when available:
 
-Important: List the actual campus names, not just the count!
+### 2-Year Programs (Associate Degrees)
+- Program name - Available at: Campus Name, Campus Name
+
+### 4-Year Programs (Bachelor's Degrees)  
+- Program name - Available at: Campus Name, Campus Name
+
+### Non-Credit Programs (Certificates & Training)
+- Program name - Available at: Campus Name
+
+Important: List the actual campus names, not just the count! Group by degree level if the data provides it.
 
 ## Career Paths (ONLY if there are related careers to mention)
 
@@ -227,7 +388,7 @@ Generate a clean, simple response.`;
           { role: "system", content: systemPrompt },
           { role: "user", content: userPrompt },
         ],
-        model: "llama-3.3-70b-versatile",
+        model: "openai/gpt-oss-120b", // Response formatting needs powerful reasoning: 500 tps, 74% cheaper
         temperature: 0.4,
       });
 
@@ -289,7 +450,7 @@ Generate a helpful, simple response.`;
           { role: "system", content: systemPrompt },
           { role: "user", content: userPrompt },
         ],
-        model: "llama-3.3-70b-versatile",
+        model: "openai/gpt-oss-120b", // No-results formatting needs powerful reasoning: 500 tps, 74% cheaper
         temperature: 0.5,
       });
 
@@ -386,45 +547,98 @@ ${mostRecentTopic ? `\nMost Recent Topic: "${mostRecentTopic}"` : ""}`;
       }
     }
 
-    // Add college program examples
+    // Add college program examples - GROUPED BY DEGREE LEVEL
     if (verifiedData.collegePrograms.length > 0) {
       console.log("[ResponseFormatter] College programs received:", JSON.stringify(verifiedData.collegePrograms.slice(0, 3), null, 2));
       
-      const collegeExamples = verifiedData.collegePrograms
-        .slice(0, 10) // Check more programs to find ones with names
-        .map(item => {
-          // Handle multiple possible name fields from aggregation
-          let name = 
-            item.name ||                    // Standard aggregated format
-            item.programFamily ||           // Aggregated college program format
-            item.program?.PROGRAM_NAME ||   // Raw program format (array)
-            item.program?.PROGRAM_OF_STUDY; // Fallback to any name field
+      // Group programs by degree level
+      const programsByLevel: Record<string, any[]> = {
+        '2-Year': [],
+        '4-Year': [],
+        'Non-Credit': []
+      };
+      
+      verifiedData.collegePrograms.forEach(item => {
+        // Handle multiple possible name fields from aggregation
+        let name = 
+          item.name ||                    // Standard aggregated format
+          item.programFamily ||           // Aggregated college program format
+          item.program?.PROGRAM_NAME ||   // Raw program format (array)
+          item.program?.PROGRAM_OF_STUDY; // Fallback to any name field
+        
+        // If PROGRAM_NAME is an array, take the first element
+        if (Array.isArray(name)) {
+          name = name[0];
+        }
+        
+        // Get degree level - NOW CHECKING AGGREGATED FIELD FIRST
+        let degreeLevel = 
+          item.degreeLevel ||             // NEW: From aggregator (primary source)
+          item.program?.DEGREE_LEVEL ||   // From DirectSearchTracer
+          item.program?.degree_level ||   // From original data
+          item.DEGREE_LEVEL ||            // Direct field
+          item.degree_level ||            // Lowercase direct field
+          '2-Year'; // Default to 2-Year if not specified
+        
+        // NORMALIZE degree level to match our keys (handle case-insensitive variations)
+        if (degreeLevel.toLowerCase() === 'non-credit' || degreeLevel.toLowerCase() === 'noncredit') {
+          degreeLevel = 'Non-Credit';
+        } else if (degreeLevel === '2-Year' || degreeLevel === '2-year' || degreeLevel === 'two-year') {
+          degreeLevel = '2-Year';
+        } else if (degreeLevel === '4-Year' || degreeLevel === '4-year' || degreeLevel === 'four-year') {
+          degreeLevel = '4-Year';
+        }
+        
+        // Debug logging for first few programs
+        if (verifiedData.collegePrograms.indexOf(item) < 3) {
+          console.log(`[ResponseFormatter] Program degree level check:`, {
+            name,
+            finalDegreeLevel: degreeLevel,
+            'item.degreeLevel (AGGREGATED)': item.degreeLevel,
+            'program.DEGREE_LEVEL': item.program?.DEGREE_LEVEL,
+            'item.DEGREE_LEVEL': item.DEGREE_LEVEL,
+            'program.degree_level': item.program?.degree_level,
+            'item.degree_level': item.degree_level
+          });
+        }
+        
+        const campuses = item.campuses || [];
+        const campusList = campuses.join(", ");
+        
+        if (name && name !== 'Program' && campusList) {
+          const formatted = `  - ${name} - Available at: ${campusList}`;
           
-          // If PROGRAM_NAME is an array, take the first element
-          if (Array.isArray(name)) {
-            name = name[0];
+          // Add to appropriate degree level group
+          if (programsByLevel[degreeLevel]) {
+            programsByLevel[degreeLevel].push(formatted);
+          } else {
+            // If degree level not recognized, add to 2-Year
+            console.warn(`[ResponseFormatter] Unrecognized degree level: "${degreeLevel}" - defaulting to 2-Year`);
+            programsByLevel['2-Year'].push(formatted);
           }
-          
-          const campuses = item.campuses || [];
-          const campusCount = campuses.length;
-          const campusList = campuses.join(", ");
-          
-          return {
-            name: name || null,
-            campusCount,
-            campusList,
-            formatted: name && name !== 'Program' 
-              ? `  - ${name} - Available at: ${campusList}`
-              : null
-          };
-        })
-        .filter(item => item.formatted !== null) // Only include programs with valid names
-        .map(item => item.formatted)
-        .join("\n");
-
-      if (collegeExamples.trim()) {
+        }
+      });
+      
+      // Format output with degree level sections
+      let collegeOutput = '';
+      
+      if (programsByLevel['2-Year'].length > 0) {
         hasCollegeData = true;
-        context += `College Programs (INCLUDE THIS SECTION - List campus names!):\n${collegeExamples}\n\n`;
+        collegeOutput += `2-Year Programs (Associate Degrees):\n${programsByLevel['2-Year'].slice(0, 10).join('\n')}\n\n`;
+      }
+      
+      if (programsByLevel['4-Year'].length > 0) {
+        hasCollegeData = true;
+        collegeOutput += `4-Year Programs (Bachelor's Degrees):\n${programsByLevel['4-Year'].slice(0, 10).join('\n')}\n\n`;
+      }
+      
+      if (programsByLevel['Non-Credit'].length > 0) {
+        hasCollegeData = true;
+        collegeOutput += `Non-Credit Programs (Certificates & Training):\n${programsByLevel['Non-Credit'].slice(0, 10).join('\n')}\n\n`;
+      }
+
+      if (collegeOutput.trim()) {
+        context += `College Programs (INCLUDE THIS SECTION - Organized by degree level!):\n${collegeOutput}`;
       } else {
         console.warn("[ResponseFormatter] No college programs with valid names found");
         context += `College Programs: ${verifiedData.collegePrograms.length} programs found but names not available (DO NOT INCLUDE THIS SECTION)\n\n`;

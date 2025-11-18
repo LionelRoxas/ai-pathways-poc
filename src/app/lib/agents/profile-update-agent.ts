@@ -154,7 +154,7 @@ IMPORTANT:
     const recentTranscript = transcript.slice(-3000);
 
     const response = await groq.chat.completions.create({
-      model: "llama-3.3-70b-versatile",
+      model: "openai/gpt-oss-20b", // Fast profile updates: 1000 tps, 87% cheaper
       messages: [
         { role: "system", content: systemPrompt },
         {
