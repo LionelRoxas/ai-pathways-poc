@@ -436,7 +436,7 @@ NEVER say: "I couldn't find", "no matches", "no results", or similar negative ph
 
 Example format:
 
-## Are You Looking For:
+## Are You Looking For
 
 Based on your interest in [their query], I recommend checking out programs in [related field].
 
