@@ -77,8 +77,8 @@ Brief intro paragraph about their specific journey.
   - [Another clear action item]
   - [Another clear action item]
 - **Programs to Consider:**
-  - **[Program Name]** at **[School Name]** - [brief description]
-  - **[Program Name]** at **[School Name]** - [brief description]
+  - [Program Name] at [School Name] - [brief description]
+  - [Program Name] at [School Name] - [brief description]
 
 [ONLY include Phase 2 and Phase 3 if they make sense for the educational goal]
 

@@ -423,25 +423,26 @@ Generate a clean, simple response.`;
 
     const systemPrompt = `You are a conversational guide for Hawaii educational pathways. The user's query returned no results.
 
-Keep it SIMPLE and conversational:
-1. One sentence acknowledging their search
-2. 2-3 alternatives as bullet points
-3. End with a question to keep the conversation going
+Your job: Make a POSITIVE recommendation for the CLOSEST related field or program that DOES exist in Hawaii's system.
 
-Use minimal formatting - just bullet points for suggestions. NO emojis.
+Keep it SIMPLE and conversational:
+1. Present it as a recommendation, not as "no results found"
+2. Frame it positively: "Based on your interest in [X], you might be interested in [Y]"
+3. End with "Are you looking for [specific suggestion]?" to prompt a simple "yes"
+
+Use minimal formatting. NO emojis. Make the suggestion specific and actionable.
+
+NEVER say: "I couldn't find", "no matches", "no results", or similar negative phrases.
 
 Example format:
 
-## No Results Found
+## Are You Looking For:
 
-I couldn't find programs matching "[their query]".
+Based on your interest in [their query], I recommend checking out programs in [related field].
 
-You might want to try:
-- Broader search term
-- Related field
-- General category
+We have several options in [specific area] that align with what you're searching for.
 
-What area interests you most?`;
+Are you looking for [specific related program/field]?`;
 
     const userPrompt = `${conversationContext}
 
@@ -729,16 +730,13 @@ Check out the details below!`;
    * Default message when no results are found
    */
   private getDefaultNoResultsMessage(): string {
-    return `## No Results Found
+    return `## Are You Looking For:
 
-I couldn't find any programs matching that search.
+Based on your interests, I recommend exploring Hawaii's career and technical programs.
 
-You might want to try:
-- Broader search terms
-- Related career fields
-- Asking about specific schools or islands
+We have pathways in healthcare, technology, business, trades, and creative fields.
 
-What area are you interested in exploring?`;
+Are you looking for help exploring different career options?`;
   }
 }
 

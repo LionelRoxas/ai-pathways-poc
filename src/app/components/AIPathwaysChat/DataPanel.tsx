@@ -2,15 +2,16 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 // components/AIPathwaysChat/DataPanel.tsx
 // Market Intelligence Report with toggle to detailed visualizers
-import React, { useState } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import { X } from "lucide-react";
 
-// Import all 4 SOC Visualizers + PathwayPlan
+// Import all 4 SOC Visualizers + PathwayPlan + Overlay
 import JobTitlesSkillsVisualizer from "./Visualizer/JobTitlesSkillsVisualizer";
 import JobTitlesCompaniesVisualizer from "./Visualizer/JobTitlesCompaniesVisualizer";
 import CompaniesSkillsVisualizer from "./Visualizer/CompaniesSkillsVisualizer";
 import MarketIntelligenceReport from "./MarketIntelligenceReport";
 import PathwayPlan from "./PathwayPlan";
+import PathwayOverlay from "./PathwayOverlay";
 
 interface DataPanelProps {
   dataPanelOpen: boolean;
@@ -40,25 +41,41 @@ export default function DataPanel({
   const [showPathway, setShowPathway] = useState(true); // Default to Pathway view
   const [panelWidth, setPanelWidth] = useState(384); // Default 96 * 4 = 384px (w-96)
   const [isResizing, setIsResizing] = useState(false);
+  const [pathwayLoading, setPathwayLoading] = useState(false);
+  const [showOverlay, setShowOverlay] = useState(false);
+  const [hasShownOverlay, setHasShownOverlay] = useState(false);
+
+  // Check if overlay has been shown this session
+  useEffect(() => {
+    const overlayShown = sessionStorage.getItem('pathwayOverlayShown');
+    if (overlayShown === 'true') {
+      setHasShownOverlay(true);
+    }
+  }, []);
+
+  // Handle showing overlay - only show if not shown before in this session
+  const handleShowOverlay = (show: boolean) => {
+    if (show && !hasShownOverlay) {
+      setShowOverlay(true);
+    } else if (!show) {
+      setShowOverlay(false);
+    }
+  };
+
+  // Mark overlay as shown when user accepts
+  const handleOverlayAccept = () => {
+    sessionStorage.setItem('pathwayOverlayShown', 'true');
+    setHasShownOverlay(true);
+    setShowOverlay(false);
+  };
 
   // Create stable references for comparison
   const socCodesKey = socCodes.sort().join(",");
-  const messagesCount = messages?.length || 0;
-
-  console.log(
-    `[DataPanel] 🎯 Received ${socCodes.length} SOC codes:`,
-    socCodes
-  );
-  console.log(`[DataPanel] 🎯 SOC codes key:`, socCodesKey);
-  console.log(`[DataPanel] 🎯 Messages count:`, messagesCount);
-  console.log(`[DataPanel] 🎯 Active tab:`, activeDataTab);
-  console.log(`[DataPanel] 🎯 Show details:`, showDetails);
-  console.log(`[DataPanel] 🎯 Show pathway:`, showPathway);
 
   // 🎯 Only trigger tab validation if socCodes actually change
-  const prevSocCodesRef = React.useRef<string[]>([]);
+  const prevSocCodesRef = useRef<string[]>([]);
 
-  React.useEffect(() => {
+  useEffect(() => {
     const codesChanged =
       socCodes.length !== prevSocCodesRef.current.length ||
       socCodes.some((code, idx) => code !== prevSocCodesRef.current[idx]);
@@ -85,7 +102,7 @@ export default function DataPanel({
       
       const newWidth = window.innerWidth - e.clientX;
       // Min width: 384px (w-96), Max width: 80% of screen
-      const minWidth = 484;
+      const minWidth = 384;
       const maxWidth = window.innerWidth * 0.8;
       
       if (newWidth >= minWidth && newWidth <= maxWidth) {
@@ -139,7 +156,7 @@ export default function DataPanel({
       >
         {/* Visible Drag Button */}
         <div className="absolute left-0 top-1/2 -translate-y-1/2 -translate-x-1/2">
-          <div className="bg-white border-2 border-slate-300 rounded-lg px-1.5 py-3 shadow-md hover:border-blue-500 hover:shadow-lg transition-all cursor-col-resize">
+          <div className="bg-white border-2 border-slate-200 rounded-lg px-1.5 py-3 shadow-md hover:border-blue-500 hover:shadow-lg transition-all cursor-col-resize">
             <div className="flex flex-col gap-1 items-center">
               <div className="w-0.5 h-4 bg-slate-400"></div>
               <div className="w-0.5 h-4 bg-slate-400"></div>
@@ -266,10 +283,20 @@ export default function DataPanel({
               userProfile={userProfile} 
               messages={messages} 
               programsData={{ socCodes }}
+              onLoadingChange={setPathwayLoading}
+              onShowOverlay={handleShowOverlay}
             />
           </div>
         </div>
       </div>
+
+      {/* Pathway Overlay - Only shows once per session */}
+      {showPathway && showOverlay && !hasShownOverlay && (
+        <PathwayOverlay
+          isLoading={pathwayLoading}
+          onAccept={handleOverlayAccept}
+        />
+      )}
     </div>
   );
 }

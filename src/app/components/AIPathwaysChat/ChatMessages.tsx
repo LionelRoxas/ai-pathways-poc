@@ -835,7 +835,11 @@ export default function ChatMessages({
                       ></span>
                     </div>
                     <span className="text-xs text-gray-400">
-                      {isAnalyzing ? "Searching" : "Thinking"}... {loadingSeconds}s
+                      {loadingSeconds >= 45 
+                        ? "Verifying" 
+                        : loadingSeconds >= 30 
+                          ? "Searching" 
+                          : "Thinking"}... {loadingSeconds}s
                     </span>
                   </div>
                 </span>

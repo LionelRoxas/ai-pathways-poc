@@ -1,6 +1,6 @@
 // src/app/api/pathway-plan/route.ts
 import { NextRequest, NextResponse } from "next/server";
-import { PathwayPlanningAgent } from "@/app/lib/agents/pathway-planning-agent-new";
+import { PathwayPlanningAgent } from "@/app/lib/agents/pathway-planning-agent";
 
 export const runtime = "nodejs";
 export const maxDuration = 60;

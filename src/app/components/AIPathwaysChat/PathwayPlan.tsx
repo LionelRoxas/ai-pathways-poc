@@ -1,8 +1,8 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
 // components/AIPathwaysChat/PathwayPlan.tsx
 import React, { useEffect, useState } from "react";
-import { Loader2, Map } from "lucide-react";
-import { pathwayMDXComponents } from "./PathwayMDXComponents-new";
+import { Loader2, Map, Download } from "lucide-react";
+import { pathwayMDXComponents } from "./PathwayMDXComponents";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import rehypeRaw from "rehype-raw";
@@ -11,6 +11,8 @@ interface PathwayPlanProps {
   userProfile?: any;
   messages?: any[];
   programsData?: any;
+  onLoadingChange?: (loading: boolean) => void;
+  onShowOverlay?: (show: boolean) => void;
 }
 
 interface PathwayPlanResult {
@@ -27,6 +29,8 @@ export default function PathwayPlan({
   userProfile,
   messages,
   programsData,
+  onLoadingChange,
+  onShowOverlay,
 }: PathwayPlanProps) {
   const [loading, setLoading] = useState(false);
   const [plan, setPlan] = useState<PathwayPlanResult | null>(null);
@@ -48,6 +52,115 @@ export default function PathwayPlan({
 
   const currentKey = `${socCodesKey}-${userProfileKey}`;
 
+  // Ref to track if we're currently generating to prevent double calls
+  const isGeneratingRef = React.useRef(false);
+
+  const handleSaveAsPDF = () => {
+    // Get the pathway content
+    const pathwayContent = document.getElementById('pathway-content');
+    if (!pathwayContent) return;
+
+    // Create a new window with just the content
+    const printWindow = window.open('', '_blank');
+    if (!printWindow) return;
+
+    // Write the content with proper styling
+    printWindow.document.write(`
+      <!DOCTYPE html>
+      <html>
+        <head>
+          <title>Pathway Plan</title>
+          <style>
+            /* Hide browser print headers/footers */
+            @page {
+              margin: 0.5in;
+            }
+            @media print {
+              header, footer {
+                display: none !important;
+              }
+            }
+            
+            body {
+              font-family: Arial, sans-serif;
+              padding: 20px;
+              max-width: 800px;
+              margin: 0 auto;
+            }
+            h1, h2, h3, h4 { 
+              margin-top: 1.5em; 
+              margin-bottom: 0.5em;
+              color: #000;
+            }
+            h2 {
+              border-bottom: 2px solid #000;
+              padding-bottom: 0.5em;
+            }
+            p { 
+              line-height: 1.6; 
+              margin-bottom: 1em;
+            }
+            ul, ol { 
+              margin-left: 1.5em; 
+              margin-bottom: 1em;
+              list-style-type: disc;
+            }
+            li { 
+              margin-bottom: 0.5em;
+              display: list-item;
+            }
+            /* Hide SVG icons (checkmarks, etc) */
+            svg {
+              display: none !important;
+            }
+            table { 
+              width: 100%; 
+              border-collapse: collapse; 
+              margin: 1em 0;
+            }
+            th, td { 
+              border: 1px solid #ddd; 
+              padding: 8px; 
+              text-align: left; 
+            }
+            th { 
+              background-color: #000; 
+              color: white;
+              font-weight: bold;
+            }
+            strong { 
+              font-weight: 600; 
+            }
+          </style>
+        </head>
+        <body>
+          ${pathwayContent.innerHTML}
+        </body>
+      </html>
+    `);
+
+    printWindow.document.close();
+    
+    // Wait for content to load, then print
+    setTimeout(() => {
+      // Try to open print with custom settings (works in some browsers)
+      printWindow.focus();
+      
+      // Add event listener to modify print settings
+      printWindow.onbeforeprint = () => {
+        // This helps ensure clean printing
+        printWindow.document.body.style.margin = '0';
+      };
+      
+      printWindow.print();
+      
+      // Close after a delay to allow printing to complete
+      setTimeout(() => {
+        printWindow.close();
+      }, 1000);
+    }, 250);
+  };
+
   useEffect(() => {
     if (socCodes.length === 0) {
       setLoading(false);
@@ -64,13 +177,22 @@ export default function PathwayPlan({
       return;
     }
 
+    // Skip if we're already generating (prevents double calls in StrictMode)
+    if (isGeneratingRef.current) {
+      console.log("[PathwayPlan] ⏭️  Skipping - generation already in progress");
+      return;
+    }
+
     console.log(
       "[PathwayPlan] 🔄 Regenerating pathway due to dependency change"
     );
 
     const generatePlan = async () => {
+      isGeneratingRef.current = true;
       setPlan(null);
       setLoading(true);
+      onLoadingChange?.(true);
+      onShowOverlay?.(true);
       setError(null);
 
       try {
@@ -122,13 +244,17 @@ export default function PathwayPlan({
         setPlan(result);
         setLastGeneratedKey(currentKey); // Mark this combination as generated
         console.log("[PathwayPlan] ✅ Pathway plan generated successfully");
+        onLoadingChange?.(false);
       } catch (err) {
         console.error("[PathwayPlan] ❌ Error generating pathway plan:", err);
         setError(
           err instanceof Error ? err.message : "Failed to generate pathway plan"
         );
+        onLoadingChange?.(false);
+        onShowOverlay?.(false);
       } finally {
         setLoading(false);
+        isGeneratingRef.current = false; // Reset the flag
       }
     };
 
@@ -175,9 +301,9 @@ export default function PathwayPlan({
   }
 
   return (
-    <div className="space-y-6">
+    <div>
       {/* MDX Content */}
-      <div className="bg-white p-4">
+      <div className="bg-white p-4" id="pathway-content">
         <div className="prose prose-sm max-w-none prose-headings:mt-0 prose-headings:mb-3 prose-table:text-xs">
           <ReactMarkdown
             remarkPlugins={[remarkGfm]}
@@ -189,10 +315,22 @@ export default function PathwayPlan({
         </div>
       </div>
 
+      {/* Save as PDF Button - Bottom Center */}
+      <div className="flex justify-center">
+        <button
+          onClick={handleSaveAsPDF}
+          className="flex items-center gap-2 px-3 py-2 text-sm font-medium text-gray-700 bg-white border border-gray-300 rounded-lg hover:bg-gray-50 hover:border-gray-400 shadow-sm hover:shadow-md transition-all"
+          aria-label="Save pathway as PDF"
+        >
+          <Download className="w-4 h-4" />
+          Save as PDF
+        </button>
+      </div>
+
       {/* Footer Note */}
-      <div className="bg-slate-50 rounded-lg p-4 border border-slate-200">
+      <div className="bg-slate-50 rounded-lg p-4 border border-slate-200 mt-6">
         <p className="text-xs text-slate-600 leading-relaxed">
-          <strong className="text-slate-900">Note:</strong> This pathway plan is
+          <strong className="text-slate-900">Note:</strong> This plan is
           personalized based on your profile and interests. Timelines and
           requirements may vary. Always verify program details with the
           institution directly.

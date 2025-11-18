@@ -4,7 +4,7 @@ import {
   PanelLeft,
   MessageSquarePlus,
   User,
-  Briefcase,
+  GraduationCap,
   Trash2,
 } from "lucide-react";
 import { Language } from "../LanguageSelection";
@@ -158,7 +158,7 @@ export default function NavSidebar({
             } ${!isOpen ? "justify-center px-0" : ""}`}
             aria-label="Toggle data panel"
           >
-            <Briefcase
+            <GraduationCap
               className={`w-5 h-5 flex-shrink-0 transition-transform ${
                 dataPanelOpen ? "" : ""
               }`}
