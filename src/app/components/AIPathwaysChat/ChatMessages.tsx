@@ -12,6 +12,145 @@ import {
 } from "lucide-react";
 import { Message, UserProfile } from "./types";
 
+// Typing animation component that supports markdown
+const TypingText = ({ 
+  text, 
+  speed = 70, 
+  delay = 0,
+  className = "",
+  onComplete,
+  renderMarkdown = false
+}: { 
+  text: string; 
+  speed?: number; 
+  delay?: number;
+  className?: string;
+  onComplete?: () => void;
+  renderMarkdown?: boolean;
+}) => {
+  const [displayedText, setDisplayedText] = useState("");
+  const [isTyping, setIsTyping] = useState(false);
+  const [isComplete, setIsComplete] = useState(false);
+  const hasCompletedRef = useRef(false);
+
+  useEffect(() => {
+    // Only run animation once
+    if (hasCompletedRef.current) {
+      setDisplayedText(text);
+      setIsComplete(true);
+      return;
+    }
+    
+    // Reset when text changes
+    setDisplayedText("");
+    setIsTyping(true);
+    setIsComplete(false);
+
+    const startTimeout = setTimeout(() => {
+      let currentIndex = 0;
+      const interval = setInterval(() => {
+        if (currentIndex <= text.length) {
+          setDisplayedText(text.slice(0, currentIndex));
+          currentIndex++;
+        } else {
+          clearInterval(interval);
+          setIsTyping(false);
+          setIsComplete(true);
+          hasCompletedRef.current = true;
+          onComplete?.(); // Notify when typing is complete
+        }
+      }, speed);
+
+      return () => clearInterval(interval);
+    }, delay);
+
+    return () => clearTimeout(startTimeout);
+  }, [text, speed, delay, onComplete]);
+
+  // If complete and markdown rendering is enabled, render with MarkdownRenderer
+  if (isComplete && renderMarkdown) {
+    return <MarkdownRenderer content={displayedText} className={className} />;
+  }
+
+  return (
+    <span className={className}>
+      {displayedText}
+      {isTyping && <span className="animate-pulse">|</span>}
+    </span>
+  );
+};
+
+// Waving emoji animation component
+const WavingEmoji = ({ 
+  delay = 0,
+  duration = 2000,
+  onComplete
+}: { 
+  delay?: number;
+  duration?: number;
+  onComplete?: () => void;
+}) => {
+  const [isVisible, setIsVisible] = useState(true);
+  const [isFadingOut, setIsFadingOut] = useState(false);
+
+  useEffect(() => {
+    // Start fade out 500ms before hiding
+    const fadeTimeout = setTimeout(() => {
+      setIsFadingOut(true);
+    }, delay + duration - 500);
+
+    const hideTimeout = setTimeout(() => {
+      setIsVisible(false);
+      onComplete?.();
+    }, delay + duration);
+
+    return () => {
+      clearTimeout(fadeTimeout);
+      clearTimeout(hideTimeout);
+    };
+  }, [delay, duration, onComplete]);
+
+  if (!isVisible) return null;
+
+  return (
+    <div 
+      className={`inline-block text-6xl transition-all duration-500 ${
+        isFadingOut ? 'opacity-0 scale-95' : 'opacity-100 scale-100 animate-in fade-in zoom-in'
+      }`}
+      style={{ 
+        animationName: isFadingOut ? 'none' : 'wave',
+        animationDuration: isFadingOut ? undefined : '0.6s',
+        animationTimingFunction: isFadingOut ? undefined : 'ease-in-out',
+        animationIterationCount: isFadingOut ? undefined : 'infinite',
+        animationDelay: isFadingOut ? undefined : `${delay}ms`
+      }}
+    >
+      👋
+      <style jsx>{`
+        @keyframes wave {
+          0%, 100% { transform: rotate(0deg); }
+          25% { transform: rotate(20deg); }
+          75% { transform: rotate(-15deg); }
+        }
+      `}</style>
+    </div>
+  );
+};
+
+// Helper function to get welcome message based on language
+const getWelcomeMessage = (languageCode: string = "en"): string => {
+  switch (languageCode) {
+    case "haw":
+      return "E komo mai!"; // Welcome in Hawaiian
+    case "hwp":
+      return "Eh, howzit!"; // Hawaiian Pidgin greeting
+    case "tl":
+      return "Maligayang pagdating!"; // Welcome in Tagalog
+    default:
+      return "Welcome 🌺";
+  }
+};
+
 interface ChatMessagesProps {
   messages: Message[];
   isLoading: boolean;
@@ -24,6 +163,7 @@ interface ChatMessagesProps {
   dataPanelOpen: boolean;
   setSidebarOpen: (open: boolean) => void;
   navSidebarOpen: boolean;
+  currentLanguage?: { code: string; name: string; nativeName: string };
 }
 
 interface ProgramDetails {
@@ -621,6 +761,7 @@ export default function ChatMessages({
   sidebarOpen,
   dataPanelOpen,
   navSidebarOpen,
+  currentLanguage,
 }: ChatMessagesProps) {
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const [showSuggestions, setShowSuggestions] = useState(false);
@@ -628,6 +769,9 @@ export default function ChatMessages({
   
   // Check if this is the initial state (no user messages yet)
   const isInitialState = messages.filter(m => m.role === "user").length === 0;
+
+  // Get language-specific welcome message
+  const welcomeText = getWelcomeMessage(currentLanguage?.code || "en");
 
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
@@ -673,52 +817,66 @@ export default function ChatMessages({
           {/* Welcome Message */}
           {messages.length > 0 && messages[0].role === "assistant" && (
             <div className="text-center mb-8 space-y-8 animate-in fade-in duration-700">
-              {/* Logo */}
-              <div className="inline-block">
-                {/* eslint-disable-next-line @next/next/no-img-element */}
-                <img
-                  src="/images/uhcc-logo-3.png"
-                  alt="UHCC Logo"
-                  className="w-20 h-20 object-contain mx-auto drop-shadow-sm"
-                />
+              {/* Waving Emoji */}
+              <div className="py-4">
+                <WavingEmoji delay={0} duration={1800} />
               </div>
               
               {/* Title */}
               <div className="space-y-2">
                 <h1 className="text-4xl font-bold text-slate-900 tracking-tight" style={{ letterSpacing: "0.04em" }}>
-                  Kamaʻāina Pathways
+                  <TypingText text={welcomeText} speed={60} delay={2000} />
                 </h1>
               </div>
               
               {/* Greeting Text */}
               <div className="text-base text-slate-600 leading-relaxed max-w-2xl mx-auto">
-                <MarkdownRenderer
-                  content={messages[0].content}
+                <TypingText 
+                  text={messages[0].content} 
+                  speed={30} 
+                  delay={2800}
                   className="text-slate-600"
+                  renderMarkdown={true}
+                  onComplete={() => setShowSuggestions(true)}
                 />
               </div>
             </div>
           )}
 
           {/* Suggested Questions */}
-          {suggestedQuestions.length > 0 && !isLoading && (
-            <div className="space-y-3 animate-in slide-in-from-bottom-4 duration-500">
+          {suggestedQuestions.length > 0 && !isLoading && showSuggestions && (
+            <div className="space-y-3 animate-in slide-in-from-bottom-4 duration-700 delay-250">
               <div className="grid grid-cols-2 gap-3">
                 {suggestedQuestions.map((question, idx) => (
                   <button
                     key={idx}
                     onClick={() => handleSuggestedQuestionClick(question)}
-                    className="group bg-white border-2 border-slate-200 hover:border-black hover:bg-slate-50 text-slate-700 hover:text-black px-5 py-4 rounded-xl transition-all duration-200 text-left"
+                    className="group bg-white border-2 border-slate-200 hover:border-emerald-600 hover:bg-emerald-50 text-slate-700 hover:text-emerald-900 px-5 py-4 rounded-xl transition-all duration-200 text-left shadow-sm"
+                    style={{
+                      animation: `fadeInUp 0.5s ease-out ${idx * 0.1}s both`
+                    }}
                   >
                     <div className="flex items-center justify-between gap-3">
                       <span className="text-sm font-medium line-clamp-2">
                         {question}
                       </span>
-                      <ArrowRight className="w-4 h-4 opacity-40 group-hover:opacity-100 group-hover:translate-x-1 transition-all flex-shrink-0" />
+                      <ArrowRight className="w-4 h-4 opacity-40 group-hover:opacity-100 group-hover:translate-x-1 transition-all flex-shrink-0 text-emerald-600" />
                     </div>
                   </button>
                 ))}
               </div>
+              <style jsx>{`
+                @keyframes fadeInUp {
+                  from {
+                    opacity: 0;
+                    transform: translateY(20px);
+                  }
+                  to {
+                    opacity: 1;
+                    transform: translateY(0);
+                  }
+                }
+              `}</style>
             </div>
           )}
         </div>
@@ -756,15 +914,15 @@ export default function ChatMessages({
                 <div
                   className={`${
                     msg.role === "user"
-                      ? "bg-black text-white px-5 py-3.5 rounded-2xl rounded-tr-md"
-                      : "bg-white text-black px-5 py-3.5"
+                      ? "bg-emerald-600 text-white px-5 py-3.5 rounded-2xl rounded-tr-md shadow-sm"
+                      : "bg-white text-slate-800 px-5 py-3.5"
                   } text-sm leading-relaxed`}
                 >
                   <div style={{ lineHeight: "1.6" }}>
                     {msg.role === "assistant" ? (
                       <MarkdownRenderer
                         content={msg.content}
-                        className="text-black"
+                        className="text-slate-800"
                       />
                     ) : (
                       <div className="whitespace-pre-wrap">{msg.content}</div>
@@ -782,21 +940,21 @@ export default function ChatMessages({
                   {msg.metadata &&
                     msg.metadata.totalResults > 0 &&
                     msg.role === "assistant" && (
-                      <div className="mt-4 pt-3 border-t border-gray-300">
+                      <div className="mt-4 pt-3 border-t border-slate-200">
                         <div className="flex items-center gap-2 flex-wrap">
                           <div className="flex items-center gap-2">
-                            <Database className="w-4 h-4 text-black" />
-                            <span className="text-xs font-semibold">
+                            <Database className="w-4 h-4 text-emerald-600" />
+                            <span className="text-xs font-semibold text-slate-700">
                               Data Retrieved:
                             </span>
                           </div>
-                          <span className="px-3 py-1 bg-black text-white text-xs rounded-full font-bold">
+                          <span className="px-3 py-1 bg-emerald-600 text-white text-xs rounded-full font-bold">
                             {msg.metadata.totalResults} results
                           </span>
                           {msg.metadata.queriesExecuted.map((query, i) => (
                             <span
                               key={i}
-                              className="px-2.5 py-1 bg-white border border-black text-black text-xs rounded-full font-medium"
+                              className="px-2.5 py-1 bg-white border border-emerald-600 text-emerald-700 text-xs rounded-full font-medium"
                             >
                               {query
                                 .replace(/get|Get/, "")
@@ -816,24 +974,24 @@ export default function ChatMessages({
         {isLoading && (
           <div className="flex justify-start">
             <div className="flex gap-3 max-w-[85%]">
-              <div className="bg-white px-5 py-3.5 rounded-2xl rounded-tl-md">
-                <span className="text-sm text-black font-medium">
+              <div className="bg-white px-5 py-3.5 rounded-2xl rounded-tl-md shadow-sm border border-slate-100">
+                <span className="text-sm text-slate-700 font-medium">
                   <div className="flex items-center gap-2">
                     <div className="flex gap-1">
                       <span
-                        className="w-2 h-2 bg-gray-400 rounded-full animate-bounce"
+                        className="w-2 h-2 bg-emerald-500 rounded-full animate-bounce"
                         style={{ animationDelay: "0ms" }}
                       ></span>
                       <span
-                        className="w-2 h-2 bg-gray-400 rounded-full animate-bounce"
+                        className="w-2 h-2 bg-emerald-500 rounded-full animate-bounce"
                         style={{ animationDelay: "150ms" }}
                       ></span>
                       <span
-                        className="w-2 h-2 bg-gray-400 rounded-full animate-bounce"
+                        className="w-2 h-2 bg-emerald-500 rounded-full animate-bounce"
                         style={{ animationDelay: "300ms" }}
                       ></span>
                     </div>
-                    <span className="text-xs text-gray-400">
+                    <span className="text-xs text-slate-500">
                       {loadingSeconds >= 45 
                         ? "Verifying" 
                         : loadingSeconds >= 30 
@@ -854,15 +1012,15 @@ export default function ChatMessages({
                 onClick={() => setShowSuggestions(!showSuggestions)}
                 className="flex items-center justify-center gap-2 mb-3 mx-auto hover:opacity-70 transition-opacity cursor-pointer group"
               >
-                <span className="text-xs font-bold text-black uppercase tracking-wider">
+                <span className="text-xs font-bold text-emerald-700 uppercase tracking-wider">
                   {userProfile?.isComplete
                     ? "Explore Options"
                     : "Quick Actions"}
                 </span>
                 {showSuggestions ? (
-                  <ChevronUp className="w-4 h-4 text-black" />
+                  <ChevronUp className="w-4 h-4 text-emerald-600" />
                 ) : (
-                  <ChevronDown className="w-4 h-4 text-black" />
+                  <ChevronDown className="w-4 h-4 text-emerald-600" />
                 )}
               </button>
 
@@ -872,13 +1030,13 @@ export default function ChatMessages({
                     <button
                       key={idx}
                       onClick={() => handleSuggestedQuestionClick(question)}
-                      className="group relative bg-white border-2 border-black hover:bg-black hover:text-white text-black px-4 py-3 rounded-xl transition-all duration-200 text-left"
+                      className="group relative bg-white border-2 border-emerald-600 hover:bg-emerald-600 hover:text-white text-slate-800 px-4 py-3 rounded-xl transition-all duration-200 text-left shadow-sm"
                     >
                       <div className="flex items-center justify-between gap-2">
                         <span className="text-sm font-medium line-clamp-2">
                           {question}
                         </span>
-                        <ArrowRight className="w-4 h-4 opacity-50 group-hover:opacity-100 transition-opacity flex-shrink-0" />
+                        <ArrowRight className="w-4 h-4 opacity-50 group-hover:opacity-100 transition-opacity flex-shrink-0 text-emerald-600 group-hover:text-white" />
                       </div>
                     </button>
                   ))}

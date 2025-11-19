@@ -94,20 +94,20 @@ const extractDisplayedSocCodes = (
 
 const getInitialGreeting = (language: Language | null): string => {
   if (!language)
-    return "## Aloha 🌺\n\nI can help you explore educational pathways in Hawaii. What are you interested in?";
+    return "I can help you explore educational pathways in Hawaii. What are you interested in?";
 
   switch (language.code) {
     case "haw":
-      return "## Aloha 🌺\n\nE kōkua ana au iā ʻoe e ʻimi i nā ala hoʻonaʻauao ma Hawaiʻi. He aha kou makemake?";
+      return "E kōkua ana au iā ʻoe e ʻimi i nā ala hoʻonaʻauao ma Hawaiʻi. He aha kou makemake?";
 
     case "hwp":
-      return "## Eh howzit!\n\nI going help you check out educational pathways in Hawaii. What you like know?";
+      return "I going help you check out educational pathways in Hawaii. What you like know?";
 
     case "tl":
-      return "## Kumusta!\n\nTutulungan kitang tuklasin ang mga landas ng edukasyon sa Hawaii. Ano ang gusto mong malaman?";
+      return "Tutulungan kitang tuklasin ang mga landas ng edukasyon sa Hawaii. Ano ang gusto mong malaman?";
 
     default:
-      return "## Aloha 🌺\n\nI can help you explore educational pathways in Hawaii. What are you interested in?";
+      return "I can help you explore educational pathways in Hawaii. What are you interested in?";
   }
 };
 

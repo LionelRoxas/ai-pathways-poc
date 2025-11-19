@@ -51,131 +51,264 @@ export async function analyzeAndImproveQuery(
   intent: "search" | "profile_based" | "mixed";
   ignoreProfile: boolean;
   expandedTerms: Record<string, string[]>;
+  isTopicPivot: boolean;
+  isAffirmative: boolean;
 }> {
   const languageContext =
     language !== "en"
       ? `The user is communicating in ${language === "haw" ? "Hawaiian" : language === "hwp" ? "Pidgin" : language === "tl" ? "Tagalog" : "English"}. Understand their query in that context.`
       : "";
 
-  const systemPrompt = `You are a query analysis expert for an education database system. ${languageContext}
-Your job is to analyze user queries and determine:
-1. Whether they want specific search results or profile-based recommendations
-2. What search terms to use for best database matches
-3. Whether to ignore their profile temporarily for this query
+  // Detect topic pivots and affirmatives early
+  const topicPivotIndicators = /^(what about|how about|tell me about|instead|actually|now|switch to|change to|no|wait)/i;
+  const isTopicPivot = topicPivotIndicators.test(userMessage.trim().toLowerCase());
+  
+  const affirmativeIndicators = /^(yes|yeah|yep|sure|ok|okay|yea|ye|yup|affirmative|correct|right|exactly|indeed|certainly|absolutely|definitely|sounds good|that works|that's right)$/i;
+  const isAffirmative = affirmativeIndicators.test(userMessage.trim().toLowerCase());
 
-CRITICAL RULES:
-- If user asks for specific programs (e.g., "computer science", "nursing", "engineering"), mark intent as 'search' and ignoreProfile as true
-- Expand abbreviations to full terms (e.g., "comp sci" → ["computer science", "computing", "computer"])
-- Include variations and related terms for better matching
-- Preserve the user's actual intent - don't override with profile data
-- Understand queries in the context of the language being used
+  const systemPrompt = `You are a query analysis expert for Hawaii's educational pathway system. ${languageContext}
+
+Your job is to analyze user queries and extract:
+1. **Search terms** - Programs, fields, subjects they want to find
+2. **Intent** - Are they searching for specific programs or want profile-based recommendations?
+3. **Abbreviation expansion** - Expand common abbreviations and add variations
+
+HAWAII-SPECIFIC KNOWLEDGE:
+- UHCC = University of Hawaii Community Colleges (7 campuses across islands)
+- Common fields: healthcare (nursing, medical assistant), technology (computer science, IT), trades (culinary, automotive, construction), business, education, arts
+- Island-specific programs vary by location (Oahu, Maui, Hawaii/Big Island, Kauai)
+
+ABBREVIATION EXPANSIONS:
+- "comp sci" / "CS" → ["computer science", "computing", "information technology"]
+- "bio" → ["biology", "biological sciences", "life sciences", "marine biology"]
+- "chem" → ["chemistry", "chemical sciences"]
+- "psych" → ["psychology", "behavioral health", "counseling"]
+- "bus" / "biz" → ["business", "business administration", "management", "entrepreneurship"]
+- "eng" → ["engineering", "applied engineering technology"]
+- "nurs" → ["nursing", "healthcare", "medical assistant", "health sciences"]
+- "IT" → ["information technology", "computer science", "cybersecurity", "networking"]
+- "CJ" → ["criminal justice", "law enforcement", "public safety"]
+- "ed" / "edu" → ["education", "teaching", "early childhood education"]
+- "culinary" → ["culinary arts", "food service", "hospitality"]
+- "auto" → ["automotive technology", "mechanics", "diesel technology"]
+
+INTENT DETECTION:
+- "search" = User asks for specific programs/fields (ignore profile)
+- "profile_based" = User asks generic "what should I study?" (use profile)
+- "mixed" = User asks for recommendations in a specific area (blend both)
+
+${isTopicPivot ? `
+🔄 TOPIC PIVOT DETECTED: User is changing the subject.
+- Extract ONLY what they're asking about NOW
+- Completely ignore previous conversation context
+- Mark ignoreProfile: true
+` : ""}
+
+${isAffirmative ? `
+✅ AFFIRMATIVE RESPONSE DETECTED: User said "yes" to continue current topic.
+- This will be handled by conversation context extraction
+- Just extract any NEW keywords they added
+- If no new keywords, return empty searchTerms array
+` : ""}
 
 Return a JSON object with this exact structure:
 {
-  "improvedQuery": "the cleaned, improved query string",
+  "improvedQuery": "cleaned query without filler words",
   "searchTerms": ["primary term", "alternate term", "related term"],
-  "intent": "search" or "profile_based" or "mixed",
-  "ignoreProfile": true or false,
+  "intent": "search" | "profile_based" | "mixed",
+  "ignoreProfile": true | false,
   "expandedTerms": {
-    "original_term": ["expansion1", "expansion2"]
+    "original_term": ["expansion1", "expansion2", "expansion3"]
   }
 }`;
 
   const userPrompt = `Analyze this query (language: ${language}):
 USER MESSAGE: "${userMessage}"
-USER PROFILE: ${userProfile || "New user"}
-PROFILE INTERESTS: ${extractedProfile?.interests?.join(", ") || "None"}
+${userProfile ? `USER PROFILE: ${userProfile}` : ""}
+${extractedProfile?.interests?.length ? `PROFILE INTERESTS: ${extractedProfile.interests.join(", ")}` : ""}
 
-Determine if they're asking for something specific or want profile-based recommendations.
-If they mention specific subjects/programs, prioritize those over their profile.`;
+Extract search terms and determine intent. Expand abbreviations using Hawaii-specific knowledge.`;
 
   try {
     const response = await groq.chat.completions.create({
-      model: "llama-3.3-70b-versatile",
+      model: "openai/gpt-oss-120b", // Better for extraction: 500 tps, 74% cheaper, high quality
       messages: [
         { role: "system", content: systemPrompt },
         { role: "user", content: userPrompt },
       ],
-      temperature: 0.2,
+      temperature: 0.1, // Lower for more consistent extraction
+      response_format: { type: "json_object" }, // Force JSON response
     });
 
     const content = response.choices[0].message.content;
     if (!content) throw new Error("Empty response");
 
-    let cleaned = content.trim();
-    cleaned = cleaned.replace(/```json\s*/gi, "").replace(/```\s*/gi, "");
-
-    const firstBrace = cleaned.indexOf("{");
-    const lastBrace = cleaned.lastIndexOf("}");
-
-    if (firstBrace !== -1 && lastBrace !== -1) {
-      cleaned = cleaned.substring(firstBrace, lastBrace + 1);
-    }
-
-    const result = JSON.parse(cleaned);
-    console.log("Query analysis result:", result);
-    return result;
+    const result = JSON.parse(content);
+    
+    console.log("[analyzeAndImproveQuery] 🧠 Analysis result:", {
+      improvedQuery: result.improvedQuery,
+      searchTerms: result.searchTerms,
+      intent: result.intent,
+      ignoreProfile: result.ignoreProfile,
+      expandedTerms: Object.keys(result.expandedTerms || {}).length,
+      isTopicPivot,
+      isAffirmative
+    });
+    
+    return {
+      ...result,
+      isTopicPivot,
+      isAffirmative,
+    };
   } catch (error) {
-    console.error("Query analysis error:", error);
+    console.error("[analyzeAndImproveQuery] ❌ Error:", error);
 
+    // Enhanced fallback with better keyword extraction
     const lowerMessage = userMessage.toLowerCase();
+    
+    // Detect search intent patterns
     const isSearch =
       lowerMessage.includes("show me") ||
       lowerMessage.includes("search") ||
       lowerMessage.includes("find") ||
       lowerMessage.includes("programs for") ||
-      lowerMessage.includes("programs in");
+      lowerMessage.includes("programs in") ||
+      lowerMessage.includes("what programs") ||
+      lowerMessage.includes("tell me about") ||
+      isTopicPivot;
+
+    // Fallback keyword extraction using expandSearchTerms
+    const fallbackTerms = expandSearchTerms(userMessage);
 
     return {
       improvedQuery: userMessage,
-      searchTerms: [userMessage],
+      searchTerms: fallbackTerms.slice(0, 5),
       intent: isSearch ? "search" : "profile_based",
-      ignoreProfile: isSearch,
+      ignoreProfile: isSearch || isTopicPivot,
       expandedTerms: {},
+      isTopicPivot,
+      isAffirmative,
     };
   }
 }
 
-// Expand search terms for better matching
+// Expand search terms for better matching (Enhanced for Hawaii programs)
 export function expandSearchTerms(query: string): string[] {
-  const terms = new Set<string>([query.toLowerCase()]);
+  const terms = new Set<string>();
+  const queryLower = query.toLowerCase();
+  
+  // Remove filler words first
+  const stopWords = new Set([
+    "show", "me", "find", "search", "programs", "for", "in", "about",
+    "the", "a", "an", "and", "or", "but", "on", "at", "to",
+    "what", "how", "where", "tell", "give", "list"
+  ]);
+  
+  const cleanedQuery = queryLower
+    .split(/\s+/)
+    .filter(word => !stopWords.has(word) && word.length > 1)
+    .join(" ");
+  
+  terms.add(cleanedQuery);
 
+  // Enhanced Hawaii-specific expansions
   const expansions: Record<string, string[]> = {
-    "comp sci": ["computer science", "computing", "computer"],
-    cs: ["computer science", "computing"],
-    bio: ["biology", "biological sciences", "life sciences"],
-    chem: ["chemistry", "chemical"],
-    psych: ["psychology", "psychological"],
-    econ: ["economics", "economic"],
-    "poli sci": ["political science", "politics"],
-    "phys ed": ["physical education", "kinesiology"],
-    bus: ["business", "business administration"],
-    eng: ["engineering", "engineer"],
-    it: ["information technology", "information systems"],
-    math: ["mathematics", "mathematical"],
-    stats: ["statistics", "statistical"],
-    comm: ["communication", "communications"],
-    ed: ["education", "educational"],
+    // Technology & Computer Science
+    "comp sci": ["computer science", "computing", "information technology", "software"],
+    "cs": ["computer science", "computing", "information technology"],
+    "it": ["information technology", "computer science", "cybersecurity", "networking", "information systems"],
+    "coding": ["computer science", "programming", "software development"],
+    "programming": ["computer science", "software development", "coding"],
+    "cyber": ["cybersecurity", "information security", "network security"],
+    "web": ["web development", "internet technology", "digital media"],
+    
+    // Healthcare & Sciences
+    "bio": ["biology", "biological sciences", "life sciences", "marine biology", "environmental science"],
+    "chem": ["chemistry", "chemical sciences", "pharmaceutical"],
+    "nurs": ["nursing", "healthcare", "medical assistant", "health sciences", "patient care"],
+    "health": ["healthcare", "nursing", "medical assistant", "health sciences", "public health"],
+    "medical": ["healthcare", "nursing", "medical assistant", "health sciences"],
+    "psych": ["psychology", "behavioral health", "counseling", "mental health", "human services"],
+    
+    // Business & Management
+    "bus": ["business", "business administration", "management", "entrepreneurship", "marketing"],
+    "biz": ["business", "business administration", "management"],
+    "econ": ["economics", "business", "finance"],
+    "account": ["accounting", "business", "finance"],
+    "market": ["marketing", "business", "advertising", "digital marketing"],
+    
+    // Engineering & Trades
+    "eng": ["engineering", "applied engineering technology", "mechanical", "electrical"],
+    "auto": ["automotive technology", "mechanics", "diesel technology", "transportation"],
+    "mechanic": ["automotive technology", "diesel technology", "maintenance"],
+    "electric": ["electrical technology", "electronics", "renewable energy"],
+    "construct": ["construction technology", "carpentry", "building maintenance"],
+    "weld": ["welding technology", "manufacturing", "metal fabrication"],
+    
+    // Hospitality & Culinary
+    "culinary": ["culinary arts", "food service", "hospitality", "baking", "restaurant management"],
+    "cooking": ["culinary arts", "food service", "baking"],
+    "hotel": ["hospitality", "hotel management", "tourism"],
+    "tourism": ["hospitality", "travel industry", "hotel management"],
+    
+    // Education & Social Sciences
+    "ed": ["education", "teaching", "early childhood education", "special education"],
+    "teach": ["education", "teaching", "early childhood education"],
+    "ece": ["early childhood education", "child development", "preschool education"],
+    "poli sci": ["political science", "politics", "government", "public administration"],
+    "social": ["social work", "human services", "sociology", "psychology"],
+    
+    // Arts & Humanities
+    "comm": ["communication", "communications", "media", "journalism"],
+    "art": ["art", "fine arts", "digital arts", "graphic design", "visual arts"],
+    "music": ["music", "audio production", "sound engineering"],
+    "graph": ["graphic design", "digital arts", "visual communication"],
+    
+    // Other Common
+    "cj": ["criminal justice", "law enforcement", "public safety"],
+    "law": ["criminal justice", "legal studies", "paralegal"],
+    "phys ed": ["physical education", "kinesiology", "exercise science", "fitness"],
+    "math": ["mathematics", "mathematical sciences", "statistics"],
+    "stats": ["statistics", "data science", "mathematics"],
+    "ag": ["agriculture", "agricultural sciences", "farming", "horticulture"],
+    "environ": ["environmental science", "sustainability", "conservation"],
   };
 
-  const queryLower = query.toLowerCase();
-
+  // Apply expansions
   for (const [abbr, fullTerms] of Object.entries(expansions)) {
     if (queryLower.includes(abbr)) {
       fullTerms.forEach(term => {
         terms.add(term);
-        terms.add(queryLower.replace(abbr, term));
+        // Also add the term with the original context
+        const contextualTerm = queryLower.replace(abbr, term);
+        if (contextualTerm !== term) {
+          terms.add(contextualTerm);
+        }
       });
     }
   }
 
-  if (queryLower.endsWith("s")) {
-    terms.add(queryLower.slice(0, -1));
-  } else {
-    terms.add(queryLower + "s");
-  }
+  // Add plural/singular variations
+  Array.from(terms).forEach(term => {
+    if (term.endsWith("s") && term.length > 3) {
+      terms.add(term.slice(0, -1));
+    } else if (!term.endsWith("s")) {
+      terms.add(term + "s");
+    }
+  });
+  
+  // Add the original query words as individual terms
+  queryLower.split(/\s+/).forEach(word => {
+    if (!stopWords.has(word) && word.length > 2) {
+      terms.add(word);
+    }
+  });
 
-  return Array.from(terms);
+  // Return up to 10 most relevant terms
+  const termsArray = Array.from(terms).filter(t => t.length > 0);
+  
+  // Prioritize: cleaned query, expanded terms, then variations
+  return termsArray.slice(0, 10);
 }
 
 // Profiling conversation handler (basic, without language - kept for compatibility)

@@ -63,7 +63,7 @@ export default function NavSidebar({
         )}
         <button
           onClick={onToggle}
-          className="p-2 hover:bg-slate-100 rounded-lg transition-colors ml-auto"
+          className="p-2 hover:bg-emerald-50 rounded-lg transition-colors ml-auto"
           aria-label={isOpen ? "Collapse sidebar" : "Expand sidebar"}
         >
           <PanelLeft
@@ -79,7 +79,7 @@ export default function NavSidebar({
         {/* New Chat Button */}
         <button
           onClick={onNewChat}
-          className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-lg hover:bg-slate-100 transition-colors text-left group ${
+          className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-lg hover:bg-emerald-50 transition-colors text-left group ${
             !isOpen ? "justify-center px-0" : ""
           }`}
           aria-label="New chat"
@@ -116,7 +116,7 @@ export default function NavSidebar({
                 key={session.id}
                 className={`group flex items-center gap-2 px-3 py-2 rounded-lg transition-colors ${
                   currentChatId === session.id
-                    ? "bg-slate-200"
+                    ? "bg-emerald-50"
                     : "hover:bg-slate-100"
                 }`}
               >
@@ -153,8 +153,8 @@ export default function NavSidebar({
             onClick={onDataPanelToggle}
             className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-lg transition-colors text-left relative ${
               dataPanelOpen
-                ? "bg-black text-white"
-                : "bg-slate-100 text-slate-700 hover:bg-slate-200"
+                ? "bg-emerald-600 text-white"
+                : "bg-slate-100 text-slate-700 hover:bg-emerald-50"
             } ${!isOpen ? "justify-center px-0" : ""}`}
             aria-label="Toggle data panel"
           >
@@ -174,7 +174,7 @@ export default function NavSidebar({
         {/* Profile Button - ADD onClick HERE */}
         <button
           onClick={onProfileClick}
-          className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-lg hover:bg-slate-100 transition-colors text-left ${
+          className={`w-full flex items-center gap-3 px-3 py-2.5 rounded-lg hover:bg-emerald-50 transition-colors text-left ${
             !isOpen ? "justify-center px-0" : ""
           }`}
           aria-label="View profile"

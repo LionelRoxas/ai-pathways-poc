@@ -23,6 +23,8 @@ import { ResultVerifier } from "./result-verifier";
 import { ResponseFormatterAgent } from "./response-formatter";
 import { ReflectionAgent } from "./reflection-agent";
 import { ConversationalAgent } from "./conversational-agent";
+import { CIPCodeVerifierAgent } from "./cip-code-verifier";
+import { SOCCodeVerifierAgent } from "./soc-code-verifier";
 import { classifyQueryWithLLM } from "./llm-classifier";
 import { aggregateHighSchoolPrograms, aggregateCollegePrograms } from "../helpers/pathway-aggregator";
 
@@ -35,6 +37,8 @@ const resultVerifier = new ResultVerifier();
 const responseFormatter = new ResponseFormatterAgent();
 const reflectionAgent = new ReflectionAgent();
 const conversationalAgent = new ConversationalAgent();
+const cipVerifier = new CIPCodeVerifierAgent();
+const socVerifier = new SOCCodeVerifierAgent();
 
 /**
  * ZOD SCHEMAS FOR VALIDATION
@@ -180,16 +184,53 @@ async function classifierNode(state: StateManager): Promise<void> {
 async function profileExtractorNode(state: StateManager): Promise<void> {
   state.log("NODE: ProfileExtractor");
   
-  const keywords = extractKeywords(state.userQuery);
+  // ✨ NEW: Use intelligent query analysis from groqClient
+  const { analyzeAndImproveQuery } = await import("../../utils/groqClient");
   
-  // Detect topic pivot keywords (signals a topic change)
-  const topicPivotIndicators = /^(what about|how about|tell me about|instead|actually|now|switch to|change to|no|wait)/i;
-  const isTopicPivot = topicPivotIndicators.test(state.userQuery.toLowerCase());
+  let enhancedKeywords: string[] = [];
+  let isTopicPivot = false;
+  let isAffirmative = false;
   
-  // Detect affirmative responses (wants to continue current topic)
-  const isAffirmative = /^(yes|yeah|yep|sure|ok|okay)/i.test(state.userQuery.toLowerCase());
-  
-  let enhancedKeywords = [...keywords];
+  try {
+    const analysis = await analyzeAndImproveQuery(
+      state.userQuery,
+      state.userProfile?.profileSummary,
+      state.userProfile?.extracted,
+      state.userProfile?.language || "en"
+    );
+    
+    console.log(`[ProfileExtractor] 🧠 Query Analysis:`);
+    console.log(`[ProfileExtractor]    - Intent: ${analysis.intent}`);
+    console.log(`[ProfileExtractor]    - Ignore Profile: ${analysis.ignoreProfile}`);
+    console.log(`[ProfileExtractor]    - Search Terms: ${analysis.searchTerms.join(", ")}`);
+    console.log(`[ProfileExtractor]    - Topic Pivot: ${analysis.isTopicPivot}`);
+    console.log(`[ProfileExtractor]    - Affirmative: ${analysis.isAffirmative}`);
+    
+    if (Object.keys(analysis.expandedTerms).length > 0) {
+      console.log(`[ProfileExtractor]    - Expanded Terms:`, analysis.expandedTerms);
+    }
+    
+    enhancedKeywords = analysis.searchTerms;
+    isTopicPivot = analysis.isTopicPivot;
+    isAffirmative = analysis.isAffirmative;
+    
+    // Store analysis in state for downstream nodes
+    state.queryType = analysis.intent;
+    
+  } catch (error: any) {
+    console.error(`[ProfileExtractor] ⚠️ Query analysis failed, using fallback: ${error.message}`);
+    
+    // Fallback to basic keyword extraction
+    enhancedKeywords = extractKeywords(state.userQuery);
+    
+    // Detect topic pivot manually (fallback)
+    const topicPivotIndicators = /^(what about|how about|tell me about|instead|actually|now|switch to|change to|no|wait)/i;
+    isTopicPivot = topicPivotIndicators.test(state.userQuery.toLowerCase());
+    
+    // Detect affirmative responses manually (fallback)
+    const affirmativeIndicators = /^(yes|yeah|yep|sure|ok|okay|yea|ye|yup)/i;
+    isAffirmative = affirmativeIndicators.test(state.userQuery.toLowerCase());
+  }
   
   if (isTopicPivot) {
     // TOPIC PIVOT: Use ONLY current query keywords, ignore context and profile
@@ -571,6 +612,42 @@ async function verifierNode(state: StateManager): Promise<void> {
   state.log(`Verified: ${verifiedHS.length} HS, ${verifiedCollege.length} college`);
 }
 
+async function cipVerifierNode(state: StateManager): Promise<void> {
+  state.log("NODE: CIPVerifier");
+  
+  // Verify and correct CIP codes WITH conversational context before they reach aggregator/formatter
+  const verifiedCollegeWithCIP = await cipVerifier.verifyCollegePrograms(
+    state.verifiedData.collegePrograms,
+    state.userQuery,  // Pass user query for context
+    state.conversationHistory  // Pass conversation history
+  );
+  
+  const verifiedHSWithCIP = await cipVerifier.verifyHighSchoolPrograms(
+    state.verifiedData.highSchoolPrograms
+  );
+  
+  // Update state with CIP-verified data
+  state.verifiedData = {
+    ...state.verifiedData,
+    highSchoolPrograms: verifiedHSWithCIP,
+    collegePrograms: verifiedCollegeWithCIP,
+  };
+  
+  // Log CIP corrections (context mismatches)
+  const corrections = verifiedCollegeWithCIP.filter(p => p.cipValidation?.corrected);
+  if (corrections.length > 0) {
+    console.log(`[CIPVerifier] 📝 Applied ${corrections.length} CIP code corrections`);
+    corrections.forEach(p => {
+      const orig = p.cipValidation.originalCode;
+      const validated = p.cipValidation.validatedCode;
+      const reason = p.cipValidation.reasoning;
+      console.log(`[CIPVerifier]    ${orig} → ${validated}: ${reason}`);
+    });
+  }
+  
+  state.log(`CIP Verified: ${verifiedCollegeWithCIP.length} programs`);
+}
+
 async function reflectorNode(state: StateManager): Promise<void> {
   state.log("NODE: Reflector");
   
@@ -752,6 +829,61 @@ async function aggregatorNode(state: StateManager): Promise<void> {
   state.log(`Aggregated: ${aggregatedHSPrograms.length} HS, ${aggregatedCollegePrograms.length} college, ${aggregatedCareers.length} careers`);
 }
 
+async function socVerifierNode(state: StateManager): Promise<void> {
+  state.log("NODE: SOCVerifier");
+  
+  // Extract CIP-to-SOC mappings from verified data
+  const verifiedCIPCodes = new Set<string>();
+  state.aggregatedData.collegePrograms.forEach((prog: any) => {
+    if (prog.cipCode) verifiedCIPCodes.add(prog.cipCode);
+  });
+  
+  const careerMappings = state.verifiedData.careers
+    .filter((c: any) => c.CIP_CODE && verifiedCIPCodes.has(c.CIP_CODE))
+    .map((c: any) => ({
+      cipCode: c.CIP_CODE,
+      socCodes: Array.isArray(c.SOC_CODE) ? c.SOC_CODE : [c.SOC_CODE]
+    }));
+  
+  if (careerMappings.length === 0) {
+    console.log('[SOCVerifier] No career mappings to verify');
+    state.log('No SOC codes to verify');
+    return;
+  }
+  
+  // Verify SOC codes WITH conversational context
+  const verifiedMappings = await socVerifier.verifySOCCodes(
+    careerMappings,
+    state.userQuery,
+    state.conversationHistory,
+    state.aggregatedData.collegePrograms
+  );
+  
+  // Collect all filtered SOC codes
+  const filteredSOCCodes = new Set<string>();
+  verifiedMappings.forEach(mapping => {
+    mapping.filteredSOCCodes.forEach(soc => filteredSOCCodes.add(soc));
+  });
+  
+  // Update aggregated careers with filtered SOC codes
+  const filteredCareers = Array.from(filteredSOCCodes)
+    .slice(0, 10)
+    .map(socCode => ({ title: socCode, code: socCode }));
+  
+  const removedCount = state.aggregatedData.careers.length - filteredCareers.length;
+  
+  state.aggregatedData = {
+    ...state.aggregatedData,
+    careers: filteredCareers,
+  };
+  
+  if (removedCount > 0) {
+    console.log(`[SOCVerifier] 📝 Filtered careers: ${state.aggregatedData.careers.length} kept, ${removedCount} removed`);
+  }
+  
+  state.log(`SOC Verified: ${filteredCareers.length} relevant careers`);
+}
+
 async function formatterNode(state: StateManager): Promise<void> {
   state.log("NODE: Formatter");
   
@@ -905,7 +1037,8 @@ const ROUTING_TABLE: Record<string, string | RouterFunc> = {
   profileExtractor: "toolPlanner",
   toolPlanner: "toolExecutor",
   toolExecutor: "verifier",
-  verifier: "reflector",
+  verifier: "cipVerifier", // NEW: Verify CIP codes after result verification
+  cipVerifier: "reflector",
   
   reflector: (state) => {
     const isGoodEnough = state.reflectionScore >= 5; // Reduced from 6 to 5
@@ -918,7 +1051,8 @@ const ROUTING_TABLE: Record<string, string | RouterFunc> = {
   },
   
   strategyEnhancer: "profileExtractor", // Loop back!
-  aggregator: "formatter",
+  aggregator: "socVerifier", // NEW: Verify SOC codes after aggregation
+  socVerifier: "formatter",
   formatter: "END",
   conversational: "END",
 };
@@ -929,9 +1063,11 @@ const NODE_HANDLERS: Record<string, NodeFunc> = {
   toolPlanner: toolPlannerNode,
   toolExecutor: toolExecutorNode,
   verifier: verifierNode,
+  cipVerifier: cipVerifierNode, // NEW: CIP code verification node
   reflector: reflectorNode,
   strategyEnhancer: strategyEnhancerNode,
   aggregator: aggregatorNode,
+  socVerifier: socVerifierNode, // NEW: SOC code verification node
   formatter: formatterNode,
   conversational: conversationalNode,
 };
