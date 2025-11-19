@@ -2,7 +2,7 @@
 // src/app/components/AIPathwaysChat/PathwayMDXComponents.tsx
 'use client';
 
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import { CheckCircle2, Lightbulb } from 'lucide-react';
 
 /**
@@ -19,6 +19,170 @@ const cleanText = (content: React.ReactNode): React.ReactNode => {
   return content;
 };
 
+
+
+/**
+ * Collapsible H2 Component
+ */
+const CollapsibleH2: React.FC<{ children: React.ReactNode }> = ({ children }) => {
+  const [isCollapsed, setIsCollapsed] = useState(true); // Start collapsed
+  const sectionId = `section-${String(children).toLowerCase().replace(/\s+/g, '-')}`;
+  const [isInitialized, setIsInitialized] = useState(false);
+
+  useEffect(() => {
+    // Small delay to ensure DOM is fully rendered
+    const timer = setTimeout(() => {
+      const element = document.getElementById(sectionId);
+      if (!element) return;
+
+      let nextElement = element.nextElementSibling;
+      while (nextElement) {
+        // Stop if we hit another section (div with section- id)
+        if (nextElement.id?.startsWith('section-')) break;
+        
+        // Skip if this element contains an h2 (it's another collapsible section)
+        if (nextElement.querySelector('h2')) {
+          nextElement = nextElement.nextElementSibling;
+          continue;
+        }
+        
+        const htmlElement = nextElement as HTMLElement;
+        if (isCollapsed) {
+          htmlElement.style.height = '0';
+          htmlElement.style.maxHeight = '0';
+          htmlElement.style.opacity = '0';
+          htmlElement.style.overflow = 'hidden';
+          htmlElement.style.margin = '0';
+          htmlElement.style.padding = '0';
+          htmlElement.style.transition = isInitialized ? 'all 0.3s ease-in-out' : 'none';
+          htmlElement.style.pointerEvents = 'none';
+        } else {
+          htmlElement.style.height = '';
+          htmlElement.style.maxHeight = '';
+          htmlElement.style.opacity = '';
+          htmlElement.style.overflow = '';
+          htmlElement.style.margin = '';
+          htmlElement.style.padding = '';
+          htmlElement.style.transition = 'all 0.3s ease-in-out';
+          htmlElement.style.pointerEvents = '';
+        }
+        nextElement = nextElement.nextElementSibling;
+      }
+      
+      if (!isInitialized) {
+        setIsInitialized(true);
+      }
+    }, 50);
+
+    return () => clearTimeout(timer);
+  }, [isCollapsed, sectionId, isInitialized]);
+
+  return (
+    <div className="flex flex-col items-center my-8" id={sectionId}>
+      <h2 className="text-2xl font-bold text-gray-900 dark:text-gray-100 mb-4">
+        {children}
+      </h2>
+      
+      {/* Horizontal separator with centered collapsible arrow */}
+      <button
+        onClick={() => setIsCollapsed(!isCollapsed)}
+        className="flex items-center justify-center w-full my-4 group cursor-pointer focus:outline-none"
+        aria-label={isCollapsed ? "Expand section" : "Collapse section"}
+        title={isCollapsed ? "Click to expand" : "Click to collapse"}
+      >
+        <div className="flex-grow h-px bg-gray-300 dark:bg-gray-600 transition-colors group-hover:bg-emerald-400"></div>
+        <div className="mx-4 transition-transform duration-300" style={{ transform: isCollapsed ? 'rotate(-90deg)' : 'rotate(0deg)' }}>
+          <svg 
+            className="w-6 h-6 text-emerald-600 group-hover:text-emerald-700 transition-colors" 
+            fill="currentColor" 
+            viewBox="0 0 24 24"
+          >
+            <path d="M7.41 8.59L12 13.17l4.59-4.58L18 10l-6 6-6-6 1.41-1.41z"/>
+          </svg>
+        </div>
+        <div className="flex-grow h-px bg-gray-300 dark:bg-gray-600 transition-colors group-hover:bg-emerald-400"></div>
+      </button>
+    </div>
+  );
+};
+
+/**
+ * Collapsible H3 Component (for Phase sections)
+ * Completely independent from H2 collapsible system
+ */
+const CollapsibleH3: React.FC<{ children: React.ReactNode }> = ({ children }) => {
+  const [isCollapsed, setIsCollapsed] = useState(true); // Start collapsed
+  const phaseId = `phase-${String(children).toLowerCase().replace(/\s+/g, '-')}`;
+
+  useEffect(() => {
+    const timer = setTimeout(() => {
+      const element = document.getElementById(phaseId);
+      if (!element) return;
+
+      // Find all sibling elements until we hit another H2, H3, or HR
+      let nextElement = element.nextElementSibling;
+      while (nextElement) {
+        const htmlElement = nextElement as HTMLElement;
+        
+        // Stop if we hit another phase (H3) or main section (H2)
+        if (htmlElement.id?.startsWith('phase-') || htmlElement.id?.startsWith('section-')) {
+          break;
+        }
+
+        // Also stop at horizontal rules (section separators)
+        if (htmlElement.tagName === 'HR' || htmlElement.querySelector('hr')) {
+          break;
+        }
+
+        // Mark element and toggle visibility
+        if (isCollapsed) {
+          htmlElement.classList.add('phase-content-hidden');
+          htmlElement.style.display = 'none';
+        } else {
+          htmlElement.classList.remove('phase-content-hidden');
+          htmlElement.style.display = '';
+        }
+
+        nextElement = nextElement.nextElementSibling;
+      }
+    }, 150); // Slightly longer delay to run after H2 collapsing
+
+    return () => clearTimeout(timer);
+  }, [isCollapsed, phaseId]);
+
+  return (
+    <div className="mt-6 mb-3" id={phaseId}>
+      {/* Arrow button - will be removed in PDF */}
+      <button
+        onClick={() => setIsCollapsed(!isCollapsed)}
+        className="collapsible-arrow-btn flex items-center gap-3 mb-2 w-full text-left group cursor-pointer focus:outline-none"
+        aria-label={isCollapsed ? "Expand phase" : "Collapse phase"}
+        title={isCollapsed ? "Click to expand" : "Click to collapse"}
+      >
+        <div 
+          className="w-6 h-6 rounded bg-emerald-100 flex items-center justify-center transition-all duration-300 group-hover:bg-emerald-200"
+          style={{ transform: isCollapsed ? 'rotate(-90deg)' : 'rotate(0deg)' }}
+        >
+          <svg 
+            className="w-4 h-4 text-emerald-600 group-hover:text-emerald-700" 
+            fill="currentColor" 
+            viewBox="0 0 24 24"
+          >
+            <path d="M7.41 8.59L12 13.17l4.59-4.58L18 10l-6 6-6-6 1.41-1.41z" />
+          </svg>
+        </div>
+        <span className="text-lg font-bold text-gray-900 group-hover:text-emerald-700 transition-colors">
+          {cleanText(children)}
+        </span>
+      </button>
+      {/* Actual H3 for PDF - hidden from view but accessible for PDF export */}
+      <h3 className="sr-only print-visible text-lg font-bold text-gray-900 mt-0 mb-2">
+        {cleanText(children)}
+      </h3>
+    </div>
+  );
+};
+
 /**
  * Simple, clean MDX components for pathway rendering
  */
@@ -30,17 +194,9 @@ export const pathwayMDXComponents = {
     </h1>
   ),
 
-  h2: ({ children }: { children: React.ReactNode }) => (
-    <h2 className="text-xl font-bold text-gray-900 mt-8 mb-4 pb-2 border-b-2 border-gray-900 first:mt-0">
-      {cleanText(children)}
-    </h2>
-  ),
+  h2: CollapsibleH2,
 
-  h3: ({ children }: { children: React.ReactNode }) => (
-    <h3 className="text-lg font-bold text-gray-900 mt-6 mb-3">
-      {cleanText(children)}
-    </h3>
-  ),
+  h3: CollapsibleH3,
 
   h4: ({ children }: { children: React.ReactNode }) => (
     <h4 className="text-base font-semibold text-gray-900 mt-4 mb-2">
@@ -110,14 +266,16 @@ export const pathwayMDXComponents = {
     </em>
   ),
 
-  // Horizontal rule
+  // Horizontal rule - simple separator line
   hr: () => (
-    <hr className="my-8 border-t-2 border-gray-200" />
+    <div className="my-8">
+      <div className="border-t-2 border-gray-300"></div>
+    </div>
   ),
 
   // Blockquote
   blockquote: ({ children }: { children: React.ReactNode }) => (
-    <blockquote className="border-l-4 border-blue-400 bg-blue-50 pl-4 py-3 my-4 italic text-sm text-blue-900">
+    <blockquote className="border-l-4 border-emerald-400 bg-emerald-50 pl-4 py-3 my-4 italic text-sm text-emerald-900">
       {cleanText(children)}
     </blockquote>
   ),

@@ -46,7 +46,7 @@ CRITICAL RULES:
    - Bachelor's degree: 3 phases (4 years)
    - Career change/upskilling: Focus on relevant skills only
 3. Only create phases that make sense for THEIR specific goal
-4. Write complete sentences - never leave things incomplete or use placeholders
+4. Write complete sentences - never leave things incomplete or use placeholders and have proper spacing
 
 GOOD EXAMPLES:
 ✅ "Enroll in **Web Development Certificate** at **Honolulu Community College**"

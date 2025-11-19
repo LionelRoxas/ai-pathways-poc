@@ -4,6 +4,41 @@ An intelligent educational pathway advisor system that helps students explore ca
 
 ---
 
+## ✨ Recent Updates (November 2025)
+
+### 🆕 NEW: Data Quality Verification Agents
+
+**Problem Solved:** Students searching for "photography" were shown software engineering career data, and "nursing" searches returned incorrect market intelligence.
+
+**Solution:** Two new intelligent verification agents:
+
+1. **CIP Code Verifier Agent** 🔐
+   - Validates program classification codes (CIP codes) against conversation context
+   - Detects misalignments (e.g., nursing query → computer science CIP code)
+   - Automatically corrects CIP codes using national NCES standards
+   - Prevents wrong programs from reaching students
+
+2. **SOC Code Verifier Agent** 💼
+   - Filters career codes (SOC codes) based on user's actual field of interest
+   - Removes irrelevant careers (e.g., software jobs from photography searches)
+   - Ensures Market Intelligence shows accurate career data
+   - Uses conversation context to understand user intent
+
+**Impact:**
+- ✅ Photography searches now show photographer/multimedia artist careers (not software)
+- ✅ Nursing searches show healthcare careers (not arts/tech)
+- ✅ Computer science searches show tech careers (not healthcare)
+- ✅ Fixed CIP-to-SOC database mappings for permanent improvements
+- ✅ Runtime verification catches any future misalignments automatically
+
+**Technical Details:**
+- Both agents use `openai/gpt-oss-120b` for fast validation (500 tps, 74% cheaper)
+- Integrated into orchestrator workflow between verification and formatting
+- Full logging of all corrections and filtering decisions
+- See: `SOC_VERIFIER_IMPLEMENTATION.md` for complete documentation
+
+---
+
 ## 🚀 Quick Start
 
 ### Prerequisites
@@ -157,7 +192,24 @@ The AI Pathways system is built on a **LangGraph-style multi-agent orchestration
                                               │
                                               ▼
                           ┌──────────────────────────────────────────────┐
-                          │    6. REFLECTOR NODE (Quality Check)         │
+                          │    6. CIP CODE VERIFIER NODE                 │
+                          │  ┌────────────────────────────────────────┐  │
+                          │  │ Validate Program Classification:       │  │
+                          │  │                                        │  │
+                          │  │ • Check CIP code format (XX.XXXX)      │  │
+                          │  │ • Detect context mismatches            │  │
+                          │  │   (e.g., nursing query → comp sci CIP) │  │
+                          │  │ • Correct misaligned CIP codes         │  │
+                          │  │ • Enrich with CIP family info          │  │
+                          │  │                                        │  │
+                          │  │ Uses conversational context to ensure  │  │
+                          │  │ program codes match user intent        │  │
+                          │  └────────────────────────────────────────┘  │
+                          └──────────────────────────────────────────────┘
+                                              │
+                                              ▼
+                          ┌──────────────────────────────────────────────┐
+                          │    7. REFLECTOR NODE (Quality Check)         │
                           │  ┌────────────────────────────────────────┐  │
                           │  │ Evaluate Results (0-10 score):         │  │
                           │  │                                        │  │
@@ -188,7 +240,7 @@ The AI Pathways system is built on a **LangGraph-style multi-agent orchestration
                             └─────────────────┼─────────────────┘
                                               ▼
                           ┌──────────────────────────────────────────────┐
-                          │    7. AGGREGATOR NODE                        │
+                          │    8. AGGREGATOR NODE                        │
                           │  ┌────────────────────────────────────────┐  │
                           │  │ Process & Organize:                    │  │
                           │  │                                        │  │
@@ -206,7 +258,25 @@ The AI Pathways system is built on a **LangGraph-style multi-agent orchestration
                                               │
                                               ▼
                           ┌──────────────────────────────────────────────┐
-                          │    8. FORMATTER NODE                         │
+                          │    9. SOC CODE VERIFIER NODE                 │
+                          │  ┌────────────────────────────────────────┐  │
+                          │  │ Filter Career Codes by Context:        │  │
+                          │  │                                        │  │
+                          │  │ • Analyze user intent from query       │  │
+                          │  │ • Check if SOC codes match topic       │  │
+                          │  │   (e.g., photography → 27-XXXX arts,   │  │
+                          │  │    NOT 15-XXXX software)               │  │
+                          │  │ • Remove irrelevant career codes       │  │
+                          │  │ • Keep only contextually relevant SOCs │  │
+                          │  │                                        │  │
+                          │  │ Ensures Market Intelligence shows      │  │
+                          │  │ accurate career data for user's field  │  │
+                          │  └────────────────────────────────────────┘  │
+                          └──────────────────────────────────────────────┘
+                                              │
+                                              ▼
+                          ┌──────────────────────────────────────────────┐
+                          │    10. FORMATTER NODE                        │
                           │  ┌────────────────────────────────────────┐  │
                           │  │ Generate Markdown Response:            │  │
                           │  │                                        │  │
@@ -246,16 +316,18 @@ The AI Pathways system is built on a **LangGraph-style multi-agent orchestration
 5. **ProfileExtractor → ToolPlanner** → Uses JSON-forced LLM + Zod validation to select tools
 6. **ToolPlanner → ToolExecutor** → Executes tools in parallel with filters (island, conversation context)
 7. **ToolExecutor → Verifier** → LLM scores each program 0-10, applies preference filters (degree, institution)
-8. **Verifier → Reflector** → Evaluates overall quality (0-10 score)
-9. **Reflector → Decision:**
+8. **Verifier → CIPVerifier** → Validates and corrects program classification codes using conversation context
+9. **CIPVerifier → Reflector** → Evaluates overall quality (0-10 score)
+10. **Reflector → Decision:**
    - Quality ≥ 5 OR attempt 2 → **Aggregator** (continue to output)
    - Quality < 5 AND attempt 1 → **StrategyEnhancer** (retry with new strategy → loops to ProfileExtractor)
-10. **Aggregator** → Groups by CIP, preserves degree levels, extracts SOC codes
-11. **Formatter** → Generates markdown with LLM, respects preferences
-12. **END** → Returns response to API
-13. **Response** → Returns to user with pathway data and SOC codes
-14. **Market Intelligence** (async) → Fetches Hawaii Career Explorer data, generates AI report
-15. **Cache** → Stores result for future queries (key: hash of query + profile + history)
+11. **Aggregator** → Groups by CIP, preserves degree levels, extracts SOC codes
+12. **Aggregator → SOCVerifier** → Filters career codes to match conversation context
+13. **SOCVerifier → Formatter** → Generates markdown with LLM, respects preferences
+14. **Formatter → END** → Returns response to API
+15. **Response** → Returns to user with pathway data and verified SOC codes
+16. **Market Intelligence** (async) → Fetches Hawaii Career Explorer data with verified SOC codes, generates AI report
+17. **Cache** → Stores result for future queries (key: hash of query + profile + history)
 
 **Alternative Path (Conversational Query):**
 - **START → Classifier** → needsTools = false
@@ -275,10 +347,14 @@ The AI Pathways system is built on a **LangGraph-style multi-agent orchestration
 const ROUTING_TABLE = {
   START: "classifier",
   classifier: (state) => state.needsTools ? "profileExtractor" : "conversational",
+  verifier: "cipVerifier",    // NEW: Verify CIP codes after result verification
+  cipVerifier: "reflector",   // NEW: Go to reflector after CIP verification
   reflector: (state) => (state.reflectionScore >= 5 || state.attemptNumber >= 2) 
     ? "aggregator" 
     : "strategyEnhancer",
   strategyEnhancer: "profileExtractor", // Loop back with new strategy
+  aggregator: "socVerifier",  // NEW: Verify SOC codes after aggregation
+  socVerifier: "formatter",   // NEW: Format after SOC verification
   // ...
 }
 ```
@@ -320,7 +396,39 @@ The main orchestration engine that coordinates all agents in a graph-based workf
 - **JSON-Forced Tool Planning**: Uses Groq's JSON mode with Zod validation (no regex parsing)
 - **Enhanced Program Tool**: Comprehensive dataset with degree levels and island filtering
 
-#### Execution Nodes:
+#### Complete Agent Workflow:
+
+```
+USER QUERY
+    ↓
+1. Classifier → Analyzes intent & extracts filters
+    ↓
+2. ProfileExtractor → Intelligent keyword extraction (30+ Hawaii abbreviations)
+    ↓
+3. ToolPlanner → Selects appropriate search tools
+    ↓
+4. ToolExecutor → Searches comprehensive program database
+    ↓
+5. Verifier → Scores programs 0-10, applies filters
+    ↓
+6. CIPVerifier (NEW!) → Validates/corrects program codes
+    ↓
+7. Reflector → Quality check (retry if score < 5)
+    ↓
+8. Aggregator → Groups by CIP code, extracts SOC codes
+    ↓
+9. SOCVerifier (NEW!) → Filters career codes by context
+    ↓
+10. Formatter → Generates markdown response
+    ↓
+RETURN TO USER + Market Intelligence (async)
+```
+
+**NEW Agents:**
+- **CIPVerifier**: Prevents program classification errors (e.g., nursing programs with computer science codes)
+- **SOCVerifier**: Filters career codes to match user's field (e.g., removes software jobs from photography searches)
+
+### Execution Nodes:
 
 1. **Classifier Node** (`llm-classifier.ts`)
    - Analyzes user intent with LLM
@@ -374,20 +482,37 @@ The main orchestration engine that coordinates all agents in a graph-based workf
      - Lower threshold (5+) when matches are weak
    - Profile-aware scoring (skips profile on affirmative responses)
 
-6. **Reflector Node** (`reflection-agent.ts`)
+6. **CIPVerifier Node** (`cip-code-verifier.ts`)
+   - **NEW:** Validates and corrects CIP (Classification of Instructional Programs) codes
+   - Checks CIP code format (XX.XXXX)
+   - **Context-Aware Validation:**
+     - Detects when CIP codes don't match conversation context
+     - Example: User asks "nursing" but CIP is 11.XXXX (Computer Science) → Corrects to 51.XXXX (Health)
+   - Uses national NCES standards
+   - Enriches programs with CIP family and category information
+   - Logs all corrections with reasoning
+
+7. **Reflector Node** (`reflection-agent.ts`)
    - Evaluates overall result quality (0-10 score)
    - Provides improvement suggestions
    - **UPDATED:** Triggers retry if quality < 5 (reduced from 7)
    - **UPDATED:** Max 2 attempts (reduced from 3 for speed)
 
-7. **StrategyEnhancer Node** (Retry Logic)
+8. **StrategyEnhancer Node** (Retry Logic)
    - Only called when quality < 5
    - Generates new search strategy using ReflectionAgent
    - Determines: broaden scope, use CIP search, try different tools
    - Loops back to ProfileExtractor with enhanced strategy
    - Increments attempt counter
 
-8. **Aggregator Node** (`pathway-aggregator.ts`)
+8. **StrategyEnhancer Node** (Retry Logic)
+   - Only called when quality < 5
+   - Generates new search strategy using ReflectionAgent
+   - Determines: broaden scope, use CIP search, try different tools
+   - Loops back to ProfileExtractor with enhanced strategy
+   - Increments attempt counter
+
+9. **Aggregator Node** (`pathway-aggregator.ts`)
    - Groups programs by CIP code families
    - **NEW:** Preserves degree level information (2-Year, 4-Year, Non-Credit)
    - Finds best representative name for each program family
@@ -396,7 +521,20 @@ The main orchestration engine that coordinates all agents in a graph-based workf
    - Maps verified CIP codes → SOC codes for market intelligence
    - Logs all matched career mappings for debugging
 
-9. **Formatter Node** (`response-formatter.ts`)
+10. **SOCVerifier Node** (`soc-code-verifier.ts`)
+    - **NEW:** Validates and filters SOC (Standard Occupational Classification) codes
+    - **Context-Aware Filtering:**
+      - Analyzes conversation to understand user's field of interest
+      - Detects misaligned career codes
+      - Example: User asks "photography" but SOC includes 15-1255 (Software Engineers) → Filters out
+    - **Smart Relevance Checking:**
+      - Photography/arts queries → Keep 27-XXXX (Arts/Media), remove 15-XXXX (Computer/IT)
+      - Nursing queries → Keep 29-XXXX (Healthcare), remove 27-XXXX (Arts/Media)
+      - Computer science queries → Keep 15-XXXX (IT), remove healthcare/arts codes
+    - Ensures Market Intelligence API receives only relevant career codes
+    - Logs all filtered codes with reasoning
+
+11. **Formatter Node** (`response-formatter.ts`)
    - Generates markdown responses using LLM
    - **NEW:** Receives degree preference and institution filter
    - **NEW:** Filters and formats based on student preferences
@@ -477,7 +615,84 @@ Handles natural language interactions that don't require pathway searches.
 
 ---
 
-### 5. Profile Management
+### 5. CIP Code Verifier Agent
+
+**File:** `src/app/lib/agents/cip-code-verifier.ts`
+
+**NEW:** Validates and corrects program classification codes (CIP codes) using conversational context.
+
+#### Problem Solved:
+User searches for "nursing programs" but database returns programs with incorrect CIP codes that don't match healthcare field, causing wrong career data to be shown.
+
+#### Capabilities:
+- **Format Validation**: Checks CIP code format (XX.XXXX - 2-digit family + 4-digit specific)
+- **Context Awareness**: Analyzes user query and conversation history
+- **Mismatch Detection**: 
+  - User asks "nursing" but CIP is 11.XXXX (Computer Science) → WRONG
+  - User asks "photography" but CIP is 51.XXXX (Healthcare) → WRONG
+- **Automatic Correction**: Finds correct CIP codes that match user's actual intent
+- **National Standards**: Uses NCES (National Center for Education Statistics) taxonomy
+- **Enrichment**: Adds CIP family and category information
+
+#### Common CIP Families:
+- **01.XXXX**: Agriculture
+- **11.XXXX**: Computer and Information Sciences
+- **13.XXXX**: Education
+- **15.XXXX**: Engineering Technologies
+- **51.XXXX**: Health Professions (Nursing, Medical Assistant, Healthcare)
+- **52.XXXX**: Business, Management, Marketing
+
+#### Integration:
+- Runs AFTER result verification, BEFORE reflection
+- Updates program CIP codes in-place
+- Logs all corrections with detailed reasoning
+- Uses `openai/gpt-oss-120b` model for fast, accurate validation
+
+---
+
+### 6. SOC Code Verifier Agent
+
+**File:** `src/app/lib/agents/soc-code-verifier.ts`
+
+**NEW:** Filters career codes (SOC codes) to match conversational context.
+
+#### Problem Solved:
+User searches for "photography programs" but Market Intelligence shows software engineering jobs because CIP-to-SOC mapping includes irrelevant career codes.
+
+#### Capabilities:
+- **Context-Aware Filtering**: Analyzes user's field of interest from query + conversation
+- **Relevance Detection**:
+  - Photography query + SOC 15-1255 (Software Engineers) → IRRELEVANT, filtered out
+  - Nursing query + SOC 27-1014 (Multimedia Artists) → IRRELEVANT, filtered out
+  - Photography query + SOC 27-4021 (Photographers) → RELEVANT, kept
+- **SOC Family Matching**:
+  - Photography/arts → Keep 27-XXXX (Arts, Design, Entertainment, Sports, Media)
+  - Healthcare/nursing → Keep 29-XXXX (Healthcare Practitioners), 31-XXXX (Healthcare Support)
+  - Computer science → Keep 15-XXXX (Computer and Mathematical Occupations)
+  - Engineering → Keep 17-XXXX (Architecture and Engineering)
+
+#### Common SOC Families:
+- **15-XXXX**: Computer and Mathematical Occupations
+- **17-XXXX**: Architecture and Engineering Occupations
+- **27-XXXX**: Arts, Design, Entertainment, Sports, and Media Occupations
+- **29-XXXX**: Healthcare Practitioners and Technical Occupations
+- **31-XXXX**: Healthcare Support Occupations
+
+#### Integration:
+- Runs AFTER aggregation, BEFORE formatting
+- Filters SOC codes before Market Intelligence API call
+- Ensures career data matches user's actual field of study
+- Logs all filtered codes with reasoning
+- Uses `openai/gpt-oss-120b` model for fast, accurate filtering
+
+#### Double Protection:
+The system now has **two layers of protection**:
+1. **Fixed CIP-to-SOC mapping file**: Corrected database entries (e.g., removed software SOC codes from photography CIP codes)
+2. **Runtime SOC verification**: Catches any remaining misalignments automatically
+
+---
+
+### 7. Profile Management
 
 #### Profile Generation Agent
 **File:** `src/app/lib/agents/profile-generation-agent.ts`
@@ -913,7 +1128,9 @@ Custom MDX components:
 | Profile Generation | `llama-3.3-70b-versatile` | 0.3 | 2000 | Structured data extraction |
 | Profile Update | `llama-3.3-70b-versatile` | 0.3 | 1500 | Incremental updates |
 | Verifier | `llama-3.3-70b-versatile` | 0.2 | 1000 | Accurate relevance scoring |
+| CIPVerifier | `openai/gpt-oss-120b` | 0.1 | 1000 | Fast CIP validation with context |
 | Reflector | `llama-3.3-70b-versatile` | 0.3 | 500 | Quality assessment |
+| SOCVerifier | `openai/gpt-oss-120b` | 0.1 | 1000 | Fast SOC filtering with context |
 | Market Intelligence | `llama-3.3-70b-versatile` | 0.7 | 2000 | Creative skill inference |
 | Response Formatter | `llama-3.3-70b-versatile` | 0.5 | 3000 | Well-structured output |
 
@@ -1114,6 +1331,9 @@ The system uses console logging extensively. Look for:
 8. **JSON-Forced Responses**: Eliminates regex parsing overhead
 9. **Batch Verification**: Programs verified in batches of 5
 10. **Island Filter Early**: Filters at tool level, not verification level
+11. **CIP Code Validation (NEW)**: Fast CIP verification with `openai/gpt-oss-120b` (500 tps)
+12. **SOC Code Filtering (NEW)**: Context-aware career code filtering prevents irrelevant data
+13. **Fixed Database Mappings**: Corrected CIP-to-SOC mappings reduce runtime corrections
 
 ### Metrics
 

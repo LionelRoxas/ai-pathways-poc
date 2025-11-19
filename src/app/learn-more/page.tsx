@@ -87,7 +87,7 @@ export default function LearnMorePage() {
         >
           <div className="space-y-8">
             <p className="text-slate-700 leading-relaxed text-lg">
-              When you send a message, here's what happens behind the scenes:
+              When you send a message, her&apos;s what happens behind the scenes:
             </p>
             <FlowStep
               number={1}
@@ -192,7 +192,7 @@ export default function LearnMorePage() {
           <div className="space-y-6">
             <p className="text-slate-700 leading-relaxed">
               The system uses <strong>JSONL (JSON Lines) databases</strong> for
-              fast, efficient searches across Hawaii's educational programs.
+              fast, efficient searches across Hawaii&apos;s educational programs.
             </p>
 
             <div className="bg-blue-50 rounded-xl p-6 border border-blue-200">
@@ -526,7 +526,6 @@ export default function LearnMorePage() {
 
 // Component Definitions
 function Section({
-  id,
   title,
   isExpanded,
   onToggle,
@@ -560,30 +559,30 @@ function Section({
   );
 }
 
-function FeatureCard({
-  title,
-  description,
-  color,
-}: {
-  title: string;
-  description: string;
-  color: string;
-}) {
-  const colorClasses = {
-    emerald: "bg-emerald-50 border-emerald-200 text-emerald-900",
-    blue: "bg-blue-50 border-blue-200 text-blue-900",
-    purple: "bg-purple-50 border-purple-200 text-purple-900",
-  };
+// function FeatureCard({
+//   title,
+//   description,
+//   color,
+// }: {
+//   title: string;
+//   description: string;
+//   color: string;
+// }) {
+//   const colorClasses = {
+//     emerald: "bg-emerald-50 border-emerald-200 text-emerald-900",
+//     blue: "bg-blue-50 border-blue-200 text-blue-900",
+//     purple: "bg-purple-50 border-purple-200 text-purple-900",
+//   };
 
-  return (
-    <div
-      className={`p-6 rounded-xl border-2 ${colorClasses[color as keyof typeof colorClasses]}`}
-    >
-      <h3 className="font-bold mb-2">{title}</h3>
-      <p className="text-sm opacity-80">{description}</p>
-    </div>
-  );
-}
+//   return (
+//     <div
+//       className={`p-6 rounded-xl border-2 ${colorClasses[color as keyof typeof colorClasses]}`}
+//     >
+//       <h3 className="font-bold mb-2">{title}</h3>
+//       <p className="text-sm opacity-80">{description}</p>
+//     </div>
+//   );
+// }
 
 function FlowStep({
   number,
@@ -633,41 +632,41 @@ function FlowStep({
   );
 }
 
-function SubStep({
-  number,
-  title,
-  description,
-  details,
-}: {
-  number: string;
-  title: string;
-  description: string;
-  details?: string[];
-}) {
-  return (
-    <div className="bg-white rounded-lg p-5 border border-blue-200">
-      <div className="flex items-start gap-3">
-        <div className="flex-shrink-0 w-8 h-8 rounded-full bg-blue-100 flex items-center justify-center font-bold text-sm text-blue-900">
-          {number}
-        </div>
-        <div className="flex-1">
-          <h4 className="font-bold text-slate-900 mb-1">{title}</h4>
-          <p className="text-sm text-slate-600 mb-2">{description}</p>
-          {details && (
-            <ul className="space-y-1 text-xs text-slate-500">
-              {details.map((detail, idx) => (
-                <li key={idx} className="flex items-start gap-2">
-                  <span>•</span>
-                  <span>{detail}</span>
-                </li>
-              ))}
-            </ul>
-          )}
-        </div>
-      </div>
-    </div>
-  );
-}
+// function SubStep({
+//   number,
+//   title,
+//   description,
+//   details,
+// }: {
+//   number: string;
+//   title: string;
+//   description: string;
+//   details?: string[];
+// }) {
+//   return (
+//     <div className="bg-white rounded-lg p-5 border border-blue-200">
+//       <div className="flex items-start gap-3">
+//         <div className="flex-shrink-0 w-8 h-8 rounded-full bg-blue-100 flex items-center justify-center font-bold text-sm text-blue-900">
+//           {number}
+//         </div>
+//         <div className="flex-1">
+//           <h4 className="font-bold text-slate-900 mb-1">{title}</h4>
+//           <p className="text-sm text-slate-600 mb-2">{description}</p>
+//           {details && (
+//             <ul className="space-y-1 text-xs text-slate-500">
+//               {details.map((detail, idx) => (
+//                 <li key={idx} className="flex items-start gap-2">
+//                   <span>•</span>
+//                   <span>{detail}</span>
+//                 </li>
+//               ))}
+//             </ul>
+//           )}
+//         </div>
+//       </div>
+//     </div>
+//   );
+// }
 
 function FlowArrow() {
   return (
@@ -677,25 +676,25 @@ function FlowArrow() {
   );
 }
 
-function FlowBranch({
-  branches,
-}: {
-  branches: { label: string; description: string }[];
-}) {
-  return (
-    <div className="grid md:grid-cols-3 gap-4">
-      {branches.map((branch, idx) => (
-        <div
-          key={idx}
-          className="bg-slate-50 rounded-lg p-4 border border-slate-200 text-center"
-        >
-          <div className="font-bold text-slate-900 mb-1">{branch.label}</div>
-          <div className="text-sm text-slate-600">{branch.description}</div>
-        </div>
-      ))}
-    </div>
-  );
-}
+// function FlowBranch({
+//   branches,
+// }: {
+//   branches: { label: string; description: string }[];
+// }) {
+//   return (
+//     <div className="grid md:grid-cols-3 gap-4">
+//       {branches.map((branch, idx) => (
+//         <div
+//           key={idx}
+//           className="bg-slate-50 rounded-lg p-4 border border-slate-200 text-center"
+//         >
+//           <div className="font-bold text-slate-900 mb-1">{branch.label}</div>
+//           <div className="text-sm text-slate-600">{branch.description}</div>
+//         </div>
+//       ))}
+//     </div>
+//   );
+// }
 
 function QualityBranch() {
   return (
@@ -744,84 +743,84 @@ function FinalStep({
   );
 }
 
-function DatabaseCard({ title, files }: { title: string; files: string[] }) {
-  return (
-    <div className="bg-white rounded-lg p-4 border border-slate-200">
-      <h5 className="font-bold text-slate-900 mb-2">{title}</h5>
-      <ul className="space-y-1">
-        {files.map((file, idx) => (
-          <li key={idx} className="text-xs text-slate-600 font-mono">
-            {file}
-          </li>
-        ))}
-      </ul>
-    </div>
-  );
-}
+// function DatabaseCard({ title, files }: { title: string; files: string[] }) {
+//   return (
+//     <div className="bg-white rounded-lg p-4 border border-slate-200">
+//       <h5 className="font-bold text-slate-900 mb-2">{title}</h5>
+//       <ul className="space-y-1">
+//         {files.map((file, idx) => (
+//           <li key={idx} className="text-xs text-slate-600 font-mono">
+//             {file}
+//           </li>
+//         ))}
+//       </ul>
+//     </div>
+//   );
+// }
 
-function ReportComponent({
-  title,
-  description,
-  icon,
-}: {
-  title: string;
-  description: string;
-  icon: string;
-}) {
-  return (
-    <div className="bg-white rounded-xl p-6 border border-slate-200 hover:border-emerald-300 hover:shadow-md transition-all">
-      <div className="text-4xl mb-3">{icon}</div>
-      <h4 className="font-bold text-slate-900 mb-2">{title}</h4>
-      <p className="text-sm text-slate-600">{description}</p>
-    </div>
-  );
-}
+// function ReportComponent({
+//   title,
+//   description,
+//   icon,
+// }: {
+//   title: string;
+//   description: string;
+//   icon: string;
+// }) {
+//   return (
+//     <div className="bg-white rounded-xl p-6 border border-slate-200 hover:border-emerald-300 hover:shadow-md transition-all">
+//       <div className="text-4xl mb-3">{icon}</div>
+//       <h4 className="font-bold text-slate-900 mb-2">{title}</h4>
+//       <p className="text-sm text-slate-600">{description}</p>
+//     </div>
+//   );
+// }
 
-function MetricCard({
-  title,
-  value,
-  description,
-  color,
-}: {
-  title: string;
-  value: string;
-  description: string;
-  color: string;
-}) {
-  const colorClasses = {
-    emerald: "bg-emerald-50 text-emerald-900 border-emerald-200",
-    blue: "bg-blue-50 text-blue-900 border-blue-200",
-    purple: "bg-purple-50 text-purple-900 border-purple-200",
-  };
+// function MetricCard({
+//   title,
+//   value,
+//   description,
+//   color,
+// }: {
+//   title: string;
+//   value: string;
+//   description: string;
+//   color: string;
+// }) {
+//   const colorClasses = {
+//     emerald: "bg-emerald-50 text-emerald-900 border-emerald-200",
+//     blue: "bg-blue-50 text-blue-900 border-blue-200",
+//     purple: "bg-purple-50 text-purple-900 border-purple-200",
+//   };
 
-  return (
-    <div
-      className={`rounded-xl p-6 border-2 ${colorClasses[color as keyof typeof colorClasses]}`}
-    >
-      <div className="text-3xl font-bold mb-2">{value}</div>
-      <div className="font-semibold mb-1">{title}</div>
-      <div className="text-sm opacity-70">{description}</div>
-    </div>
-  );
-}
+//   return (
+//     <div
+//       className={`rounded-xl p-6 border-2 ${colorClasses[color as keyof typeof colorClasses]}`}
+//     >
+//       <div className="text-3xl font-bold mb-2">{value}</div>
+//       <div className="font-semibold mb-1">{title}</div>
+//       <div className="text-sm opacity-70">{description}</div>
+//     </div>
+//   );
+// }
 
-function OptimizationItem({
-  title,
-  description,
-}: {
-  title: string;
-  description: string;
-}) {
-  return (
-    <div className="flex items-start gap-3">
-      <div className="flex-shrink-0 w-2 h-2 rounded-full bg-emerald-500 mt-2"></div>
-      <div>
-        <div className="font-semibold text-slate-900">{title}</div>
-        <div className="text-sm text-slate-600">{description}</div>
-      </div>
-    </div>
-  );
-}
+// function OptimizationItem({
+//   title,
+//   description,
+// }: {
+//   title: string;
+//   description: string;
+// }) {
+//   return (
+//     <div className="flex items-start gap-3">
+//       <div className="flex-shrink-0 w-2 h-2 rounded-full bg-emerald-500 mt-2"></div>
+//       <div>
+//         <div className="font-semibold text-slate-900">{title}</div>
+//         <div className="text-sm text-slate-600">{description}</div>
+//       </div>
+//     </div>
+//   );
+// }
 
 function AgentCard({
   name,

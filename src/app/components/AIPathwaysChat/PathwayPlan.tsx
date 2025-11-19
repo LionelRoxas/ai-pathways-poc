@@ -60,7 +60,43 @@ export default function PathwayPlan({
     const pathwayContent = document.getElementById('pathway-content');
     if (!pathwayContent) return;
 
-    // Create a new window with just the content
+    // Clone the content so we don't affect the actual page
+    const contentClone = pathwayContent.cloneNode(true) as HTMLElement;
+
+    // Temporarily show all hidden content in the clone
+    // Remove all inline styles that hide content (from both H2 and H3 collapsing)
+    const hiddenElements = contentClone.querySelectorAll('[style*="display: none"], [style*="height: 0"]');
+    hiddenElements.forEach(el => {
+      (el as HTMLElement).style.cssText = '';
+    });
+
+    // Remove all phase-content-hidden classes
+    const phaseHiddenElements = contentClone.querySelectorAll('.phase-content-hidden');
+    phaseHiddenElements.forEach(el => {
+      el.classList.remove('phase-content-hidden');
+      (el as HTMLElement).style.cssText = '';
+    });
+
+    // Make sr-only H3 elements visible for PDF
+    const srOnlyH3s = contentClone.querySelectorAll('h3.sr-only');
+    srOnlyH3s.forEach(h3 => {
+      (h3 as HTMLElement).classList.remove('sr-only');
+      (h3 as HTMLElement).classList.add('print-visible');
+    });
+
+    // Remove all buttons (collapsible arrows)
+    const buttons = contentClone.querySelectorAll('button');
+    buttons.forEach(btn => btn.remove());
+
+    // Remove all SVG icons
+    const svgs = contentClone.querySelectorAll('svg');
+    svgs.forEach(svg => svg.remove());
+
+    // Remove separator divs (the horizontal lines with arrows)
+    const separators = contentClone.querySelectorAll('.flex.items-center.justify-center');
+    separators.forEach(sep => sep.remove());
+
+    // Create a new window with the cleaned content
     const printWindow = window.open('', '_blank');
     if (!printWindow) return;
 
@@ -91,10 +127,25 @@ export default function PathwayPlan({
               margin-top: 1.5em; 
               margin-bottom: 0.5em;
               color: #000;
+              display: block !important;
             }
             h2 {
               border-bottom: 2px solid #000;
               padding-bottom: 0.5em;
+            }
+            h3 {
+              font-size: 1.17em;
+              font-weight: bold;
+            }
+            .print-visible {
+              position: static !important;
+              width: auto !important;
+              height: auto !important;
+              padding: 0 !important;
+              margin: 1.5em 0 0.5em 0 !important;
+              overflow: visible !important;
+              clip: auto !important;
+              white-space: normal !important;
             }
             p { 
               line-height: 1.6; 
@@ -108,10 +159,6 @@ export default function PathwayPlan({
             li { 
               margin-bottom: 0.5em;
               display: list-item;
-            }
-            /* Hide SVG icons (checkmarks, etc) */
-            svg {
-              display: none !important;
             }
             table { 
               width: 100%; 
@@ -131,10 +178,14 @@ export default function PathwayPlan({
             strong { 
               font-weight: 600; 
             }
+            /* Clean up section IDs */
+            [id^="section-"], [id^="phase-"] {
+              margin-bottom: 0.5em !important;
+            }
           </style>
         </head>
         <body>
-          ${pathwayContent.innerHTML}
+          ${contentClone.innerHTML}
         </body>
       </html>
     `);
@@ -143,12 +194,9 @@ export default function PathwayPlan({
     
     // Wait for content to load, then print
     setTimeout(() => {
-      // Try to open print with custom settings (works in some browsers)
       printWindow.focus();
       
-      // Add event listener to modify print settings
       printWindow.onbeforeprint = () => {
-        // This helps ensure clean printing
         printWindow.document.body.style.margin = '0';
       };
       
