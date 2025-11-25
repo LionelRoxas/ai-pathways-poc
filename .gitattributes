@@ -2,6 +2,7 @@
 
 # IMPORTANT: Exclude critical config files from LFS
 package.json !filter !diff !merge text
+package-lock.json !filter !diff !merge text
 tsconfig.json !filter !diff !merge text
 next.config.ts !filter !diff !merge text
 tailwind.config.ts !filter !diff !merge text

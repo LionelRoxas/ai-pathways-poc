@@ -202,7 +202,7 @@ export default function LearnMorePage() {
                   <li className="flex items-start gap-2">
                     <span className="text-blue-600 mt-1">•</span>
                     <span>
-                      <strong>11,000+ programs</strong> across all UH Community Colleges
+                      <strong>5000+ programs</strong> across all UH Community Colleges
                     </span>
                   </li>
                   <li className="flex items-start gap-2">
@@ -582,7 +582,7 @@ export default function LearnMorePage() {
             <TechStack
               category="Hawaii Data"
               technologies={[
-                { name: "11,000+ UH Programs", description: "All islands with degree levels" },
+                { name: "5000+ UH Programs", description: "All islands with degree levels" },
                 {
                   name: "Hawaii Career Explorer",
                   description: "Real job market data",
