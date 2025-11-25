@@ -1,7 +1,16 @@
 # Git LFS Configuration for AI Pathways POC
-# Large JSON files (embeddings, data files)
-*.json filter=lfs diff=lfs merge=lfs -text
-db/programs_with_embeddings.json filter=lfs diff=lfs merge=lfs -text
+
+# IMPORTANT: Exclude critical config files from LFS
+package.json !filter !diff !merge text
+tsconfig.json !filter !diff !merge text
+next.config.ts !filter !diff !merge text
+tailwind.config.ts !filter !diff !merge text
+postcss.config.mjs !filter !diff !merge text
+
+# Large JSON data files only (not config files)
+db/**/*.json filter=lfs diff=lfs merge=lfs -text
+scripts/**/*.json filter=lfs diff=lfs merge=lfs -text
+
 # JSONL files (data mappings)
 *.jsonl filter=lfs diff=lfs merge=lfs -text
 # Model files and embeddings
@@ -13,7 +22,7 @@ db/programs_with_embeddings.json filter=lfs diff=lfs merge=lfs -text
 # Database files
 *.db filter=lfs diff=lfs merge=lfs -text
 *.sqlite filter=lfs diff=lfs merge=lfs -text
-*.sql filter=lfs diff=lfs merge=lfs -text
+db/migrations/**/*.sql filter=lfs diff=lfs merge=lfs -text
 # Archives
 *.zip filter=lfs diff=lfs merge=lfs -text
 *.tar.gz filter=lfs diff=lfs merge=lfs -text
