@@ -195,34 +195,99 @@ export default function LearnMorePage() {
               fast, efficient searches across Hawaii&apos;s educational programs.
             </p>
 
-            <div className="bg-blue-50 rounded-xl p-6 border border-blue-200">
-              <h4 className="font-bold text-slate-900 mb-3">How We Find the Best Matches</h4>
-              <ul className="space-y-2 text-slate-700">
-                <li className="flex items-start gap-2">
-                  <span className="text-blue-600 mt-1">•</span>
-                  <span>
-                    Searches over 5000+ programs across all UH schools
-                  </span>
-                </li>
-                <li className="flex items-start gap-2">
-                  <span className="text-blue-600 mt-1">•</span>
-                  <span>
-                    Understands what you mean, even with typos or different wording
-                  </span>
-                </li>
-                <li className="flex items-start gap-2">
-                  <span className="text-blue-600 mt-1">•</span>
-                  <span>
-                    Ranks programs by how well they match your interests
-                  </span>
-                </li>
-                <li className="flex items-start gap-2">
-                  <span className="text-blue-600 mt-1">•</span>
-                  <span>
-                    Connects college programs to future career opportunities
-                  </span>
-                </li>
-              </ul>
+            <div className="space-y-4">
+              <div className="bg-blue-50 rounded-xl p-6 border border-blue-200">
+                <h4 className="font-bold text-slate-900 mb-3">📚 Comprehensive Program Database</h4>
+                <ul className="space-y-2 text-slate-700">
+                  <li className="flex items-start gap-2">
+                    <span className="text-blue-600 mt-1">•</span>
+                    <span>
+                      <strong>11,000+ programs</strong> across all UH Community Colleges
+                    </span>
+                  </li>
+                  <li className="flex items-start gap-2">
+                    <span className="text-blue-600 mt-1">•</span>
+                    <span>
+                      Includes degree levels: 2-Year, 4-Year, and Non-Credit certificates
+                    </span>
+                  </li>
+                  <li className="flex items-start gap-2">
+                    <span className="text-blue-600 mt-1">•</span>
+                    <span>
+                      Every program has classification codes (CIP codes) for career mapping
+                    </span>
+                  </li>
+                </ul>
+              </div>
+
+              <div className="bg-emerald-50 rounded-xl p-6 border border-emerald-200">
+                <h4 className="font-bold text-slate-900 mb-3">🧮 Smart Search Technology</h4>
+                <div className="space-y-3">
+                  <div>
+                    <div className="font-semibold text-emerald-900 mb-1">Keyword Search</div>
+                    <ul className="space-y-1 text-sm text-slate-700">
+                      <li className="flex items-start gap-2">
+                        <span className="text-emerald-500 mt-1">→</span>
+                        <span>Matches exact program names and descriptions</span>
+                      </li>
+                      <li className="flex items-start gap-2">
+                        <span className="text-emerald-500 mt-1">→</span>
+                        <span>Handles typos and different wording</span>
+                      </li>
+                      <li className="flex items-start gap-2">
+                        <span className="text-emerald-500 mt-1">→</span>
+                        <span>Filters by island, school, and degree level</span>
+                      </li>
+                    </ul>
+                  </div>
+
+                  <div>
+                    <div className="font-semibold text-emerald-900 mb-1">Vector Search (AI-Powered)</div>
+                    <ul className="space-y-1 text-sm text-slate-700">
+                      <li className="flex items-start gap-2">
+                        <span className="text-emerald-500 mt-1">→</span>
+                        <span>Understands meaning, not just keywords (&quot;marine biology&quot; finds &quot;oceanography&quot;)</span>
+                      </li>
+                      <li className="flex items-start gap-2">
+                        <span className="text-emerald-500 mt-1">→</span>
+                        <span>Uses OpenAI embeddings stored in PostgreSQL with pgvector</span>
+                      </li>
+                      <li className="flex items-start gap-2">
+                        <span className="text-emerald-500 mt-1">→</span>
+                        <span>Automatically activates when keyword search finds too few results</span>
+                      </li>
+                      <li className="flex items-start gap-2">
+                        <span className="text-emerald-500 mt-1">→</span>
+                        <span>Combines with keyword results for comprehensive coverage</span>
+                      </li>
+                    </ul>
+                  </div>
+                </div>
+              </div>
+
+              <div className="bg-purple-50 rounded-xl p-6 border border-purple-200">
+                <h4 className="font-bold text-slate-900 mb-3">🌐 Web Research (Optional)</h4>
+                <ul className="space-y-2 text-slate-700">
+                  <li className="flex items-start gap-2">
+                    <span className="text-purple-600 mt-1">•</span>
+                    <span>
+                      Searches the internet for current industry trends and company insights
+                    </span>
+                  </li>
+                  <li className="flex items-start gap-2">
+                    <span className="text-purple-600 mt-1">•</span>
+                    <span>
+                      AI summarizes findings into easy-to-read reports
+                    </span>
+                  </li>
+                  <li className="flex items-start gap-2">
+                    <span className="text-purple-600 mt-1">•</span>
+                    <span>
+                      Available after 3+ messages to prevent accidental expensive API calls
+                    </span>
+                  </li>
+                </ul>
+              </div>
             </div>
           </div>
         </Section>
@@ -406,6 +471,27 @@ export default function LearnMorePage() {
               />
               
               <AgentCard
+                name="Vector Search Engine"
+                icon="🧮"
+                role="Semantic Matcher"
+                description="Finds programs using AI-powered semantic search. Understands that 'marine biology' and 'oceanography' are related, even without exact keyword matches. Uses OpenAI embeddings stored in PostgreSQL."
+              />
+              
+              <AgentCard
+                name="Vector Result Verifier"
+                icon="✨"
+                role="Relevance Checker"
+                description="Validates semantic search results to ensure they're actually relevant. Filters out programs that are semantically similar but not what you're looking for."
+              />
+              
+              <AgentCard
+                name="Web Search Agent"
+                icon="🌐"
+                role="Internet Researcher"
+                description="Searches the web for current industry trends, company insights, and emerging field information. Summarizes findings into easy-to-read reports with clickable sources."
+              />
+              
+              <AgentCard
                 name="CIP Code Verifier"
                 icon="🔐"
                 role="Program Code Guardian"
@@ -430,22 +516,31 @@ export default function LearnMorePage() {
                   <strong>2.</strong> <span className="text-emerald-600">Query Analyzer</span> expands your search terms for better matches
                 </p>
                 <p>
-                  <strong>3.</strong> <span className="text-emerald-600">Result Verifier</span> checks each program for relevance
+                  <strong>3.</strong> <span className="text-emerald-600">Vector Search Engine</span> performs semantic search if needed (when keyword results are low)
                 </p>
                 <p>
-                  <strong>4.</strong> <span className="text-emerald-600">CIP Code Verifier</span> validates program classification codes
+                  <strong>4.</strong> <span className="text-emerald-600">Vector Result Verifier</span> validates semantic matches for relevance
                 </p>
                 <p>
-                  <strong>5.</strong> <span className="text-emerald-600">Reflection Agent</span> evaluates quality and triggers retry if needed
+                  <strong>5.</strong> <span className="text-emerald-600">Result Verifier</span> checks each program for relevance
                 </p>
                 <p>
-                  <strong>6.</strong> <span className="text-emerald-600">SOC Code Verifier</span> filters career codes for relevance
+                  <strong>6.</strong> <span className="text-emerald-600">CIP Code Verifier</span> validates program classification codes
                 </p>
                 <p>
-                  <strong>7.</strong> <span className="text-emerald-600">Response Formatter</span> presents everything clearly
+                  <strong>7.</strong> <span className="text-emerald-600">Reflection Agent</span> evaluates quality and triggers retry if needed
                 </p>
                 <p>
-                  <strong>8.</strong> <span className="text-emerald-600">Market Intelligence</span> adds career insights
+                  <strong>8.</strong> <span className="text-emerald-600">SOC Code Verifier</span> filters career codes for relevance
+                </p>
+                <p>
+                  <strong>9.</strong> <span className="text-emerald-600">Response Formatter</span> presents everything clearly
+                </p>
+                <p>
+                  <strong>10.</strong> <span className="text-emerald-600">Web Search Agent</span> (if enabled) adds current industry insights
+                </p>
+                <p>
+                  <strong>11.</strong> <span className="text-emerald-600">Market Intelligence</span> adds Hawaii career data
                 </p>
                 <p className="text-sm italic mt-4">
                   All while the <span className="text-emerald-600">Conversational Agent</span> keeps the conversation natural and the <span className="text-emerald-600">Profile Agent</span> remembers your preferences!
@@ -468,6 +563,7 @@ export default function LearnMorePage() {
               technologies={[
                 { name: "Next.js", description: "Latest web framework" },
                 { name: "TypeScript", description: "Reliable code" },
+                { name: "PostgreSQL + pgvector", description: "Vector database" },
                 { name: "Tailwind CSS", description: "Beautiful design" },
               ]}
             />
@@ -478,19 +574,21 @@ export default function LearnMorePage() {
                   name: "Advanced AI Models",
                   description: "Cutting-edge language understanding",
                 },
+                { name: "Vector Embeddings", description: "Semantic search with OpenAI" },
+                { name: "Neural Web Search", description: "Exa-powered research" },
                 { name: "Smart Caching", description: "Fast repeat searches" },
-                { name: "Quality Checks", description: "Accurate results" },
               ]}
             />
             <TechStack
               category="Hawaii Data"
               technologies={[
-                { name: "5000+ UH Programs", description: "All islands" },
+                { name: "11,000+ UH Programs", description: "All islands with degree levels" },
                 {
                   name: "Hawaii Career Explorer",
                   description: "Real job market data",
                 },
-                { name: "Up-to-date Information", description: "Current programs" },
+                { name: "Vector Search Database", description: "Semantic program matching" },
+                { name: "Web Search Integration", description: "Current industry trends" },
               ]}
             />
             <TechStack

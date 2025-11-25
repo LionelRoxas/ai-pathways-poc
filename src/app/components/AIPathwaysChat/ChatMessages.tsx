@@ -164,6 +164,7 @@ interface ChatMessagesProps {
   setSidebarOpen: (open: boolean) => void;
   navSidebarOpen: boolean;
   currentLanguage?: { code: string; name: string; nativeName: string };
+  onOpenWebTab?: () => void;
 }
 
 interface ProgramDetails {
@@ -209,14 +210,16 @@ interface PathwayData {
   };
 }
 
-const MarkdownRenderer: React.FC<{ content: string; className?: string }> = ({
+const MarkdownRenderer: React.FC<{ content: string; className?: string; onOpenWebTab?: () => void }> = ({
   content,
   className = "",
+  onOpenWebTab,
 }) => {
   const parseMarkdown = (text: string): React.ReactNode => {
     const lines = text.split("\n");
     const elements: React.ReactNode[] = [];
     let currentList: { type: 'ul' | 'ol', items: string[] } | null = null;
+    let currentCodeBlock: { language: string; content: string[] } | null = null;
     let lineIndex = 0;
 
     const processInlineMarkdown = (text: string): React.ReactNode => {
@@ -243,12 +246,33 @@ const MarkdownRenderer: React.FC<{ content: string; className?: string }> = ({
             </strong>
           );
         } else if (matchedText.startsWith("*") && matchedText.endsWith("*")) {
-          // Italic
-          parts.push(
-            <em key={`italic-${key++}`} className="italic">
-              {matchedText.slice(1, -1)}
-            </em>
-          );
+          // Check if this is the special "View detailed sources in the Web tab" link
+          const innerText = matchedText.slice(1, -1);
+          if (innerText.includes("View detailed sources") && innerText.includes("Web tab") && onOpenWebTab) {
+            // Make it a clickable link
+            console.log("[ChatMessages] ✅ Rendering clickable Web tab link");
+            parts.push(
+              <button
+                key={`link-${key++}`}
+                onClick={(e) => {
+                  e.preventDefault();
+                  e.stopPropagation();
+                  console.log("[ChatMessages] 🔗 Web tab link clicked!");
+                  onOpenWebTab();
+                }}
+                className="italic text-emerald-600 hover:text-emerald-800 hover:underline cursor-pointer transition-colors font-medium inline-flex items-center gap-1"
+              >
+                <span>{innerText}</span>
+              </button>
+            );
+          } else {
+            // Regular italic
+            parts.push(
+              <em key={`italic-${key++}`} className="italic">
+                {innerText}
+              </em>
+            );
+          }
         } else if (matchedText.startsWith("`") && matchedText.endsWith("`")) {
           // Inline code
           parts.push(
@@ -292,9 +316,78 @@ const MarkdownRenderer: React.FC<{ content: string; className?: string }> = ({
       }
     };
 
+    const flushCodeBlock = () => {
+      if (currentCodeBlock && currentCodeBlock.content.length > 0) {
+        const isArtifact = currentCodeBlock.language === 'artifact';
+        
+        if (isArtifact) {
+          // Render artifact as a styled paper/container with emerald green theme
+          // Parse the content as markdown recursively
+          const artifactContent = currentCodeBlock.content.join('\n');
+          elements.push(
+            <div
+              key={`artifact-${elements.length}`}
+              className="my-6 bg-gradient-to-br from-emerald-50 to-teal-50 rounded-2xl border-2 border-emerald-200 shadow-lg overflow-hidden"
+            >
+              <div className="bg-gradient-to-r from-emerald-600 to-teal-600 px-5 py-3 border-b border-emerald-300">
+                <div className="flex items-center gap-2">
+                  <div className="w-3 h-3 rounded-full bg-white/30"></div>
+                  <div className="w-3 h-3 rounded-full bg-white/30"></div>
+                  <div className="w-3 h-3 rounded-full bg-white/30"></div>
+                  <span className="ml-auto text-xs font-semibold text-white uppercase tracking-wider">
+                    Research Summary
+                  </span>
+                </div>
+              </div>
+              <div className="px-6 py-5 bg-white">
+                <div className="prose prose-slate max-w-none">
+                  {parseMarkdown(artifactContent)}
+                </div>
+              </div>
+            </div>
+          );
+        } else {
+          // Regular code block
+          elements.push(
+            <pre
+              key={`code-${elements.length}`}
+              className="my-4 bg-slate-900 text-slate-100 px-4 py-3 rounded-lg overflow-x-auto text-sm font-mono"
+            >
+              <code>{currentCodeBlock.content.join('\n')}</code>
+            </pre>
+          );
+        }
+        currentCodeBlock = null;
+      }
+    };
+
     while (lineIndex < lines.length) {
       const line = lines[lineIndex];
       const trimmed = line.trim();
+
+      // Code block start/end (```language)
+      if (trimmed.match(/^```/)) {
+        if (currentCodeBlock) {
+          // End of code block
+          flushCodeBlock();
+          lineIndex++;
+          continue;
+        } else {
+          // Start of code block
+          flushList();
+          const language = trimmed.replace(/^```/, '').trim() || 'text';
+          currentCodeBlock = { language, content: [] };
+          lineIndex++;
+          continue;
+        }
+      }
+
+      // Inside code block
+      if (currentCodeBlock) {
+        currentCodeBlock.content.push(line);
+        lineIndex++;
+        continue;
+      }
 
       // Headers (## Header or ### Header)
       if (trimmed.match(/^#{1,6}\s+/)) {
@@ -356,6 +449,16 @@ const MarkdownRenderer: React.FC<{ content: string; className?: string }> = ({
         continue;
       }
 
+      // Horizontal rule (---)
+      if (trimmed === '---' || trimmed === '___' || trimmed === '***') {
+        flushList();
+        elements.push(
+          <hr key={`hr-${lineIndex}`} className="my-6 border-t-2 border-slate-200" />
+        );
+        lineIndex++;
+        continue;
+      }
+
       // Empty line
       if (trimmed === '') {
         flushList();
@@ -373,8 +476,9 @@ const MarkdownRenderer: React.FC<{ content: string; className?: string }> = ({
       lineIndex++;
     }
 
-    // Flush any remaining list
+    // Flush any remaining list or code block
     flushList();
+    flushCodeBlock();
 
     return elements;
   };
@@ -762,6 +866,7 @@ export default function ChatMessages({
   dataPanelOpen,
   navSidebarOpen,
   currentLanguage,
+  onOpenWebTab,
 }: ChatMessagesProps) {
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const [showSuggestions, setShowSuggestions] = useState(false);
@@ -923,6 +1028,7 @@ export default function ChatMessages({
                       <MarkdownRenderer
                         content={msg.content}
                         className="text-slate-800"
+                        onOpenWebTab={onOpenWebTab}
                       />
                     ) : (
                       <div className="whitespace-pre-wrap">{msg.content}</div>

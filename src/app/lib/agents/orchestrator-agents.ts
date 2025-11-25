@@ -2,6 +2,7 @@
 // src/app/lib/agents/orchestrator-agents.ts
 import Groq from "groq-sdk";
 import ResultVerifier from "./result-verifier";
+import VectorResultVerifier from "./vector-result-verifier";
 import ResponseFormatterAgent from "./response-formatter";
 import ReflectionAgent from "./reflection-agent";
 import ConversationalAgent from "./conversational-agent";
@@ -15,7 +16,13 @@ const groq = new Groq({
   apiKey: process.env.GROQ_API_KEY,
 });
 
-const resultVerifier = new ResultVerifier();
+// Feature flag: Use vector-based verification for 10-50x speed improvement
+const USE_VECTOR_VERIFICATION = process.env.USE_VECTOR_VERIFICATION === 'true';
+
+const resultVerifier = USE_VECTOR_VERIFICATION 
+  ? new VectorResultVerifier() 
+  : new ResultVerifier();
+
 const responseFormatter = new ResponseFormatterAgent();
 const reflectionAgent = new ReflectionAgent();
 const conversationalAgent = new ConversationalAgent();
@@ -650,10 +657,14 @@ export async function executeToolCalls(
           if (pathwayTracer) {
             const keywords = Array.isArray(args) ? args : [args];
             
-            // Build conversation context from last 3 messages for better understanding
+            // Filter conversation to remove unrelated old topics
+            const { filterRelevantConversation } = await import("../helpers/conversation-filter");
+            const filteredHistory = filterRelevantConversation(conversationHistory || [], keywords.join(" "), 5);
+            
+            // Build conversation context from filtered messages
             let conversationContext = '';
-            if (conversationHistory && conversationHistory.length > 0) {
-              const recentMessages = conversationHistory.slice(-3);
+            if (filteredHistory.length > 0) {
+              const recentMessages = filteredHistory.slice(-3);
               conversationContext = recentMessages
                 .map((msg: any) => `${msg.role}: ${msg.content}`)
                 .join('\n');

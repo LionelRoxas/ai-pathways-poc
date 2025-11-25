@@ -1,4 +1,5 @@
 /* eslint-disable @typescript-eslint/no-explicit-any */
+/* eslint-disable import/no-anonymous-default-export */
 // src/app/lib/agents/profile-update-agent.ts
 
 import Groq from "groq-sdk";

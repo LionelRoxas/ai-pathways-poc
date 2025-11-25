@@ -106,17 +106,27 @@ export class ResponseFormatterAgent {
         const campus = normalize(campusName);
         const search = normalize(searchTerm);
         
-        // Direct substring match
-        if (campus.includes(search) || search.includes(campus)) {
-          return true;
-        }
-        
-        // Handle common abbreviations and variations
+        // Handle common abbreviations and variations FIRST (before substring matching)
         // "UH Manoa" should match "University of Hawaii at Manoa"
         if (search.includes('uh') && search.includes('manoa') && campus.includes('manoa')) {
           return true;
         }
         if (search.includes('uh') && search.includes('hilo') && campus.includes('hilo')) {
+          return true;
+        }
+        
+        // SPECIFIC campus matching - check for distinguishing campus name
+        // Extract the specific campus name (e.g., "Manoa", "Hilo", "West Oahu")
+        const campusSpecific = campus.match(/\b(manoa|hilo|west oahu|windward|leeward|honolulu|kapiolani|kauai)\b/)?.[0];
+        const searchSpecific = search.match(/\b(manoa|hilo|west oahu|windward|leeward|honolulu|kapiolani|kauai)\b/)?.[0];
+        
+        // If both have specific campus names, they must match
+        if (campusSpecific && searchSpecific && campusSpecific !== searchSpecific) {
+          return false; // Different campuses - don't match!
+        }
+        
+        // Direct substring match (but only if we didn't find conflicting campus names above)
+        if (campus.includes(search) || search.includes(campus)) {
           return true;
         }
         // "Honolulu CC" should match "Honolulu Community College"
@@ -187,8 +197,16 @@ export class ResponseFormatterAgent {
           // Also check the institution field if available
           const institution = item.program?.iro_institution || item.program?.IRO_INSTITUTION || '';
           
-          return campuses.some((campus: string) => matchesInstitution(campus, filterName)) || 
+          // DEBUG: Show what campuses we're checking
+          const programName = item.programFamily || item.program?.title || item.program?.PROGRAM_NAME || 'Unknown';
+          console.log(`[ResponseFormatter] Checking "${programName}": campuses=[${campuses.join(', ')}], institution="${institution}"`);
+          
+          const matches = campuses.some((campus: string) => matchesInstitution(campus, filterName)) || 
                  (institution && matchesInstitution(institution, filterName));
+          
+          console.log(`[ResponseFormatter]    → ${matches ? '✓ MATCH' : '✗ NO MATCH'} for filter "${institutionFilter.name}"`);
+          
+          return matches;
         }).map(item => {
           // ALSO filter the campuses array to only show the requested institution
           const filteredCampuses = (item.campuses || []).filter((campus: string) => 

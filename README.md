@@ -6,11 +6,67 @@ An intelligent educational pathway advisor system that helps students explore ca
 
 ## ✨ Recent Updates (November 2025)
 
-### 🆕 NEW: Data Quality Verification Agents
+### 🆕 NEW: Vector Search with pgvector
+
+**Problem Solved:** Traditional keyword matching misses semantically similar programs (e.g., "marine biology" not matching "oceanography").
+
+**Solution:** Semantic search using OpenAI embeddings and PostgreSQL pgvector:
+
+1. **Vector Embeddings** 🧮
+   - All 11,000+ programs converted to 1536-dimension embeddings
+   - Uses OpenAI's `text-embedding-3-small` model
+   - Stored in PostgreSQL with pgvector extension
+   - Cached in Upstash Redis for performance
+
+2. **Vector Result Verifier** ✨
+   - LLM-powered validation of vector search results
+   - Scores each match for contextual relevance (0-10)
+   - Filters out semantically similar but irrelevant programs
+   - Ensures high-quality recommendations reach students
+
+**Impact:**
+- ✅ "Marine biology" now finds oceanography and marine science programs
+- ✅ "Renewable energy" matches sustainability and environmental tech programs
+- ✅ Semantic understanding beyond exact keyword matches
+- ✅ Smart fallback: Uses vector search when keyword search returns < 3 results
+- ✅ Combined approach: Merges keyword + vector results for comprehensive coverage
+
+### 🌐 NEW: Web Research Intelligence
+
+**Problem Solved:** Students need current industry trends, company insights, and emerging field information beyond the database.
+
+**Solution:** Integrated Exa web search with AI-powered summarization:
+
+1. **Exa Neural Search** 🔍
+   - Real-time web search optimized for educational/career content
+   - Context-aware query enhancement from conversation history
+   - Returns top 8-10 relevant sources with full content
+   - Auto-generates keyword highlights
+
+2. **AI Summary Generation** 📝
+   - Groq-powered summarization of web results
+   - Markdown formatted in styled emerald-themed artifacts
+   - Key findings, trends, and actionable insights
+   - Clickable link to detailed source viewer in Web tab
+
+3. **Smart Access Control** 🔐
+   - Available after 3+ user messages (prevents API spam)
+   - Optional toggle in chat input
+   - Visual countdown badges ("2 more messages", "1 more message")
+   - Tooltip explains availability requirement
+
+**Impact:**
+- ✅ Students get current industry trends and company information
+- ✅ Beautiful web research summaries in artifact containers
+- ✅ Detailed source viewer with expandable content panels
+- ✅ Prevents accidental expensive API calls
+- ✅ Seamless integration with pathway recommendations
+
+### 🔒 Data Quality Verification Agents
 
 **Problem Solved:** Students searching for "photography" were shown software engineering career data, and "nursing" searches returned incorrect market intelligence.
 
-**Solution:** Two new intelligent verification agents:
+**Solution:** Two intelligent verification agents:
 
 1. **CIP Code Verifier Agent** 🔐
    - Validates program classification codes (CIP codes) against conversation context
@@ -32,10 +88,11 @@ An intelligent educational pathway advisor system that helps students explore ca
 - ✅ Runtime verification catches any future misalignments automatically
 
 **Technical Details:**
-- Both agents use `openai/gpt-oss-120b` for fast validation (500 tps, 74% cheaper)
-- Integrated into orchestrator workflow between verification and formatting
-- Full logging of all corrections and filtering decisions
-- See: `SOC_VERIFIER_IMPLEMENTATION.md` for complete documentation
+- Vector search uses PostgreSQL pgvector with OpenAI embeddings
+- Vector verifier uses `openai/gpt-oss-120b` for fast validation
+- Web search uses Exa API + Groq for summarization
+- CIP/SOC verifiers use `openai/gpt-oss-120b` (500 tps, 74% cheaper)
+- All integrated into orchestrator workflow with comprehensive logging
 
 ---
 
@@ -46,6 +103,9 @@ An intelligent educational pathway advisor system that helps students explore ca
 - Node.js 18+ and npm
 - Groq API Key ([Get one here](https://console.groq.com))
 - Upstash Redis instance ([Create one here](https://upstash.com))
+- OpenAI API Key ([Get one here](https://platform.openai.com)) - for vector embeddings
+- Exa API Key ([Get one here](https://exa.ai)) - for web search
+- PostgreSQL database with pgvector extension
 
 ### Installation
 
@@ -76,16 +136,34 @@ An intelligent educational pathway advisor system that helps students explore ca
    UPSTASH_REDIS_REST_URL="your_upstash_redis_url"
    UPSTASH_REDIS_REST_TOKEN="your_upstash_redis_token"
 
+   # Required: OpenAI API for vector embeddings
+   OPENAI_API_KEY="your_openai_api_key_here"
+
+   # Required: Exa API for web search
+   EXA_API_KEY="your_exa_api_key_here"
+
+   # Required: PostgreSQL with pgvector
+   POSTGRES_URL="your_postgres_connection_string"
+
    # Optional: Use LangGraph-Style Orchestrator (default: false)
    USE_LANGGRAPH_STYLE=true
    ```
 
-4. **Run the development server**
+4. **Set up the database**
+   ```bash
+   # Run migrations to create pgvector tables
+   npx tsx scripts/run-migrations.ts
+   
+   # Generate and populate vector embeddings
+   npx tsx scripts/populate-pgvector.ts
+   ```
+
+5. **Run the development server**
    ```bash
    npm run dev
    ```
 
-5. **Open your browser**
+6. **Open your browser**
    
    Navigate to [http://localhost:3000](http://localhost:3000)
 
@@ -159,16 +237,40 @@ The AI Pathways system is built on a **LangGraph-style multi-agent orchestration
                           ┌──────────────────────────────────────────────┐
                           │    4. TOOL EXECUTOR NODE                     │
                           │  ┌────────────────────────────────────────┐  │
-                          │  │ Search JSONL Databases:                │  │
-                          │  │ • Program name matching                │  │
-                          │  │ • CIP code lookups                     │  │
-                          │  │ • Campus mappings                      │  │
-                          │  │ • Career path connections              │  │
+                          │  │ Hybrid Search Strategy:                │  │
+                          │  │                                        │  │
+                          │  │ 1. Keyword Search (JSONL):             │  │
+                          │  │    • Program name matching             │  │
+                          │  │    • CIP code lookups                  │  │
+                          │  │    • Campus mappings                   │  │
+                          │  │                                        │  │
+                          │  │ 2. Vector Search (pgvector):           │  │
+                          │  │    • Semantic similarity search        │  │
+                          │  │    • OpenAI embeddings (1536-dim)      │  │
+                          │  │    • Fallback if keyword < 3 results   │  │
                           │  │                                        │  │
                           │  │ Returns:                               │  │
                           │  │ • High school programs                 │  │
-                          │  │ • College programs                     │  │
+                          │  │ • College programs (keyword + vector)  │  │
                           │  │ • Career mappings (CIP→SOC)            │  │
+                          │  └────────────────────────────────────────┘  │
+                          └──────────────────────────────────────────────┘
+                                              │
+                                              ▼
+                          ┌──────────────────────────────────────────────┐
+                          │    4b. VECTOR RESULT VERIFIER (if used)      │
+                          │  ┌────────────────────────────────────────┐  │
+                          │  │ LLM Validation of Vector Matches:      │  │
+                          │  │                                        │  │
+                          │  │ • Score each vector result (0-10)      │  │
+                          │  │ • Check contextual relevance           │  │
+                          │  │ • Filter semantically similar but      │  │
+                          │  │   irrelevant programs                  │  │
+                          │  │ • Keep threshold 6+ matches            │  │
+                          │  │                                        │  │
+                          │  │ Example: "marine biology" query        │  │
+                          │  │ ✓ Keep: Oceanography (score 9)         │  │
+                          │  │ ✗ Filter: Marine Engineering (score 4) │  │
                           │  └────────────────────────────────────────┘  │
                           └──────────────────────────────────────────────┘
                                               │
@@ -295,15 +397,28 @@ The AI Pathways system is built on a **LangGraph-style multi-agent orchestration
                 │                             │                             │
                 ▼                             ▼                             ▼
 ┌──────────────────────────┐   ┌──────────────────────────┐   ┌─────────────────────┐
-│  RETURN TO USER          │   │  MARKET INTELLIGENCE     │   │  CACHE RESULT       │
+│  WEB RESEARCH (Optional) │   │  MARKET INTELLIGENCE     │   │  CACHE RESULT       │
 │                          │   │                          │   │                     │
-│  • Formatted response    │   │  Generate AI Report:     │   │  • Store in Redis   │
-│  • Pathway data          │   │  • Fetch SOC data        │   │  • TTL: 1 hour      │
-│  • SOC codes             │   │  • Top 5 skills          │   │  • Key: hash of     │
-│  • Metadata              │   │  • Top 5 companies       │   │    query+profile    │
-└──────────────────────────┘   │  • 4 action insights     │   └─────────────────────┘
-                               │  • UHCC-specific         │
-                               └──────────────────────────┘
+│  Parallel with Pathway:  │   │  Generate AI Report:     │   │  • Store in Redis   │
+│  • Exa neural search     │   │  • Fetch SOC data        │   │  • TTL: 1 hour      │
+│  • Context-aware query   │   │  • Top 5 skills          │   │  • Key: hash of     │
+│  • 8-10 web sources      │   │  • Top 5 companies       │   │    query+profile    │
+│  • Groq summarization    │   │  • 4 action insights     │   └─────────────────────┘
+│  • Markdown artifact     │   │  • UHCC-specific         │
+│  • Clickable Web tab link│   └──────────────────────────┘
+└──────────────────────────┘
+                │
+                ▼
+┌──────────────────────────┐
+│  RETURN TO USER          │
+│                          │
+│  • Formatted response    │
+│  • Pathway data          │
+│  • SOC codes             │
+│  • Web summary (if on)   │
+│  • Web results array     │
+│  • Metadata              │
+└──────────────────────────┘
 ```
 
 ### Detailed Execution Flow
@@ -325,9 +440,10 @@ The AI Pathways system is built on a **LangGraph-style multi-agent orchestration
 12. **Aggregator → SOCVerifier** → Filters career codes to match conversation context
 13. **SOCVerifier → Formatter** → Generates markdown with LLM, respects preferences
 14. **Formatter → END** → Returns response to API
-15. **Response** → Returns to user with pathway data and verified SOC codes
-16. **Market Intelligence** (async) → Fetches Hawaii Career Explorer data with verified SOC codes, generates AI report
-17. **Cache** → Stores result for future queries (key: hash of query + profile + history)
+15. **Web Research** (parallel, if enabled) → Exa neural search + Groq summarization, appends to message content
+16. **Response** → Returns to user with pathway data, verified SOC codes, and web summary (if enabled)
+17. **Market Intelligence** (async) → Fetches Hawaii Career Explorer data with verified SOC codes, generates AI report
+18. **Cache** → Stores result for future queries (key: hash of query + profile + history)
 
 **Alternative Path (Conversational Query):**
 - **START → Classifier** → needsTools = false
@@ -466,11 +582,22 @@ RETURN TO USER + Market Intelligence (async)
 
 4. **ToolExecutor Node** (`orchestrator-agents.ts`)
    - Executes selected tools in parallel for speed
+   - **NEW:** Hybrid search approach - keyword + vector search
    - **NEW:** Passes island filter to Enhanced Program Tool
    - **NEW:** Passes conversation context for semantic search
    - Uses comprehensive program dataset: `programs_2yr_4yr_noncredit_11_16_2025_cipfilled.json`
+   - **NEW:** Triggers vector search fallback when keyword results < 3
+   - **NEW:** Merges and deduplicates keyword + vector results
    - Collects high school programs, college programs (with degree levels), and career mappings
    - Logs sample results for debugging
+
+4b. **VectorResultVerifier Node** (`vector-result-verifier.ts`)
+   - **NEW:** Validates vector search results for contextual relevance
+   - LLM scoring of each vector match (0-10 scale)
+   - Filters semantically similar but irrelevant programs
+   - Example: "marine biology" query keeps Oceanography (9/10), filters Marine Engineering (4/10)
+   - Threshold 6+ for vector matches
+   - Only runs when vector search is used
 
 5. **Verifier Node** (`result-verifier.ts`)
    - Validates results against user query using LLM scoring
@@ -799,6 +926,37 @@ Integrates with Hawaii Career Explorer API (via server-side proxies):
 - CIP codes already filled in for all programs
 - Fast in-memory search (loaded once, cached)
 
+### Vector Search Database
+
+**NEW: PostgreSQL with pgvector**
+- **Table:** `programs` with vector embeddings
+- **Extension:** pgvector for similarity search
+- **Embedding Model:** OpenAI `text-embedding-3-small` (1536 dimensions)
+- **Size:** 11,000+ program embeddings
+- **Index:** HNSW index for fast approximate nearest neighbor search
+
+**Structure:**
+```sql
+CREATE TABLE programs (
+  id SERIAL PRIMARY KEY,
+  iro_institution TEXT,
+  program TEXT,
+  program_desc TEXT,
+  degree_level TEXT,
+  cip_code TEXT,
+  embedding vector(1536)
+);
+
+CREATE INDEX ON programs USING hnsw (embedding vector_cosine_ops);
+```
+
+**Key Features:**
+- Semantic search beyond keyword matching
+- Finds "marine biology" → "oceanography" connections
+- Cached query embeddings in Redis (1 hour TTL)
+- Fallback when keyword search returns < 3 results
+- Combined with keyword results for comprehensive coverage
+
 ### Legacy JSONL Databases (Still Used)
 
 **Location:** `src/app/lib/data/jsonl/`
@@ -827,12 +985,22 @@ Integrates with Hawaii Career Explorer API (via server-side proxies):
 - Line-by-line reading for memory efficiency
 
 #### Search Features:
+
+**Keyword Search:**
 - **Phrase matching**: Detects exact phrases in program descriptions
 - **Keyword scoring**: Ranks programs by relevance (0-100 scale)
 - **Fuzzy matching**: Handles typos and variations
 - **CIP code lookup**: Direct program lookup by CIP codes
 - **Island filtering**: Geographic filtering by Hawaii islands
 - **Broad query detection**: Returns all programs when query is location-only
+
+**Vector Search (NEW):**
+- **Semantic similarity**: Cosine similarity search using embeddings
+- **Smart fallback**: Triggers when keyword search returns < 3 results
+- **Query embedding cache**: Redis cache for 1 hour (avoid re-embedding same queries)
+- **Context-aware**: Uses conversation context to enhance query
+- **Result verification**: LLM validates vector matches for relevance
+- **Hybrid approach**: Merges and deduplicates keyword + vector results
 
 ---
 
@@ -1017,14 +1185,47 @@ Searches for educational pathways based on user query.
 **Response:**
 ```json
 {
-  "response": "markdown formatted pathway results",
+  "response": "markdown formatted pathway results (may include web summary)",
   "pathwayData": {
     "highSchoolPrograms": [...],
     "collegePrograms": [...],
     "careers": [...]
   },
   "socCodes": ["29-1141", "29-1151"],
+  "webSearchResults": [...],  // If web search enabled
   "metadata": {...}
+}
+```
+
+### Web Research
+**Endpoint:** `POST /api/exa-search`
+
+Performs neural web search with AI summarization.
+
+**Request:**
+```json
+{
+  "query": "software engineering careers in Hawaii",
+  "conversationContext": [...]
+}
+```
+
+**Response:**
+```json
+{
+  "success": true,
+  "results": [
+    {
+      "title": "Article Title",
+      "url": "https://...",
+      "text": "Full content...",
+      "summary": "AI summary...",
+      "highlights": ["key phrase 1", "key phrase 2"]
+    }
+  ],
+  "summary": "AI-generated markdown summary of all results",
+  "originalQuery": "software engineering",
+  "query": "software engineering careers opportunities Hawaii 2025"
 }
 ```
 

@@ -1,7 +1,7 @@
 /* eslint-disable @next/next/no-img-element */
 // components/ChatInput.tsx
 import React, { useRef, useEffect, useState } from "react";
-import { Send, Sparkles, Command } from "lucide-react";
+import { Send, Sparkles, Command, Globe } from "lucide-react";
 import { UserProfile } from "./types";
 
 interface ChatInputProps {
@@ -15,6 +15,8 @@ interface ChatInputProps {
   sidebarOpen: boolean;
   navSidebarOpen: boolean;
   userMessageCount?: number; // Add this to track user messages
+  webSearchEnabled?: boolean;
+  setWebSearchEnabled?: (enabled: boolean) => void;
 }
 
 export default function ChatInput({
@@ -27,12 +29,24 @@ export default function ChatInput({
   sidebarOpen,
   navSidebarOpen,
   userMessageCount = 0,
+  webSearchEnabled = false,
+  setWebSearchEnabled,
 }: ChatInputProps) {
   const textareaRef = useRef<HTMLTextAreaElement>(null);
   const [isFocused, setIsFocused] = useState(false);
   
   // Check if this is the initial state (no user messages yet)
   const isInitialState = userMessageCount === 0;
+  
+  // Web Search is only available after 3 user messages
+  const canUseWebSearch = userMessageCount >= 3;
+
+  // Auto-disable web search if user doesn't have enough messages
+  useEffect(() => {
+    if (!canUseWebSearch && webSearchEnabled && setWebSearchEnabled) {
+      setWebSearchEnabled(false);
+    }
+  }, [canUseWebSearch, webSearchEnabled, setWebSearchEnabled]);
 
   useEffect(() => {
     if (textareaRef.current) {
@@ -126,9 +140,47 @@ export default function ChatInput({
             </div>
           </div>
 
-          {/* Bottom hint */}
-          <div className="mt-4 text-center text-xs text-slate-500">
-            Press <kbd className="px-2 py-1 bg-gray-100 rounded text-gray-700 font-mono">Enter</kbd> to send • <kbd className="px-2 py-1 bg-gray-100 rounded text-gray-700 font-mono">Shift + Enter</kbd> for new line
+          {/* Bottom hint and Web Search Toggle */}
+          <div className="mt-4 flex items-center justify-between text-xs">
+            <div className="text-slate-500">
+              Press <kbd className="px-2 py-1 bg-gray-100 rounded text-gray-700 font-mono">Enter</kbd> to send • <kbd className="px-2 py-1 bg-gray-100 rounded text-gray-700 font-mono">Shift + Enter</kbd> for new line
+            </div>
+            
+            {/* Web Search Toggle */}
+            {setWebSearchEnabled && (
+              <button
+                onClick={() => canUseWebSearch && setWebSearchEnabled(!webSearchEnabled)}
+                disabled={!canUseWebSearch}
+                className={`
+                  px-3 py-1.5 rounded-lg transition-all duration-200 flex items-center gap-2
+                  ${
+                    !canUseWebSearch
+                      ? "bg-gray-50 text-gray-400 cursor-not-allowed border border-gray-200"
+                      : webSearchEnabled
+                        ? "bg-emerald-600 text-white hover:bg-emerald-500 shadow-sm"
+                        : "bg-gray-100 text-gray-600 hover:bg-gray-200 border border-gray-300"
+                  }
+                `}
+                title={
+                  !canUseWebSearch
+                    ? `Web search available after ${3 - userMessageCount} more message${3 - userMessageCount === 1 ? '' : 's'}`
+                    : webSearchEnabled 
+                      ? "Web search enabled - Click to disable" 
+                      : "Click to enable web search"
+                }
+              >
+                <Globe className={`w-3.5 h-3.5 ${webSearchEnabled ? 'animate-pulse' : ''}`} />
+                <span className="font-medium">Web Search</span>
+                {webSearchEnabled && (
+                  <span className="text-[10px] bg-white/20 px-1.5 py-0.5 rounded">ON</span>
+                )}
+                {!canUseWebSearch && (
+                  <span className="text-[10px] bg-gray-200 text-gray-500 px-1.5 py-0.5 rounded">
+                    {3 - userMessageCount} more
+                  </span>
+                )}
+              </button>
+            )}
           </div>
         </div>
       </div>
@@ -231,27 +283,63 @@ export default function ChatInput({
                 </div>
               </div>
 
-              <div className="text-gray-500">
-                {isLoading ? (
-                  <span className="flex items-center gap-1">
-                    <span className="inline-block w-1 h-1 bg-gray-600 rounded-full animate-pulse" />
-                    <span
-                      className="inline-block w-1 h-1 bg-gray-600 rounded-full animate-pulse"
-                      style={{ animationDelay: "100ms" }}
-                    />
-                    <span
-                      className="inline-block w-1 h-1 bg-gray-600 rounded-full animate-pulse"
-                      style={{ animationDelay: "200ms" }}
-                    />
-                  </span>
-                ) : (
-                  <span>
-                    {message.length > 0
-                      ? `${message.length} characters`
-                      : "Ready"}
-                  </span>
-                )}
-              </div>
+              {/* Web Search Toggle - Right Side */}
+              {setWebSearchEnabled ? (
+                <button
+                  onClick={() => canUseWebSearch && setWebSearchEnabled(!webSearchEnabled)}
+                  disabled={!canUseWebSearch}
+                  className={`
+                    px-3 py-1.5 rounded-lg transition-all duration-200 flex items-center gap-2
+                    ${
+                      !canUseWebSearch
+                        ? "bg-gray-50 text-gray-400 cursor-not-allowed border border-gray-200"
+                        : webSearchEnabled
+                          ? "bg-emerald-600 text-white hover:bg-emerald-500 shadow-sm"
+                          : "bg-gray-100 text-gray-600 hover:bg-gray-200 border border-gray-300"
+                    }
+                  `}
+                  title={
+                    !canUseWebSearch
+                      ? `Web search available after ${3 - userMessageCount} more message${3 - userMessageCount === 1 ? '' : 's'}`
+                      : webSearchEnabled 
+                        ? "Web search enabled - Click to disable" 
+                        : "Click to enable web search"
+                  }
+                >
+                  <Globe className={`w-3.5 h-3.5 ${webSearchEnabled ? 'animate-pulse' : ''}`} />
+                  <span className="font-medium">Web Search</span>
+                  {webSearchEnabled && (
+                    <span className="text-[10px] bg-white/20 px-1.5 py-0.5 rounded">ON</span>
+                  )}
+                  {!canUseWebSearch && (
+                    <span className="text-[10px] bg-gray-200 text-gray-500 px-1.5 py-0.5 rounded">
+                      {3 - userMessageCount} more
+                    </span>
+                  )}
+                </button>
+              ) : (
+                <div className="text-gray-500">
+                  {isLoading ? (
+                    <span className="flex items-center gap-1">
+                      <span className="inline-block w-1 h-1 bg-gray-600 rounded-full animate-pulse" />
+                      <span
+                        className="inline-block w-1 h-1 bg-gray-600 rounded-full animate-pulse"
+                        style={{ animationDelay: "100ms" }}
+                      />
+                      <span
+                        className="inline-block w-1 h-1 bg-gray-600 rounded-full animate-pulse"
+                        style={{ animationDelay: "200ms" }}
+                      />
+                    </span>
+                  ) : (
+                    <span>
+                      {message.length > 0
+                        ? `${message.length} characters`
+                        : "Ready"}
+                    </span>
+                  )}
+                </div>
+              )}
             </div>
           </div>
         </div>

@@ -482,8 +482,16 @@ export class PathwayTracer {
     );
   }
 
-  async traceFromKeywords(keywords: string[]): Promise<CompletePathway> {
-    return await this.directSearchTracer.traceFromKeywords(keywords);
+  async traceFromKeywords(
+    keywords: string[], 
+    islandFilter?: string,
+    conversationContext?: string
+  ): Promise<CompletePathway> {
+    return await this.directSearchTracer.traceFromKeywords(
+      keywords, 
+      islandFilter,
+      conversationContext
+    );
   }
 
   async traceFromHighSchool(programName: string): Promise<CompletePathway> {

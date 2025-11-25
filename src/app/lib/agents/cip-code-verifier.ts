@@ -132,7 +132,15 @@ export class CIPCodeVerifierAgent {
     console.log(`[CIPVerifier]    - Corrected: ${corrected}`);
     console.log(`[CIPVerifier]    - Invalid: ${invalid}`);
     
-    return verified;
+    // CRITICAL FIX: Filter out invalid programs before returning
+    // Invalid programs have CIP codes that don't match the user's query intent
+    const validPrograms = verified.filter(v => v.cipValidation.isValid);
+    
+    if (invalid > 0) {
+      console.log(`[CIPVerifier] 🗑️  Filtered out ${invalid} invalid programs`);
+    }
+    
+    return validPrograms;
   }
   
   /**

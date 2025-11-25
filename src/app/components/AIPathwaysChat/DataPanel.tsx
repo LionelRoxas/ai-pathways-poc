@@ -21,6 +21,8 @@ interface DataPanelProps {
   setActiveDataTab: (tab: string) => void;
   messages?: any[]; // Conversation context for personalized insights
   userProfile?: any; // User profile for personalized insights
+  webSearchResults?: any[]; // Web search results from Exa
+  requestShowWebTab?: boolean; // External trigger to show web tab
 }
 
 interface Tab {
@@ -36,14 +38,30 @@ export default function DataPanel({
   setActiveDataTab,
   messages,
   userProfile,
+  webSearchResults = [],
+  requestShowWebTab = false,
 }: DataPanelProps) {
   const [showDetails, setShowDetails] = useState(false);
   const [showPathway, setShowPathway] = useState(true); // Default to Pathway view
+  const [showWebSearch, setShowWebSearch] = useState(false);
   const [panelWidth, setPanelWidth] = useState(384); // Default 96 * 4 = 384px (w-96)
   const [isResizing, setIsResizing] = useState(false);
   const [pathwayLoading, setPathwayLoading] = useState(false);
   const [showOverlay, setShowOverlay] = useState(false);
   const [hasShownOverlay, setHasShownOverlay] = useState(false);
+  const prevRequestShowWebTabRef = useRef(requestShowWebTab);
+
+  // React to external request to show web tab - only when the value changes
+  useEffect(() => {
+    const hasChanged = prevRequestShowWebTabRef.current !== requestShowWebTab;
+    if (hasChanged) {
+      console.log("[DataPanel] 📨 Received request to show Web tab");
+      setShowWebSearch(true);
+      setShowDetails(false);
+      setShowPathway(false);
+      prevRequestShowWebTabRef.current = requestShowWebTab;
+    }
+  }, [requestShowWebTab]);
 
   // Check if overlay has been shown this session
   useEffect(() => {
@@ -125,10 +143,24 @@ export default function DataPanel({
     };
   }, [isResizing]);
 
-  // Don't render if panel is closed or no SOC codes
-  if (!dataPanelOpen || socCodes.length === 0) return null;
+  // Determine which tabs to show based on available data (before early return)
+  const hasCareerData = socCodes.length > 0;
+  const hasWebData = webSearchResults.length > 0;
 
-  // Tabs for detailed data view (3 tabs - Pathway is now top-level)
+  // Auto-show Web tab if only web data is available (no career data)
+  // This must be called BEFORE any early returns to maintain hook order
+  useEffect(() => {
+    if (!hasCareerData && hasWebData && !showWebSearch) {
+      setShowWebSearch(true);
+      setShowDetails(false);
+      setShowPathway(false);
+    }
+  }, [hasCareerData, hasWebData, showWebSearch]);
+
+  // Don't render if panel is closed or no data available
+  if (!dataPanelOpen || (socCodes.length === 0 && webSearchResults.length === 0)) return null;
+
+  // Tabs for detailed data view (3 tabs under Careers - Pathway and Web are now top-level)
   const detailedDataTabs: Tab[] = [
     {
       id: "companies",
@@ -170,47 +202,72 @@ export default function DataPanel({
         {/* Toggleable Header */}
         <div className="px-4 py-3 border-b border-gray-200 bg-white">
           <div className="flex items-center justify-between gap-3">
-            {/* 3-Way Navigation Toggle */}
+            {/* Navigation Toggle - Show only tabs with data */}
             <div className="flex-1 flex gap-6">
-              <button
-                onClick={() => {
-                  setShowDetails(false);
-                  setShowPathway(true);
-                }}
-                className={`px-1 py-2 text-sm font-medium transition-colors border-b-2 ${
-                  showPathway
-                    ? "text-black border-black"
-                    : "text-gray-400 border-transparent hover:text-gray-600"
-                }`}
-              >
-                Pathway
-              </button>
-              <button
-                onClick={() => {
-                  setShowDetails(false);
-                  setShowPathway(false);
-                }}
-                className={`px-1 py-2 text-sm font-medium transition-colors border-b-2 ${
-                  !showDetails && !showPathway
-                    ? "text-black border-black"
-                    : "text-gray-400 border-transparent hover:text-gray-600"
-                }`}
-              >
-                Summary
-              </button>
-              <button
-                onClick={() => {
-                  setShowDetails(true);
-                  setShowPathway(false);
-                }}
-                className={`px-1 py-2 text-sm font-medium transition-colors border-b-2 ${
-                  showDetails && !showPathway
-                    ? "text-black border-black"
-                    : "text-gray-400 border-transparent hover:text-gray-600"
-                }`}
-              >
-                Careers
-              </button>
+              {hasCareerData && (
+                <button
+                  onClick={() => {
+                    setShowDetails(false);
+                    setShowPathway(true);
+                    setShowWebSearch(false);
+                  }}
+                  className={`px-1 py-2 text-sm font-medium transition-colors border-b-2 ${
+                    showPathway
+                      ? "text-black border-black"
+                      : "text-gray-400 border-transparent hover:text-gray-600"
+                  }`}
+                >
+                  Pathway
+                </button>
+              )}
+              {hasCareerData && (
+                <button
+                  onClick={() => {
+                    setShowDetails(false);
+                    setShowPathway(false);
+                    setShowWebSearch(false);
+                  }}
+                  className={`px-1 py-2 text-sm font-medium transition-colors border-b-2 ${
+                    !showDetails && !showPathway && !showWebSearch
+                      ? "text-black border-black"
+                      : "text-gray-400 border-transparent hover:text-gray-600"
+                  }`}
+                >
+                  Summary
+                </button>
+              )}
+              {hasCareerData && (
+                <button
+                  onClick={() => {
+                    setShowDetails(true);
+                    setShowPathway(false);
+                    setShowWebSearch(false);
+                  }}
+                  className={`px-1 py-2 text-sm font-medium transition-colors border-b-2 ${
+                    showDetails && !showPathway && !showWebSearch
+                      ? "text-black border-black"
+                      : "text-gray-400 border-transparent hover:text-gray-600"
+                  }`}
+                >
+                  Careers
+                </button>
+              )}
+              {hasWebData && (
+                <button
+                  onClick={() => {
+                    setShowDetails(false);
+                    setShowPathway(false);
+                    setShowWebSearch(true);
+                  }}
+                  className={`px-1 py-2 text-sm font-medium transition-colors border-b-2 ${
+                    showWebSearch
+                      ? "text-emerald-600 border-emerald-600"
+                      : "text-gray-400 border-transparent hover:text-emerald-500"
+                  }`}
+                >
+                  Web
+                </button>
+              )}
             </div>
 
             {/* Close Button */}
@@ -226,34 +283,74 @@ export default function DataPanel({
 
         {/* Content */}
         <div className="flex-1 overflow-y-auto p-4 bg-white">
-          {/* ✅ Summary View - Market Intelligence Report */}
-          <div style={{ display: !showDetails && !showPathway ? "block" : "none" }}>
-            <MarketIntelligenceReport
-              socCodes={socCodes}
-              messages={messages}
-              userProfile={userProfile}
-              key={socCodesKey}
-            />
+          {/* ✅ Summary View - Market Intelligence Report (only show if has career data) */}
+          {hasCareerData && (
+            <div style={{ display: !showDetails && !showPathway && !showWebSearch ? "block" : "none" }}>
+              <MarketIntelligenceReport
+                socCodes={socCodes}
+                messages={messages}
+                userProfile={userProfile}
+                key={socCodesKey}
+              />
+            </div>
+          )}
+
+          {/* ✅ Web Search View - Top Level with emerald green theme */}
+          <div style={{ display: showWebSearch ? "block" : "none" }}>
+            <div className="space-y-4">
+              <h3 className="text-lg font-semibold text-gray-900 mb-4">Search Results</h3>
+              {webSearchResults.length === 0 ? (
+                <p className="text-gray-500 text-sm">No web search results available.</p>
+              ) : (
+                <div className="space-y-4">
+                  {webSearchResults.map((result, index) => (
+                    <div key={index} className="border border-emerald-200 rounded-lg p-4 hover:shadow-md hover:border-emerald-400 transition-all bg-gradient-to-br from-white to-emerald-50/30">
+                      <a
+                        href={result.url}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="text-emerald-600 hover:text-emerald-800 font-medium text-base mb-2 block"
+                      >
+                        {result.title}
+                      </a>
+                      <p className="text-gray-600 text-sm mb-2 line-clamp-3">
+                        {result.snippet}
+                      </p>
+                      <div className="flex items-center gap-2 text-xs text-gray-400">
+                        <span className="truncate">{new URL(result.url).hostname}</span>
+                        {result.publishedDate && (
+                          <>
+                            <span>•</span>
+                            <span>{new Date(result.publishedDate).toLocaleDateString()}</span>
+                          </>
+                        )}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
+            </div>
           </div>
 
-          {/* ✅ Detailed Data View - Visualizers with tabs */}
-          <div style={{ display: showDetails && !showPathway ? "block" : "none" }}>
-            {/* Tabs */}
-            <div className="flex gap-6 mb-4">
-              {detailedDataTabs.map(tab => (
-                <button
-                  key={tab.id}
-                  onClick={() => setActiveDataTab(tab.id)}
-                  className={`px-1 py-2 text-sm font-medium transition-colors border-b-2 ${
-                    activeDataTab === tab.id
-                      ? "text-black border-black"
-                      : "text-gray-400 border-transparent hover:text-gray-600"
-                  }`}
-                >
-                  {tab.label}
-                </button>
-              ))}
-            </div>
+          {/* ✅ Detailed Data View - Visualizers with tabs (only show if has career data) */}
+          {hasCareerData && (
+            <div style={{ display: showDetails && !showPathway && !showWebSearch ? "block" : "none" }}>
+              {/* Tabs */}
+              <div className="flex gap-6 mb-4">
+                {detailedDataTabs.map(tab => (
+                  <button
+                    key={tab.id}
+                    onClick={() => setActiveDataTab(tab.id)}
+                    className={`px-1 py-2 text-sm font-medium transition-colors border-b-2 ${
+                      activeDataTab === tab.id
+                        ? "text-black border-black"
+                        : "text-gray-400 border-transparent hover:text-gray-600"
+                    }`}
+                  >
+                    {tab.label}
+                  </button>
+                ))}
+              </div>
 
             {/* ✅ All Visualizers ALWAYS mounted - just hide with CSS */}
             <div
@@ -275,18 +372,21 @@ export default function DataPanel({
             >
               <CompaniesSkillsVisualizer socCodes={socCodes} />
             </div>
-          </div>
+            </div>
+          )}
 
-          {/* ✅ Pathway View - Personalized pathway planning */}
-          <div style={{ display: showPathway ? "block" : "none" }}>
-            <PathwayPlan 
-              userProfile={userProfile} 
-              messages={messages} 
-              programsData={{ socCodes }}
-              onLoadingChange={setPathwayLoading}
-              onShowOverlay={handleShowOverlay}
-            />
-          </div>
+          {/* ✅ Pathway View - Personalized pathway planning (only show if has career data) */}
+          {hasCareerData && (
+            <div style={{ display: showPathway && !showWebSearch ? "block" : "none" }}>
+              <PathwayPlan 
+                userProfile={userProfile} 
+                messages={messages} 
+                programsData={{ socCodes }}
+                onLoadingChange={setPathwayLoading}
+                onShowOverlay={handleShowOverlay}
+              />
+            </div>
+          )}
         </div>
       </div>
 

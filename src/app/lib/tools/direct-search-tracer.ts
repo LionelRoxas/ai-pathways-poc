@@ -12,6 +12,7 @@ import {
   getSemanticProgramSearch,
   type SemanticSearchResult,
 } from "./semantic-program-search";
+import { getPgVectorSearch } from "./pgvector-search";
 
 /**
  * Direct Search PathwayTracer
@@ -30,7 +31,11 @@ export class DirectSearchTracer {
   private careerDataTool: any;
   private enhancedProgramTool = getEnhancedProgramTool();
   private semanticSearch = getSemanticProgramSearch();
+  private pgVectorSearch = getPgVectorSearch();
   private islandMappingTool = getIslandMappingTool();
+  
+  // Feature flag: Use pgVector for semantic search (much faster!)
+  private usePgVector = process.env.USE_PGVECTOR_SEARCH === 'true';
 
   constructor(
     hsDataTool: any,
@@ -81,55 +86,87 @@ export class DirectSearchTracer {
     }> = [];
 
     if (shouldUseSemanticSearch) {
-      console.log(
-        `[DirectSearchTracer] 🧠 Using SEMANTIC search (LLM-powered)`
-      );
+      if (this.usePgVector) {
+        console.log(
+          `[DirectSearchTracer] 🚀 Using PGVECTOR semantic search (fast vector similarity)`
+        );
 
-      // Use semantic search for better understanding
-      const semanticResults = await this.semanticSearch.semanticSearch(
-        keywords.join(" "),
-        islandFilter,
-        {
-          maxResults: 100,
-          minRelevance: 5,
-          conversationContext: conversationContext || "",
-        }
-      );
+        // Use pgVector search - much faster!
+        const pgVectorResults = await this.pgVectorSearch.semanticSearch(
+          keywords.join(" "),
+          islandFilter,
+          {
+            maxResults: 100,
+            minSimilarity: 0.35, // 35% similarity threshold
+            conversationContext: conversationContext || "",
+          }
+        );
 
-      console.log(
-        `[DirectSearchTracer] Found ${semanticResults.length} college programs via semantic search`
-      );
+        console.log(
+          `[DirectSearchTracer] Found ${pgVectorResults.length} college programs via pgVector search`
+        );
 
-      // DEBUG: Log programs that appear multiple times (different institutions)
-      const instGroups = new Map<string, any[]>();
-      semanticResults.forEach(result => {
-        const desc = result.program.program_desc;
-        if (!instGroups.has(desc)) {
-          instGroups.set(desc, []);
-        }
-        instGroups.get(desc)!.push({
+        // Convert pgVector results to our format
+        collegeResults = pgVectorResults.map(result => ({
+          program: {
+            ...result.program,
+            program_desc: result.program.program_desc,
+            iro_institution: result.program.iro_institution,
+          },
           campus: result.campus,
-          institution: result.program.iro_institution,
-          score: result.relevanceScore
-        });
-      });
-      
-      // Log programs found at multiple institutions
-      for (const [desc, instances] of instGroups.entries()) {
-        if (instances.length > 1) {
-          console.log(`[DirectSearchTracer] 🎓 "${desc}" found at ${instances.length} institutions:`);
-          instances.forEach((inst: any) => {
-            console.log(`[DirectSearchTracer]    - ${inst.institution} (${inst.campus}), score: ${inst.score}`);
-          });
-        }
-      }
+          matchScore: result.similarity * 100, // Convert 0-1 to 0-100
+        }));
+      } else {
+        console.log(
+          `[DirectSearchTracer] 🧠 Using SEMANTIC search (LLM-powered)`
+        );
 
-      // Convert semantic results to our format
-      collegeResults = semanticResults.map(result => ({
-        program: result.program,
-        campus: result.campus,
-        matchScore: result.relevanceScore * 10, // Scale 1-10 to 10-100
-      }));
+        // Use semantic search for better understanding
+        const semanticResults = await this.semanticSearch.semanticSearch(
+          keywords.join(" "),
+          islandFilter,
+          {
+            maxResults: 100,
+            minRelevance: 5,
+            conversationContext: conversationContext || "",
+          }
+        );
+
+        console.log(
+          `[DirectSearchTracer] Found ${semanticResults.length} college programs via semantic search`
+        );
+
+        // DEBUG: Log programs that appear multiple times (different institutions)
+        const instGroups = new Map<string, any[]>();
+        semanticResults.forEach(result => {
+          const desc = result.program.program_desc;
+          if (!instGroups.has(desc)) {
+            instGroups.set(desc, []);
+          }
+          instGroups.get(desc)!.push({
+            campus: result.campus,
+            institution: result.program.iro_institution,
+            score: result.relevanceScore
+          });
+        });
+        
+        // Log programs found at multiple institutions
+        for (const [desc, instances] of instGroups.entries()) {
+          if (instances.length > 1) {
+            console.log(`[DirectSearchTracer] 🎓 "${desc}" found at ${instances.length} institutions:`);
+            instances.forEach((inst: any) => {
+              console.log(`[DirectSearchTracer]    - ${inst.institution} (${inst.campus}), score: ${inst.score}`);
+            });
+          }
+        }
+
+        // Convert semantic results to our format
+        collegeResults = semanticResults.map(result => ({
+          program: result.program,
+          campus: result.campus,
+          matchScore: result.relevanceScore * 10, // Scale 1-10 to 10-100
+        }));
+      }
     } else {
       console.log(`[DirectSearchTracer] ⚡ Using FAST keyword search`);
 

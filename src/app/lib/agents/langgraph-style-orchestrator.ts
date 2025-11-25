@@ -20,11 +20,13 @@ import { z } from "zod";
 
 // Import all existing agents - we keep ALL your smart logic!
 import { ResultVerifier } from "./result-verifier";
+import { VectorResultVerifier } from "./vector-result-verifier";
 import { ResponseFormatterAgent } from "./response-formatter";
 import { ReflectionAgent } from "./reflection-agent";
 import { ConversationalAgent } from "./conversational-agent";
 import { CIPCodeVerifierAgent } from "./cip-code-verifier";
 import { SOCCodeVerifierAgent } from "./soc-code-verifier";
+import { VectorSOCVerifier } from "./vector-soc-verifier";
 import { classifyQueryWithLLM } from "./llm-classifier";
 import { aggregateHighSchoolPrograms, aggregateCollegePrograms } from "../helpers/pathway-aggregator";
 
@@ -32,13 +34,25 @@ const groq = new Groq({
   apiKey: process.env.GROQ_API_KEY,
 });
 
+// Feature flag: Use vector-based verification for 10-50x speed improvement
+const USE_VECTOR_VERIFICATION = process.env.USE_VECTOR_VERIFICATION === 'true';
+
 // Initialize agents
-const resultVerifier = new ResultVerifier();
+const resultVerifier = USE_VECTOR_VERIFICATION 
+  ? new VectorResultVerifier() 
+  : new ResultVerifier();
+
 const responseFormatter = new ResponseFormatterAgent();
 const reflectionAgent = new ReflectionAgent();
 const conversationalAgent = new ConversationalAgent();
 const cipVerifier = new CIPCodeVerifierAgent();
-const socVerifier = new SOCCodeVerifierAgent();
+
+const socVerifier = USE_VECTOR_VERIFICATION
+  ? new VectorSOCVerifier()
+  : new SOCCodeVerifierAgent();
+
+// Import conversation filter utility
+import { filterRelevantConversation } from "../helpers/conversation-filter";
 
 /**
  * ZOD SCHEMAS FOR VALIDATION
@@ -240,8 +254,11 @@ async function profileExtractorNode(state: StateManager): Promise<void> {
     // AFFIRMATIVE: Pull context from conversation using LLM intelligence
     console.log(`[ProfileExtractor] ✅ Affirmative response - extracting conversation context with LLM.`);
     
+    // Filter conversation to remove unrelated old topics
+    const filteredHistory = filterRelevantConversation(state.conversationHistory, state.userQuery, 5);
+    
     // Use LLM to intelligently extract the topic/program being discussed
-    const recentMessages = state.conversationHistory.slice(-3);
+    const recentMessages = filteredHistory.slice(-3);
     const conversationContext = recentMessages
       .map(m => `${m.role}: ${m.content}`)
       .join('\n');
@@ -546,7 +563,10 @@ async function toolExecutorNode(state: StateManager): Promise<void> {
 async function verifierNode(state: StateManager): Promise<void> {
   state.log("NODE: Verifier");
   
-  const extractedIntent = state.keywords[0] || state.userQuery;
+  // Use ALL keywords joined together for better context, not just the first one
+  const extractedIntent = state.keywords.length > 0 
+    ? state.keywords.join(", ") 
+    : state.userQuery;
   
   // SMART PROFILE USAGE: Don't pass profile during affirmative responses
   // When user says "yes" after a suggestion, we want to focus on the conversation context,

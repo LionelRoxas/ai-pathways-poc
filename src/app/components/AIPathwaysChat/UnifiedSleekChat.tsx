@@ -190,6 +190,9 @@ export default function UnifiedSleekChat({
   const lastUpdateRef = useRef<number>(0);
   const [displayedSocCodes, setDisplayedSocCodes] = useState<string[]>([]);
   const isInitializing = useRef(false);
+  const [webSearchEnabled, setWebSearchEnabled] = useState(false);
+  const [webSearchResults, setWebSearchResults] = useState<any[]>([]);
+  const [requestShowWebTab, setRequestShowWebTab] = useState(false);
 
   const currentLanguage = selectedLanguage || {
     code: "en",
@@ -477,16 +480,16 @@ export default function UnifiedSleekChat({
         prevSocCodesRef.current = extractedSocCodes;
         prevCurrentDataRef.current = currentData;
 
-        // Auto-open DataPanel when SOC codes are available
+        // Auto-open DataPanel ONLY when SOC codes are available
         if (extractedSocCodes.length > 0 && !dataPanelOpen) {
           console.log("[Parent] 🎯 Opening DataPanel with extracted SOC codes");
           setDataPanelOpen(true);
           setActiveDataTab("companies");
         }
         
-        // Auto-close DataPanel when no SOC codes (prevent empty gap)
-        if (extractedSocCodes.length === 0 && dataPanelOpen) {
-          console.log("[Parent] 🚫 Closing DataPanel - no SOC codes available");
+        // Auto-close DataPanel when no SOC codes AND no web search results (prevent empty gap)
+        if (extractedSocCodes.length === 0 && webSearchResults.length === 0 && dataPanelOpen) {
+          console.log("[Parent] 🚫 Closing DataPanel - no SOC codes or web results available");
           setDataPanelOpen(false);
         }
       } else {
@@ -710,13 +713,15 @@ export default function UnifiedSleekChat({
               if (pathwayData.data && Object.keys(pathwayData.data).length > 0) {
                 setCurrentData(pathwayData.data);
 
+                // Check if data contains careers (which leads to SOC codes extraction)
+                const hasCareers = pathwayData.data.careers && pathwayData.data.careers.length > 0;
+                
                 const hasActualData =
                   (pathwayData.data.highSchoolPrograms &&
                     pathwayData.data.highSchoolPrograms.length > 0) ||
                   (pathwayData.data.collegePrograms && 
                     pathwayData.data.collegePrograms.length > 0) ||
-                  (pathwayData.data.careers && 
-                    pathwayData.data.careers.length > 0) ||
+                  hasCareers ||
                   (pathwayData.data.uhPrograms && 
                     pathwayData.data.uhPrograms.length > 0) ||
                   (pathwayData.data.doePrograms && 
@@ -729,7 +734,9 @@ export default function UnifiedSleekChat({
                       (pathwayData.data.searchResults.doePrograms &&
                         pathwayData.data.searchResults.doePrograms.length > 0)));
 
-                if (hasActualData && !dataPanelOpen) {
+                // Only open panel if we have careers (SOC codes will be extracted)
+                if (hasActualData && hasCareers && !dataPanelOpen) {
+                  console.log("[Parent] 🎯 Opening DataPanel after profile generation - has careers");
                   setDataPanelOpen(true);
                   setActiveDataTab("companies");
                 }
@@ -827,6 +834,58 @@ export default function UnifiedSleekChat({
 
       const data = await response.json();
 
+      // 🌐 Web Search: Execute if enabled with conversation context AND generate summary
+      let webSearchSummary = "";
+      if (webSearchEnabled) {
+        console.log("[WebSearch] 🔍 Fetching web search results with context...");
+        console.log("[WebSearch] ⏱️  Starting web search API call...");
+        try {
+          // Only pass the last 3 message exchanges (6 messages max) for more focused context
+          // This prevents old conversation topics from influencing the search
+          const recentContext = newMessages.slice(-6).map(msg => ({
+            role: msg.role,
+            content: msg.content.slice(0, 500), // Limit content length
+          }));
+          
+          console.log(`[WebSearch] 📝 Using ${recentContext.length} recent messages for context`);
+          
+          const searchResponse = await fetch("/api/exa-search", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({
+              query: userMessage.content,
+              numResults: 5,
+              conversationContext: recentContext,
+              generateSummary: true, // Request summary generation
+            }),
+          });
+
+          if (searchResponse.ok) {
+            const searchData = await searchResponse.json();
+            console.log(`[WebSearch] ✅ Found ${searchData.results?.length || 0} results`);
+            if (searchData.originalQuery !== searchData.query) {
+              console.log(`[WebSearch] 📝 Enhanced query: "${searchData.originalQuery}" → "${searchData.query}"`);
+            }
+            if (searchData.summary) {
+              console.log(`[WebSearch] 📝 Generated summary: ${searchData.summary.length} chars`);
+              webSearchSummary = searchData.summary;
+            }
+            setWebSearchResults(searchData.results || []);
+            console.log("[WebSearch] ⏱️  Web search API call completed");
+          } else {
+            console.error("[WebSearch] ❌ Failed to fetch results");
+            setWebSearchResults([]);
+          }
+        } catch (error) {
+          console.error("[WebSearch] ❌ Error:", error);
+          setWebSearchResults([]);
+        }
+      } else {
+        setWebSearchResults([]);
+      }
+      
+      console.log(`[WebSearch] 📊 Summary status: ${webSearchSummary ? 'YES (' + webSearchSummary.length + ' chars)' : 'NO'}`);
+
       if (data.readyForProfile && !userProfile?.isComplete) {
         console.log("Profile building triggered by profiling-chat API");
         const transcript = newMessages
@@ -878,11 +937,14 @@ export default function UnifiedSleekChat({
       if (data.data && Object.keys(data.data).length > 0) {
         setCurrentData(data.data);
 
+        // Check if data contains careers (which leads to SOC codes extraction)
+        const hasCareers = data.data.careers && data.data.careers.length > 0;
+        
         const hasActualData =
           (data.data.highSchoolPrograms &&
             data.data.highSchoolPrograms.length > 0) ||
           (data.data.collegePrograms && data.data.collegePrograms.length > 0) ||
-          (data.data.careers && data.data.careers.length > 0) ||
+          hasCareers ||
           (data.data.uhPrograms && data.data.uhPrograms.length > 0) ||
           (data.data.doePrograms && data.data.doePrograms.length > 0) ||
           (data.data.pathways && data.data.pathways.length > 0) ||
@@ -892,20 +954,50 @@ export default function UnifiedSleekChat({
               (data.data.searchResults.doePrograms &&
                 data.data.searchResults.doePrograms.length > 0)));
 
-        if (hasActualData && !dataPanelOpen) {
+        // Only open panel if we have careers (SOC codes will be extracted)
+        if (hasActualData && hasCareers && !dataPanelOpen) {
+          console.log("[Parent] 🎯 Opening DataPanel - has careers data");
           setDataPanelOpen(true);
           // Always set to a valid tab for the SOC-based DataPanel
           setActiveDataTab("companies");
         }
       }
 
+      // Open data panel for web search results ONLY if we have results
+      if (webSearchResults.length > 0 && !dataPanelOpen) {
+        console.log("[Parent] 🎯 Opening DataPanel - has web search results");
+        setDataPanelOpen(true);
+      }
+
       if (data.suggestedQuestions) {
         setSuggestedQuestions(data.suggestedQuestions);
       }
 
+      // Append web search summary if available
+      console.log(`[WebSearch] 🔍 Checking summary append conditions:`, {
+        hasSummary: !!webSearchSummary,
+        summaryLength: webSearchSummary?.length || 0,
+        hasWebSearchSummary: !!webSearchSummary // Just check if summary exists
+      });
+      
+      let finalContent = data.message;
+      // ✅ FIX: Only check if webSearchSummary exists (it already contains results data)
+      if (webSearchSummary) {
+        console.log(`[WebSearch] ✅ Appending AI summary to message (${webSearchSummary.length} chars)`);
+        // Format as a styled artifact/paper container using markdown
+        finalContent += "\n\n---\n\n";
+        finalContent += "### 🌐 Web Research\n\n";
+        finalContent += "```artifact\n";
+        finalContent += webSearchSummary;
+        finalContent += "\n```\n\n";
+        finalContent += "*→ View detailed sources in the Web tab*";
+      } else {
+        console.log("[WebSearch] ℹ️  No summary to append");
+      }
+
       const assistantMessage: Message = {
         role: "assistant",
-        content: data.message,
+        content: finalContent,
         data: data.data,
         metadata: data.metadata,
       };
@@ -1029,6 +1121,12 @@ export default function UnifiedSleekChat({
               dataPanelOpen={dataPanelOpen}
               setSidebarOpen={setSidebarOpen}
               navSidebarOpen={navSidebarOpen}
+              onOpenWebTab={() => {
+                console.log("[UnifiedSleekChat] 🌐 Opening Web tab...");
+                setDataPanelOpen(true);
+                // Toggle the request flag to trigger DataPanel to show web tab
+                setRequestShowWebTab(prev => !prev);
+              }}
             />
           </div>
         </div>
@@ -1044,6 +1142,8 @@ export default function UnifiedSleekChat({
           sidebarOpen={sidebarOpen}
           navSidebarOpen={navSidebarOpen}
           userMessageCount={getUserMessageCount()}
+          webSearchEnabled={webSearchEnabled}
+          setWebSearchEnabled={setWebSearchEnabled}
         />
       </div>
 
@@ -1056,6 +1156,8 @@ export default function UnifiedSleekChat({
         setActiveDataTab={setActiveDataTab}
         messages={messages} // ✅ Pass conversation context
         userProfile={userProfile} // ✅ Pass user profile
+        webSearchResults={webSearchResults} // ✅ Pass web search results
+        requestShowWebTab={requestShowWebTab} // ✅ Pass request to show web tab
       />
     </div>
   );
