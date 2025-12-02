@@ -10,7 +10,6 @@ interface MarketIntelligenceData {
   jobTitlesSkills: any;
   jobTitlesCompanies: any;
   companiesSkills: any;
-  activePosts: any;
 }
 
 interface MarketReport {
@@ -20,7 +19,6 @@ interface MarketReport {
     totalSkills: number;
     topCompanies: string[];
     topSkills: string[];
-    activePosts: number;
     skillDemandData?: Array<[string, number]>; // [skillName, postingCount]
   };
 }
@@ -42,44 +40,77 @@ export class MarketIntelligenceAgent {
     // Join SOC codes with commas for query parameter
     const socCodesParam = socCodes.join(',');
 
+    // Get JWT token from environment
+    const jwtToken = process.env.JWT_TOKEN_SECRET;
+    if (!jwtToken) {
+      throw new Error('JWT_TOKEN_SECRET not configured');
+    }
+
     // Call external API directly (server-side only, not through Next.js proxy)
-    const externalBaseUrl = 'https://careerexplorer.hawaii.edu/api_pathways';
+    const externalBaseUrl = 'https://careerexplorer.hawaii.edu/api/kamaaina_pathways';
 
     try {
       // Fetch all 4 SOC endpoints in parallel (all use GET with query params)
       console.log('[MarketIntelligence] 🔄 Calling external SOC APIs...');
-      const [jobTitlesSkills, jobTitlesCompanies, companiesSkills, activePosts] = await Promise.all([
-        fetch(`${externalBaseUrl}/soc5_to_jobtitles_skills.php?soc5=${socCodesParam}`, {
-          headers: { Accept: 'application/json' },
+      // Helper function to parse response (handles both JSON and PHP array output)
+      const parseApiResponse = async (res: Response, apiName: string) => {
+        const text = await res.text();
+        const trimmed = text.trim();
+        
+        // Try JSON first
+        if (trimmed.startsWith('{') || trimmed.startsWith('[')) {
+          return JSON.parse(text);
+        }
+        
+        // Handle PHP print_r output (workaround)
+        if (trimmed.includes('<pre>Array') || trimmed.includes('Array\n(')) {
+          console.log(`[MarketIntelligence] ⚠️  ${apiName} returned PHP array, extracting JSON...`);
+          const jsonMatch = text.match(/\{[\s\S]*\}/);
+          if (jsonMatch) {
+            return JSON.parse(jsonMatch[0]);
+          }
+          throw new Error(`${apiName}: Could not extract JSON from PHP output`);
+        }
+        
+        throw new Error(`${apiName}: Unexpected response format`);
+      };
+
+      const [jobTitlesSkills, jobTitlesCompanies, companiesSkills] = await Promise.all([
+        fetch(`${externalBaseUrl}/soc5_to_jobtitles_skills.php?t=${jwtToken}&soc5=${socCodesParam}`, {
+          headers: { 
+            Accept: 'application/json',
+            Origin: 'https://kamaaina-pathways.vercel.app',
+            Referer: 'https://kamaaina-pathways.vercel.app/',
+          },
         })
-          .then(res => {
+          .then(async res => {
             console.log('[MarketIntelligence] jobtitles-skills status:', res.status);
             if (!res.ok) throw new Error(`jobtitles-skills API error: ${res.status}`);
-            return res.json();
+            return parseApiResponse(res, 'jobtitles-skills');
           }),
-        fetch(`${externalBaseUrl}/soc5_to_jobtitles_companies.php?soc5=${socCodesParam}`, {
-          headers: { Accept: 'application/json' },
+        fetch(`${externalBaseUrl}/soc5_to_jobtitles_companies.php?t=${jwtToken}&soc5=${socCodesParam}`, {
+          headers: { 
+            Accept: 'application/json',
+            Origin: 'https://kamaaina-pathways.vercel.app',
+            Referer: 'https://kamaaina-pathways.vercel.app/',
+          },
         })
-          .then(res => {
+          .then(async res => {
             console.log('[MarketIntelligence] jobtitles-companies status:', res.status);
             if (!res.ok) throw new Error(`jobtitles-companies API error: ${res.status}`);
-            return res.json();
+            return parseApiResponse(res, 'jobtitles-companies');
           }),
-        fetch(`${externalBaseUrl}/soc5_to_companies_skills.php?soc5=${socCodesParam}`, {
-          headers: { Accept: 'application/json' },
+        fetch(`${externalBaseUrl}/soc5_to_companies_skills.php?t=${jwtToken}&soc5=${socCodesParam}`, {
+          headers: { 
+            Accept: 'application/json',
+            Origin: 'https://kamaaina-pathways.vercel.app',
+            Referer: 'https://kamaaina-pathways.vercel.app/',
+          },
         })
-          .then(res => {
+          .then(async res => {
             console.log('[MarketIntelligence] companies-skills status:', res.status);
             if (!res.ok) throw new Error(`companies-skills API error: ${res.status}`);
-            return res.json();
-          }),
-        fetch(`${externalBaseUrl}/soc5_to_active_posts.php?soc5=${socCodesParam}`, {
-          headers: { Accept: 'application/json' },
-        })
-          .then(res => {
-            console.log('[MarketIntelligence] active-posts status:', res.status);
-            if (!res.ok) throw new Error(`active-posts API error: ${res.status}`);
-            return res.json();
+            return parseApiResponse(res, 'companies-skills');
           }),
       ]);
 
@@ -88,14 +119,12 @@ export class MarketIntelligenceAgent {
         jobTitlesSkills: jobTitlesSkills?.data ? 'OK' : 'MISSING',
         jobTitlesCompanies: jobTitlesCompanies?.data ? 'OK' : 'MISSING',
         companiesSkills: companiesSkills?.data ? 'OK' : 'MISSING',
-        activePosts: activePosts?.data ? 'OK' : 'MISSING',
       });
 
       return {
         jobTitlesSkills,
         jobTitlesCompanies,
         companiesSkills,
-        activePosts,
       };
     } catch (error) {
       console.error('[MarketIntelligence] ❌ Error fetching data:', error);
@@ -483,9 +512,6 @@ Generate a personalized UHCC career roadmap with realistic, industry-relevant sk
     
     const topSkills = topSkillsWithCounts.map(([name]) => name);
 
-    // Count active posts
-    const activePosts = data.activePosts?.data?.totals?.unique_postings || 0;
-
     console.log('[MarketIntelligence] 📊 Extracted summary:', {
       totalCompanies: companies.size,
       totalSkills: skills.size,
@@ -499,7 +525,6 @@ Generate a personalized UHCC career roadmap with realistic, industry-relevant sk
       totalSkills: skills.size,
       topCompanies,
       topSkills,
-      activePosts,
       skillDemandData: topSkillsWithCounts, // Include counts for LLM
     };
   }
