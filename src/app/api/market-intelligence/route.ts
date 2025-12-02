@@ -45,7 +45,6 @@ export async function POST(request: NextRequest) {
       jobTitlesSkills: !!marketData.jobTitlesSkills,
       jobTitlesCompanies: !!marketData.jobTitlesCompanies,
       companiesSkills: !!marketData.companiesSkills,
-      activePosts: !!marketData.activePosts,
     });
 
     // Generate AI-powered report using Groq with context
