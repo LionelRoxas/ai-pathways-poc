@@ -1036,8 +1036,16 @@ async function generateSearchConfirmation(
   const keywords = extractKeywords(message);
   const searchTerms = keywords.slice(0, 3); // Get top 3 keywords
   
+  // Check if user has searched before (look for previous tool executions in conversation)
+  const hasSearchedBefore = conversationHistory.some(msg => 
+    msg.role === 'assistant' && 
+    (msg.content?.includes('programs') || msg.content?.includes('pathways'))
+  );
+  
   // Build a clear summary of what we'll search for
-  let searchSummary = `I'm preparing to search for:\n\n`;
+  let searchSummary = hasSearchedBefore 
+    ? `I'm preparing to search for new topics:\n\n`
+    : `I'm preparing to search for:\n\n`;
   
   // Primary search terms
   if (searchTerms.length > 0) {
