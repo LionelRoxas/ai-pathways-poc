@@ -1022,6 +1022,65 @@ async function generateConversationalResponse(
 }
 
 /**
+ * SEARCH CONFIRMATION - Asks user to confirm before performing a search
+ */
+async function generateSearchConfirmation(
+  message: string,
+  conversationHistory: any[] = [],
+  profile?: UserProfile,
+  classification?: any
+): Promise<string> {
+  console.log('[Confirmation] Generating search confirmation prompt');
+  
+  // Extract what the user wants to search for
+  const keywords = extractKeywords(message);
+  const searchTerms = keywords.slice(0, 3); // Get top 3 keywords
+  
+  // Build a clear summary of what we'll search for
+  let searchSummary = `I'm preparing to search for:\n\n`;
+  
+  // Primary search terms
+  if (searchTerms.length > 0) {
+    searchSummary += `**Search Topics:** ${searchTerms.map(term => `"${term}"`).join(', ')}\n`;
+  }
+  
+  // Location filter
+  if (classification?.searchScope?.type === 'island' && classification.searchScope.location) {
+    searchSummary += `**Location:** Programs available on ${classification.searchScope.location}\n`;
+  } else if (classification?.searchScope?.type === 'school' && classification.searchScope.location) {
+    searchSummary += `**School:** Programs at ${classification.searchScope.location}\n`;
+  } else {
+    searchSummary += `**Location:** All Hawaii campuses and schools\n`;
+  }
+  
+  // Degree level filter
+  if (classification?.degreePreference) {
+    searchSummary += `**Degree Level:** ${classification.degreePreference} programs\n`;
+  } else {
+    searchSummary += `**Degree Level:** All levels (High School, 2-Year, 4-Year, Non-Credit)\n`;
+  }
+  
+  // Institution filter
+  if (classification?.institutionFilter?.name) {
+    searchSummary += `**Institution:** ${classification.institutionFilter.name}\n`;
+  }
+  
+  searchSummary += `\nThis search will return:\n`;
+  searchSummary += `- 📚 High school and college programs matching these topics\n`;
+  searchSummary += `- 💼 Related career pathways and opportunities\n`;
+  searchSummary += `- 🏫 Schools and campuses offering these programs\n`;
+  searchSummary += `- 🗺️  Personalized pathway recommendations\n`;
+  
+  const prompt = `${searchSummary}
+
+**Would you like me to proceed with this search?**
+
+Say "yes" to search, or let me know if you'd like to refine the search criteria first (e.g., specific location, degree level, etc.).`;
+
+  return prompt;
+}
+
+/**
  * MAIN ORCHESTRATOR - Coordinates the entire process with reflection loop
  */
 export async function processUserQuery(
@@ -1045,6 +1104,41 @@ export async function processUserQuery(
   try {
     // 0. CLASSIFY QUERY - Use LLM for intelligent classification
     const classification = await classifyQueryWithLLM(message, conversationHistory);
+    
+    // Check if we need confirmation before searching (NEW search topics)
+    if (classification.needsConfirmation && classification.queryType === 'search') {
+      console.log(`[Orchestrator] Search detected but needs confirmation first: "${message}"`);
+      console.log(`[Orchestrator] Reason: ${classification.reasoning}`);
+      
+      // Generate a confirmation prompt
+      const confirmationPrompt = await generateSearchConfirmation(
+        message,
+        conversationHistory,
+        profile,
+        classification
+      );
+      
+      return {
+        response: confirmationPrompt,
+        data: {
+          highSchoolPrograms: [],
+          collegePrograms: [],
+          careers: [],
+          cipMappings: [],
+          schools: [],
+          campuses: [],
+        },
+        profile: profile || {
+          educationLevel: null,
+          interests: [],
+          careerGoals: [],
+          location: null,
+        },
+        toolsUsed: [],
+        reflectionScore: 10,
+        attempts: 1,
+      };
+    }
     
     if (!classification.needsTools) {
       console.log(`[Orchestrator] Conversational query detected (${classification.queryType}): "${message}"`);
@@ -1080,7 +1174,7 @@ export async function processUserQuery(
       };
     }
     
-    console.log(`[Orchestrator] Search query detected (${classification.queryType}): "${message}"`);
+    console.log(`[Orchestrator] Search query confirmed (${classification.queryType}): "${message}"`);
     console.log(`[Orchestrator] Reason: ${classification.reasoning}`);
 
     // 1. Use the passed profile (no need to extract again)

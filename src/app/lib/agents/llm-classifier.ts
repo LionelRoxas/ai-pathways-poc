@@ -17,6 +17,7 @@ export async function classifyQueryWithLLM(
   needsTools: boolean;
   queryType: 'search' | 'followup' | 'clarification' | 'reasoning' | 'greeting';
   reasoning: string;
+  needsConfirmation?: boolean; // NEW: Indicates if we should ask before searching
   searchScope?: {
     type: 'island' | 'school' | 'general';
     location?: string;
@@ -31,14 +32,15 @@ export async function classifyQueryWithLLM(
   
   console.log('[LLM Classifier] 🔍 Analyzing message:', lowerMessage);
 
-  // FAST PATH: Simple affirmative responses always trigger search
-  const simpleAffirmative = /^(yes|yeah|yep|yup|sure|ok|okay)$/i;
+  // FAST PATH: Simple affirmative responses trigger search (user confirmed)
+  const simpleAffirmative = /^(yes|yeah|yep|yup|sure|ok|okay|search)$/i;
   if (simpleAffirmative.test(lowerMessage)) {
-    console.log('[LLM Classifier] ✅ Simple affirmative - auto-triggering tools');
+    console.log('[LLM Classifier] ✅ Simple affirmative - user confirmed search');
     return {
       needsTools: true,
       queryType: 'followup',
-      reasoning: 'User gave affirmative response'
+      reasoning: 'User confirmed they want to search',
+      needsConfirmation: false // User already said yes, so proceed with search
     };
   }
 
@@ -77,9 +79,14 @@ CLASSIFICATION OPTIONS:
    - "What programs are available?"
    - "Show me computer science options"
    - "I want to learn about healthcare careers"
+   - "What about nursing?" (topic pivot in conversation)
    - Any mention of specific fields (culinary, science, business, etc.)
    
-   IMPORTANT: If user says "yes" after assistant mentioned searching/exploring programs → SEARCH
+   CONFIRMATION RULES - CRITICAL:
+   - For NEW search topics (not confirmations): Set needsTools: FALSE and needsConfirmation: TRUE
+   - This makes the system ASK first before searching
+   - ONLY if user says "yes", "yeah", "ok", "search" (confirming): Set needsTools: TRUE and needsConfirmation: FALSE
+   - This prevents unwanted automatic searches
 
 2. **CLARIFICATION** - User asking questions about previous results or context
    Examples:
@@ -174,6 +181,7 @@ OUTPUT: Return ONLY valid JSON:
   "needsTools": true/false,
   "queryType": "search" | "clarification" | "greeting" | "reasoning",
   "reasoning": "brief explanation",
+  "needsConfirmation": true/false,
   "searchScope": {
     "type": "island" | "school" | "general",
     "location": "extracted location name or null"
@@ -184,6 +192,17 @@ OUTPUT: Return ONLY valid JSON:
     "name": "institution name"
   } | null
 }
+
+CRITICAL LOGIC FOR SEARCH QUERIES:
+- If user is asking about a NEW topic (e.g., "what about nursing", "interested in math"):
+  → needsTools: FALSE
+  → needsConfirmation: TRUE
+  → queryType: "search"
+  
+- If user is CONFIRMING (e.g., "yes", "yeah", "ok"):
+  → needsTools: TRUE
+  → needsConfirmation: FALSE
+  → queryType: "followup"
 
 If queryType is NOT "search", omit searchScope or set it to null.`;
 
@@ -210,6 +229,7 @@ If queryType is NOT "search", omit searchScope or set it to null.`;
         needsTools: classification.needsTools,
         queryType: classification.queryType,
         reasoning: classification.reasoning,
+        needsConfirmation: classification.needsConfirmation || false,
         searchScope: classification.searchScope || undefined,
         degreePreference: classification.degreePreference || undefined,
         institutionFilter: classification.institutionFilter || undefined
@@ -224,6 +244,7 @@ If queryType is NOT "search", omit searchScope or set it to null.`;
   return {
     needsTools: false,
     queryType: 'clarification',
-    reasoning: 'Fallback classification - being conversational'
+    reasoning: 'Fallback classification - being conversational',
+    needsConfirmation: false
   };
 }
